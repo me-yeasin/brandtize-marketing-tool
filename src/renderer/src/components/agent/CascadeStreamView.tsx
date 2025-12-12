@@ -10,7 +10,6 @@ interface CascadeStreamViewProps {
 
 function ThinkingBlock({ content }: { content: string }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const preview = content.slice(0, 150) + (content.length > 150 ? '...' : '')
 
   return (
     <div className="my-2">
@@ -24,16 +23,11 @@ function ThinkingBlock({ content }: { content: string }): React.JSX.Element {
         </span>
         <span className="text-xs uppercase tracking-wide opacity-70">Thinking...</span>
       </button>
-      <div
-        className={[
-          'mt-1 overflow-hidden pl-5 text-text-muted transition-all duration-200',
-          expanded ? 'max-h-[2000px]' : 'max-h-12'
-        ].join(' ')}
-      >
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-          {expanded ? content : preview}
+      {expanded && (
+        <div className="mt-1 pl-5 text-text-muted">
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">{content}</div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
