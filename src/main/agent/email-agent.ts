@@ -177,6 +177,29 @@ export class EmailAgent extends EventEmitter {
     return services.join(', ')
   }
 
+  private ensureServiceTargetedQueries(niche: string, queries: string[]): string[] {
+    const primaryService = (this.profile?.services ?? []).map((s) => s.trim()).find(Boolean)
+    if (!primaryService) return queries
+
+    const primaryLower = primaryService.toLowerCase()
+    const keywords = primaryLower.split(/[^a-z0-9]+/).filter((w) => w.length >= 4)
+
+    const mentionsService = (q: string): boolean => {
+      const qLower = q.toLowerCase()
+      if (qLower.includes(primaryLower)) return true
+      return keywords.some((k) => qLower.includes(k))
+    }
+
+    if (queries.some(mentionsService)) return queries
+
+    const targetedQuery = `${niche} ${primaryService} contact email`
+    if (queries.length === 0) return [targetedQuery]
+
+    const next = [...queries]
+    next[next.length - 1] = targetedQuery
+    return next
+  }
+
   private getProfileContext(): string {
     if (!this.profile) return DEFAULT_PROFILE_CONTEXT
 
@@ -350,6 +373,8 @@ Remember to format your response with [STATUS] and [DETAILS] sections.`
       } else {
         queries = [`${niche} business contact`, `${niche} companies near me`, `${niche} services`]
       }
+
+      queries = this.ensureServiceTargetedQueries(niche, queries)
 
       // Step 2: Announce search plan
       const planResponse = await this.speakStructured(
