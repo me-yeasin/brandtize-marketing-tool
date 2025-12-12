@@ -33,6 +33,42 @@ interface ExtractedLead {
   foundAt: number
 }
 
+interface PortfolioProject {
+  id: string
+  title: string
+  description: string
+  clientName?: string
+  projectUrl?: string
+  technologies: string[]
+  completedAt?: string
+}
+
+interface AgencyProfile {
+  type: 'agency' | 'freelancer'
+  name: string
+  tagline: string
+  bio: string
+  services: string[]
+  skills: string[]
+  yearsOfExperience: number
+  portfolio: PortfolioProject[]
+  contact: {
+    email: string
+    phone: string
+    website: string
+    address: string
+    city: string
+    country: string
+  }
+  social: {
+    linkedin?: string
+    twitter?: string
+    github?: string
+    dribbble?: string
+    behance?: string
+  }
+}
+
 interface Api {
   getApiKeys: () => Promise<ApiKeys>
   setGroqApiKey: (key: string) => Promise<{ success: boolean }>
@@ -40,6 +76,9 @@ interface Api {
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>
+  getProfile: () => Promise<AgencyProfile>
+  setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
+  hasProfile: () => Promise<boolean>
   startAgent: (tabId: string, niche: string) => Promise<{ success: boolean; error?: string }>
   stopAgent: (tabId: string) => Promise<{ success: boolean; error?: string }>
   onAgentEvent: (callback: (data: { tabId: string; event: AgentEvent }) => void) => () => void

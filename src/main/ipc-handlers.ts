@@ -5,7 +5,11 @@ import {
   setSerperApiKey,
   hasRequiredApiKeys,
   getSelectedModel,
-  setSelectedModel
+  setSelectedModel,
+  getAgencyProfile,
+  setAgencyProfile,
+  hasAgencyProfile,
+  type AgencyProfile
 } from './store'
 import { EmailAgent } from './agent/email-agent'
 
@@ -44,6 +48,20 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('settings:setSelectedModel', (_event, model: string) => {
     setSelectedModel(model)
     return { success: true }
+  })
+
+  // Profile handlers
+  ipcMain.handle('profile:get', () => {
+    return getAgencyProfile()
+  })
+
+  ipcMain.handle('profile:set', (_event, profile: AgencyProfile) => {
+    setAgencyProfile(profile)
+    return { success: true }
+  })
+
+  ipcMain.handle('profile:hasProfile', () => {
+    return hasAgencyProfile()
   })
 
   // Agent handlers

@@ -11,6 +11,11 @@ const api = {
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
   setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),
 
+  // Profile
+  getProfile: () => ipcRenderer.invoke('profile:get'),
+  setProfile: (profile: unknown) => ipcRenderer.invoke('profile:set', profile),
+  hasProfile: () => ipcRenderer.invoke('profile:hasProfile'),
+
   // Agent
   startAgent: (tabId: string, niche: string) => ipcRenderer.invoke('agent:start', { tabId, niche }),
   stopAgent: (tabId: string) => ipcRenderer.invoke('agent:stop', { tabId }),
