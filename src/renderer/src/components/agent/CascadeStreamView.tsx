@@ -1,10 +1,74 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AgentEvent } from './AgentStreamingLog'
 
 interface CascadeStreamViewProps {
   events: AgentEvent[]
   isRunning: boolean
   niche?: string
+}
+
+function ThinkingBlock({ content }: { content: string }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+  const preview = content.slice(0, 150) + (content.length > 150 ? '...' : '')
+
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-start gap-2 text-left text-purple-400 hover:text-purple-300"
+      >
+        <span className="mt-0.5 shrink-0">{expanded ? '▼' : '▶'}</span>
+        <span className="text-xs uppercase tracking-wide opacity-70">Thinking...</span>
+      </button>
+      <div
+        className={[
+          'mt-1 overflow-hidden pl-5 text-text-muted transition-all duration-200',
+          expanded ? 'max-h-[2000px]' : 'max-h-12'
+        ].join(' ')}
+      >
+        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+          {expanded ? content : preview}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SearchBlock({
+  query,
+  urls
+}: {
+  query: string
+  urls?: Array<{ title: string; url: string }>
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="my-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300"
+      >
+        <span>🔍</span>
+        <span>Searched web for &ldquo;{query}&rdquo;</span>
+        {urls && urls.length > 0 && (
+          <span className="text-xs opacity-60">({urls.length} results)</span>
+        )}
+        <span className="text-xs">{expanded ? '▼' : '▶'}</span>
+      </button>
+      {expanded && urls && urls.length > 0 && (
+        <div className="mt-2 space-y-1 pl-6 text-xs text-text-muted">
+          {urls.map((u, i) => (
+            <div key={i} className="truncate">
+              <span className="text-cyan-400">→</span> {u.title}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function CascadeStreamView({
@@ -27,71 +91,6 @@ function CascadeStreamView({
     shouldAutoScroll.current = scrollHeight - scrollTop - clientHeight < 100
   }
 
-  const formatMessage = (event: AgentEvent): string => {
-    const { type, category, content } = event
-
-    if (type === 'status') {
-      return content
-    }
-
-    if (category === 'search') {
-      const match = content.match(/Searching web for: "(.+)"/)
-      if (match) {
-        return `Searched web for "${match[1]}"`
-      }
-      return content
-    }
-
-    if (category === 'visit') {
-      const match = content.match(/Visiting: (.+)/)
-      if (match) {
-        return `Visiting ${match[1]}`
-      }
-      return content
-    }
-
-    if (category === 'analyze') {
-      if (content.includes('Deep analyzing')) {
-        return `Analyzing website to determine if this is a potential client...`
-      }
-      if (content.includes('Validating email')) {
-        return content
-      }
-      if (content.includes('Qualified:')) {
-        return `✓ ${content.replace('✓ Qualified: ', '')}`
-      }
-      if (content.includes('Skipped:') || content.includes('Skipping')) {
-        return `⊘ ${content.replace('✗ Skipped: ', '').replace('Skipping ', '')}`
-      }
-      return content
-    }
-
-    if (category === 'extract') {
-      if (content.includes('QUALIFIED Lead')) {
-        return `\n✓ Found a valid email that could be your client. Added to the list.\n`
-      }
-      return content
-    }
-
-    if (category === 'plan') {
-      return content
-    }
-
-    if (category === 'scrape') {
-      const match = content.match(/Scraped page: (.+)\.\.\. Found (\d+) email/)
-      if (match) {
-        return `Analyzed content from "${match[1]}..." - Found ${match[2]} email(s)`
-      }
-      return content
-    }
-
-    if (category === 'generate') {
-      return content
-    }
-
-    return content
-  }
-
   if (events.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-text-muted">
@@ -107,27 +106,33 @@ function CascadeStreamView({
     <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto">
       <div className="space-y-1 p-4 text-sm leading-relaxed">
         {events.map((event, index) => {
-          const message = formatMessage(event)
-          const isImportant = event.category === 'extract' && event.content.includes('QUALIFIED')
-          const isSkipped = event.content.includes('Skipped') || event.content.includes('Skipping')
-          const isSearch = event.category === 'search'
-          const isPlan = event.category === 'plan' || event.type === 'thinking'
+          if (event.type === 'thinking') {
+            return <ThinkingBlock key={index} content={event.content} />
+          }
+
+          if (event.type === 'search') {
+            return <SearchBlock key={index} query={event.content} urls={event.metadata?.urls} />
+          }
+
+          if (event.type === 'response') {
+            return (
+              <div key={index} className="my-2 whitespace-pre-wrap text-text-main">
+                {event.content}
+              </div>
+            )
+          }
+
+          if (event.type === 'status') {
+            return (
+              <div key={index} className="my-1 text-blue-400">
+                {event.content}
+              </div>
+            )
+          }
 
           return (
-            <div
-              key={index}
-              className={[
-                'whitespace-pre-wrap',
-                isImportant ? 'text-green-400 font-medium' : '',
-                isSkipped ? 'text-text-muted opacity-60' : '',
-                isSearch ? 'text-blue-400' : '',
-                isPlan && !isImportant && !isSkipped ? 'text-text-main' : '',
-                !isImportant && !isSkipped && !isSearch && !isPlan ? 'text-text-muted' : ''
-              ]
-                .filter(Boolean)
-                .join(' ')}
-            >
-              {message}
+            <div key={index} className="text-text-muted">
+              {event.content}
             </div>
           )
         })}

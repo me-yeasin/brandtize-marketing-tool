@@ -1,11 +1,14 @@
 import { useEffect, useRef } from 'react'
 
 interface AgentEvent {
-  type: 'thinking' | 'action' | 'result' | 'status'
-  category?: 'plan' | 'search' | 'visit' | 'scrape' | 'extract' | 'generate' | 'analyze'
+  type: 'response' | 'thinking' | 'search' | 'status'
   content: string
   timestamp: number
-  metadata?: Record<string, unknown>
+  metadata?: {
+    urls?: Array<{ title: string; url: string }>
+    thinkingComplete?: boolean
+    [key: string]: unknown
+  }
 }
 
 interface AgentStreamingLogProps {
@@ -14,44 +17,30 @@ interface AgentStreamingLogProps {
 }
 
 function getEventIcon(event: AgentEvent): string {
-  if (event.type === 'thinking') return '💭'
-  if (event.type === 'status') return '📋'
-
-  switch (event.category) {
-    case 'plan':
-      return '🎯'
+  switch (event.type) {
+    case 'thinking':
+      return '�'
+    case 'response':
+      return '�'
     case 'search':
-      return '🔍'
-    case 'visit':
-      return '🌐'
-    case 'scrape':
-      return '📄'
-    case 'extract':
-      return '📧'
-    case 'generate':
-      return '✨'
+      return '�'
+    case 'status':
+      return '📋'
     default:
       return '•'
   }
 }
 
 function getEventColor(event: AgentEvent): string {
-  if (event.type === 'thinking') return 'text-purple-400'
-  if (event.type === 'status') return 'text-blue-400'
-
-  switch (event.category) {
-    case 'plan':
-      return 'text-yellow-400'
+  switch (event.type) {
+    case 'thinking':
+      return 'text-purple-400'
+    case 'response':
+      return 'text-text-main'
     case 'search':
       return 'text-cyan-400'
-    case 'visit':
-      return 'text-green-400'
-    case 'scrape':
-      return 'text-orange-400'
-    case 'extract':
-      return 'text-pink-400'
-    case 'generate':
-      return 'text-primary'
+    case 'status':
+      return 'text-blue-400'
     default:
       return 'text-text-muted'
   }
