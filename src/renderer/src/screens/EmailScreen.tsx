@@ -1,11 +1,19 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, Input } from '../components/ui'
+import { CascadeStreamView, LeadCard } from '../components/agent'
+import type { AgentEvent, ExtractedLead } from '../components/agent'
+
+type TabState = 'idle' | 'running' | 'completed' | 'error'
 
 type EmailTab = {
   id: string
   title: string
   nicheText: string
+  state: TabState
+  events: AgentEvent[]
+  leads: ExtractedLead[]
+  error?: string
 }
 
 function EmailScreen(): React.JSX.Element {
@@ -15,7 +23,10 @@ function EmailScreen(): React.JSX.Element {
     {
       id: 'tab-1',
       title: 'Tab 1',
-      nicheText: ''
+      nicheText: '',
+      state: 'idle',
+      events: [],
+      leads: []
     }
   ])
   const [activeTabId, setActiveTabId] = useState<EmailTab['id']>('tab-1')
@@ -29,11 +40,71 @@ function EmailScreen(): React.JSX.Element {
     const newTab: EmailTab = {
       id: `tab-${tabNumber}`,
       title: `Tab ${tabNumber}`,
-      nicheText: ''
+      nicheText: '',
+      state: 'idle',
+      events: [],
+      leads: []
     }
 
     setTabs((prev) => [...prev, newTab])
     setActiveTabId(newTab.id)
+  }
+
+  // Agent event handlers
+  const updateTabState = useCallback((tabId: string, updates: Partial<EmailTab>) => {
+    setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, ...updates } : t)))
+  }, [])
+
+  const addEventToTab = useCallback((tabId: string, event: AgentEvent) => {
+    setTabs((prev) =>
+      prev.map((t) => (t.id === tabId ? { ...t, events: [...t.events, event] } : t))
+    )
+  }, [])
+
+  const addLeadToTab = useCallback((tabId: string, lead: ExtractedLead) => {
+    setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, leads: [...t.leads, lead] } : t)))
+  }, [])
+
+  // Subscribe to agent events
+  useEffect(() => {
+    const unsubEvent = window.api.onAgentEvent(({ tabId, event }) => {
+      addEventToTab(tabId, event)
+    })
+
+    const unsubLead = window.api.onAgentLead(({ tabId, lead }) => {
+      addLeadToTab(tabId, lead)
+    })
+
+    const unsubComplete = window.api.onAgentComplete(({ tabId }) => {
+      updateTabState(tabId, { state: 'completed' })
+    })
+
+    const unsubError = window.api.onAgentError(({ tabId, error }) => {
+      updateTabState(tabId, { state: 'error', error })
+    })
+
+    return () => {
+      unsubEvent()
+      unsubLead()
+      unsubComplete()
+      unsubError()
+    }
+  }, [addEventToTab, addLeadToTab, updateTabState])
+
+  const startAgent = async (): Promise<void> => {
+    if (!activeTab.nicheText.trim()) return
+
+    updateTabState(activeTab.id, { state: 'running', events: [], leads: [], error: undefined })
+
+    const result = await window.api.startAgent(activeTab.id, activeTab.nicheText.trim())
+    if (!result.success) {
+      updateTabState(activeTab.id, { state: 'error', error: result.error })
+    }
+  }
+
+  const stopAgent = async (): Promise<void> => {
+    await window.api.stopAgent(activeTab.id)
+    updateTabState(activeTab.id, { state: 'completed' })
   }
 
   const closeTab = (tabId: EmailTab['id']): void => {
@@ -140,19 +211,81 @@ function EmailScreen(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="flex flex-1 items-center justify-center p-8">
-        <div className="w-full max-w-xl space-y-4">
-          <Input
-            placeholder="Okay, enter your niche or more relevant text"
-            value={activeTab.nicheText}
-            onChange={(e) => updateActiveTabText(e.target.value)}
-          />
+      {activeTab.state === 'idle' ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="w-full max-w-xl space-y-4">
+            <Input
+              placeholder="Okay, enter your niche or more relevant text"
+              value={activeTab.nicheText}
+              onChange={(e) => updateActiveTabText(e.target.value)}
+            />
 
-          <div className="flex justify-center">
-            <Button variant="primary">Start Process</Button>
+            <div className="flex justify-center">
+              <Button variant="primary" onClick={startAgent} disabled={!activeTab.nicheText.trim()}>
+                Start Process
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border bg-surface/20 px-4 py-3">
+            <div>
+              <span className="text-sm text-text-muted">Niche: </span>
+              <span className="text-sm font-medium text-text-main">{activeTab.nicheText}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeTab.state === 'running' && (
+                <Button variant="outline" onClick={stopAgent}>
+                  Stop
+                </Button>
+              )}
+              {(activeTab.state === 'completed' || activeTab.state === 'error') && (
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    updateTabState(activeTab.id, { state: 'idle', events: [], leads: [] })
+                  }
+                >
+                  New Search
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {activeTab.error && (
+            <div className="mx-4 mt-4 rounded-md border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {activeTab.error}
+            </div>
+          )}
+
+          <div className="flex flex-1 gap-4 overflow-hidden p-4">
+            <div className="flex-1 overflow-hidden">
+              <CascadeStreamView
+                events={activeTab.events}
+                isRunning={activeTab.state === 'running'}
+                niche={activeTab.nicheText}
+              />
+            </div>
+
+            {activeTab.leads.length > 0 && (
+              <div className="w-[420px] shrink-0 overflow-y-auto space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-text-main">
+                    Qualified Leads ({activeTab.leads.length})
+                  </h3>
+                  <span className="text-xs text-green-400">✓ Verified</span>
+                </div>
+                <div className="space-y-3">
+                  {activeTab.leads.map((lead, index) => (
+                    <LeadCard key={lead.id} lead={lead} index={index} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
