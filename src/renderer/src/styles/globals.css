@@ -17,7 +17,6 @@
 }
 
 @layer base {
-
   *,
   *::before,
   *::after {
@@ -42,6 +41,25 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+  }
+
+  a[href],
+  button,
+  [role='button'],
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'],
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input[type='button']:disabled,
+  input[type='submit']:disabled,
+  input[type='reset']:disabled,
+  [role='button'][aria-disabled='true'],
+  a[aria-disabled='true'] {
+    cursor: not-allowed;
   }
 }
 
