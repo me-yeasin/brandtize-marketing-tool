@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { FiChevronDown, FiChevronRight, FiSearch, FiArrowRight } from 'react-icons/fi'
 import type { AgentEvent } from './AgentStreamingLog'
 
 interface CascadeStreamViewProps {
@@ -18,7 +19,9 @@ function ThinkingBlock({ content }: { content: string }): React.JSX.Element {
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-start gap-2 text-left text-purple-400 hover:text-purple-300"
       >
-        <span className="mt-0.5 shrink-0">{expanded ? '▼' : '▶'}</span>
+        <span className="mt-0.5 shrink-0">
+          {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+        </span>
         <span className="text-xs uppercase tracking-wide opacity-70">Thinking...</span>
       </button>
       <div
@@ -51,18 +54,20 @@ function SearchBlock({
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-cyan-400 hover:text-cyan-300"
       >
-        <span>🔍</span>
+        <FiSearch className="shrink-0" size={14} />
         <span>Searched web for &ldquo;{query}&rdquo;</span>
         {urls && urls.length > 0 && (
           <span className="text-xs opacity-60">({urls.length} results)</span>
         )}
-        <span className="text-xs">{expanded ? '▼' : '▶'}</span>
+        <span className="text-xs">
+          {expanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+        </span>
       </button>
       {expanded && urls && urls.length > 0 && (
         <div className="mt-2 space-y-1 pl-6 text-xs text-text-muted">
           {urls.map((u, i) => (
             <div key={i} className="truncate">
-              <span className="text-cyan-400">→</span> {u.title}
+              <FiArrowRight className="inline text-cyan-400" size={10} /> {u.title}
             </div>
           ))}
         </div>

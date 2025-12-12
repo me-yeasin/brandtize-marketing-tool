@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FiSearch, FiGlobe, FiFileText, FiMail, FiCpu, FiZap, FiSettings } from 'react-icons/fi'
 
 interface ToolCallPanelProps {
   tool: string
@@ -17,14 +18,14 @@ function ToolCallPanel({
 }: ToolCallPanelProps): React.JSX.Element {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const toolIcons: Record<string, string> = {
-    search: '🔍',
-    visit: '🌐',
-    scrape: '📄',
-    extract: '📧',
-    analyze: '🧠',
-    generate: '✨',
-    default: '⚙️'
+  const toolIcons: Record<string, React.ReactNode> = {
+    search: <FiSearch size={14} />,
+    visit: <FiGlobe size={14} />,
+    scrape: <FiFileText size={14} />,
+    extract: <FiMail size={14} />,
+    analyze: <FiCpu size={14} />,
+    generate: <FiZap size={14} />,
+    default: <FiSettings size={14} />
   }
 
   const statusStyles = {

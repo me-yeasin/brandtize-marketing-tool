@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FiMessageCircle, FiZap, FiCheck, FiClipboard } from 'react-icons/fi'
 
 interface ThinkingPanelProps {
   title: string
@@ -23,28 +24,28 @@ function ThinkingPanel({
     thinking: {
       border: 'border-purple-500/30',
       bg: 'bg-purple-500/5',
-      icon: '💭',
+      icon: <FiMessageCircle size={18} />,
       headerBg: 'bg-purple-500/10',
       accent: 'text-purple-400'
     },
     action: {
       border: 'border-cyan-500/30',
       bg: 'bg-cyan-500/5',
-      icon: '⚡',
+      icon: <FiZap size={18} />,
       headerBg: 'bg-cyan-500/10',
       accent: 'text-cyan-400'
     },
     result: {
       border: 'border-green-500/30',
       bg: 'bg-green-500/5',
-      icon: '✓',
+      icon: <FiCheck size={18} />,
       headerBg: 'bg-green-500/10',
       accent: 'text-green-400'
     },
     plan: {
       border: 'border-yellow-500/30',
       bg: 'bg-yellow-500/5',
-      icon: '📋',
+      icon: <FiClipboard size={18} />,
       headerBg: 'bg-yellow-500/10',
       accent: 'text-yellow-400'
     }

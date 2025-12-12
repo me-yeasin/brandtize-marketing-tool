@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FiCpu, FiSearch, FiZap, FiChevronDown } from 'react-icons/fi'
 import { Button, Input } from '../components/ui'
 
 type SettingsTab = 'ai-provider' | 'search-api'
@@ -69,8 +70,8 @@ function SettingsScreen(): React.JSX.Element {
   }
 
   const tabs = [
-    { id: 'ai-provider' as const, label: 'AI Provider', icon: '🤖' },
-    { id: 'search-api' as const, label: 'Web Search', icon: '🔍' }
+    { id: 'ai-provider' as const, label: 'AI Provider', icon: <FiCpu size={16} /> },
+    { id: 'search-api' as const, label: 'Web Search', icon: <FiSearch size={16} /> }
   ]
 
   return (
@@ -107,23 +108,23 @@ function SettingsScreen(): React.JSX.Element {
             ))}
           </nav>
 
-          <div className="mt-6 rounded-lg border border-border bg-surface/20 p-3">
+          {/* <div className="mt-6 rounded-lg border border-border bg-surface/20 p-3">
             <h3 className="text-xs font-medium text-text-main mb-2">Status</h3>
             <div className="space-y-1 text-xs">
               <div className="flex items-center gap-2">
                 <span className={hasGroqKey ? 'text-green-400' : 'text-red-400'}>
-                  {hasGroqKey ? '✓' : '✗'}
+                  {hasGroqKey ? <FiCheck size={12} /> : <FiX size={12} />}
                 </span>
                 <span className="text-text-muted">AI Provider</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={hasSerperKey ? 'text-green-400' : 'text-red-400'}>
-                  {hasSerperKey ? '✓' : '✗'}
+                  {hasSerperKey ? <FiCheck size={12} /> : <FiX size={12} />}
                 </span>
                 <span className="text-text-muted">Web Search</span>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
@@ -153,7 +154,7 @@ function SettingsScreen(): React.JSX.Element {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
-                      <span className="text-xl">🔥</span>
+                      <FiZap className="text-xl text-orange-400" size={20} />
                     </div>
                     <div>
                       <h3 className="font-medium text-text-main">Groq API</h3>
@@ -220,7 +221,7 @@ function SettingsScreen(): React.JSX.Element {
                       ))}
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                      <span className="text-text-muted">▼</span>
+                      <FiChevronDown className="text-text-muted" size={16} />
                     </div>
                   </div>
                   <p className="text-xs text-text-muted">
@@ -244,7 +245,7 @@ function SettingsScreen(): React.JSX.Element {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
-                      <span className="text-xl">🔍</span>
+                      <FiSearch className="text-xl text-blue-400" size={20} />
                     </div>
                     <div>
                       <h3 className="font-medium text-text-main">Serper API</h3>

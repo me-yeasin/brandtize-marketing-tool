@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FiCheckCircle } from 'react-icons/fi'
 
 import { Button, Input } from '../components/ui'
 import { CascadeStreamView, LeadCard } from '../components/agent'
@@ -288,7 +289,10 @@ function EmailScreen(): React.JSX.Element {
                   <h3 className="text-sm font-medium text-text-main">
                     Qualified Leads ({activeTab.leads.length})
                   </h3>
-                  <span className="text-xs text-green-400">✓ Verified</span>
+                  <span className="flex items-center gap-1 text-xs text-green-400">
+                    <FiCheckCircle size={12} />
+                    Verified
+                  </span>
                 </div>
                 <div className="space-y-3 max-w-xl">
                   {activeTab.leads.map((lead, index) => (

@@ -1,4 +1,11 @@
 import { useEffect, useRef } from 'react'
+import {
+  FiMessageCircle,
+  FiMessageSquare,
+  FiSearch,
+  FiClipboard,
+  FiArrowRight
+} from 'react-icons/fi'
 
 interface AgentEvent {
   type: 'response' | 'thinking' | 'search' | 'status'
@@ -16,18 +23,18 @@ interface AgentStreamingLogProps {
   isRunning: boolean
 }
 
-function getEventIcon(event: AgentEvent): string {
+function getEventIcon(event: AgentEvent): React.ReactNode {
   switch (event.type) {
     case 'thinking':
-      return '�'
+      return <FiMessageCircle size={12} className="text-purple-400" />
     case 'response':
-      return '�'
+      return <FiMessageSquare size={12} className="text-text-main" />
     case 'search':
-      return '�'
+      return <FiSearch size={12} className="text-cyan-400" />
     case 'status':
-      return '📋'
+      return <FiClipboard size={12} className="text-blue-400" />
     default:
-      return '•'
+      return <span>•</span>
   }
 }
 
@@ -107,7 +114,8 @@ function AgentStreamingLog({ events, isRunning }: AgentStreamingLogProps): React
                           {(event.metadata.results as Array<{ title: string; url: string }>).map(
                             (r, i) => (
                               <div key={i} className="truncate">
-                                <span className="text-cyan-400">→</span> {r.title}
+                                <FiArrowRight className="inline text-cyan-400" size={10} />{' '}
+                                {r.title}
                               </div>
                             )
                           )}
