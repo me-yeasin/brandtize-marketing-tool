@@ -35,6 +35,8 @@ function EmailScreen(): React.JSX.Element {
     return tabs.find((t) => t.id === activeTabId) ?? tabs[0]
   }, [activeTabId, tabs])
 
+  const showLeads = activeTab.leads.length > 0
+
   const addTab = (): void => {
     const tabNumber = nextTabNumberRef.current++
     const newTab: EmailTab = {
@@ -259,17 +261,29 @@ function EmailScreen(): React.JSX.Element {
             </div>
           )}
 
-          <div className="flex flex-1 gap-4 overflow-hidden p-4">
-            <div className="flex-1 overflow-hidden">
-              <CascadeStreamView
-                events={activeTab.events}
-                isRunning={activeTab.state === 'running'}
-                niche={activeTab.nicheText}
-              />
-            </div>
+          <div className="flex flex-1 gap-4 overflow-hidden p-4 justify-between">
+            {showLeads ? (
+              <div className="flex-1 overflow-hidden max-w-4xl">
+                <CascadeStreamView
+                  events={activeTab.events}
+                  isRunning={activeTab.state === 'running'}
+                  niche={activeTab.nicheText}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-1 justify-center overflow-hidden">
+                <div className="h-full w-full max-w-4xl overflow-hidden">
+                  <CascadeStreamView
+                    events={activeTab.events}
+                    isRunning={activeTab.state === 'running'}
+                    niche={activeTab.nicheText}
+                  />
+                </div>
+              </div>
+            )}
 
-            {activeTab.leads.length > 0 && (
-              <div className="w-[420px] shrink-0 overflow-y-auto space-y-4">
+            {showLeads && (
+              <div className="w-fit shrink-0 overflow-y-auto space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium text-text-main">
                     Qualified Leads ({activeTab.leads.length})

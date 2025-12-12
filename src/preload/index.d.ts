@@ -8,8 +8,7 @@ interface ApiKeys {
 }
 
 interface AgentEvent {
-  type: 'thinking' | 'action' | 'result' | 'status'
-  category?: 'plan' | 'search' | 'visit' | 'scrape' | 'extract' | 'generate'
+  type: 'response' | 'thinking' | 'search' | 'status'
   content: string
   timestamp: number
   metadata?: Record<string, unknown>
