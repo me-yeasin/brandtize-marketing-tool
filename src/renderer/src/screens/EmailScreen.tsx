@@ -290,7 +290,7 @@ function EmailScreen(): React.JSX.Element {
                   </h3>
                   <span className="text-xs text-green-400">✓ Verified</span>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 max-w-xl">
                   {activeTab.leads.map((lead, index) => (
                     <LeadCard key={lead.id} lead={lead} index={index} />
                   ))}
