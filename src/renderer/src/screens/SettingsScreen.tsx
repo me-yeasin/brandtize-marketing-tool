@@ -4,18 +4,18 @@ import { Button, Input } from '../components/ui'
 type SettingsTab = 'ai-provider' | 'search-api'
 
 const GROQ_MODELS = [
-  {
-    id: 'llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B Versatile',
-    description: 'Best for complex reasoning'
-  },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', description: 'Fast responses' },
-  {
-    id: 'mixtral-8x7b-32768',
-    name: 'Mixtral 8x7B',
-    description: 'Good balance of speed and quality'
-  },
-  { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Efficient and capable' }
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
+  { id: 'qwen/qwen3-32b', name: 'Qwen3 32B' },
+  { id: 'openai/gpt-oss-safeguard-20b', name: 'GPT OSS Safeguard 20B' },
+  { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B' },
+  { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2 Instruct 0905' },
+  { id: 'moonshotai/kimi-k2-instruct', name: 'Kimi K2 Instruct' },
+  { id: 'meta-llama/llama-prompt-guard-2-86m', name: 'Llama Prompt Guard 2 86M' },
+  { id: 'meta-llama/llama-prompt-guard-2-22m', name: 'Llama Prompt Guard 2 22M' },
+  { id: 'meta-llama/llama-guard-4-12b', name: 'Llama Guard 4 12B' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B' },
+  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick 17B' }
 ]
 
 function SettingsScreen(): React.JSX.Element {
@@ -32,6 +32,9 @@ function SettingsScreen(): React.JSX.Element {
     window.api.getApiKeys().then((keys) => {
       setHasGroqKey(keys.hasGroqKey)
       setHasSerperKey(keys.hasSerperKey)
+    })
+    window.api.getSelectedModel().then((model: string) => {
+      setSelectedModel(model)
     })
   }, [])
 
@@ -198,27 +201,31 @@ function SettingsScreen(): React.JSX.Element {
 
                 <div className="border-t border-border pt-4 space-y-3">
                   <label className="block text-sm text-text-muted">Model Selection</label>
-                  <div className="grid gap-2">
-                    {GROQ_MODELS.map((model) => (
-                      <button
-                        key={model.id}
-                        type="button"
-                        onClick={() => setSelectedModel(model.id)}
-                        className={[
-                          'flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-colors',
-                          selectedModel === model.id
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border bg-surface/20 hover:bg-surface/40'
-                        ].join(' ')}
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-text-main">{model.name}</p>
-                          <p className="text-xs text-text-muted">{model.description}</p>
-                        </div>
-                        {selectedModel === model.id && <span className="text-primary">✓</span>}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <select
+                      value={selectedModel}
+                      onChange={async (e) => {
+                        const model = e.target.value
+                        setSelectedModel(model)
+                        await window.api.setSelectedModel(model)
+                        setMessage({ type: 'success', text: 'Model updated successfully!' })
+                        setTimeout(() => setMessage(null), 3000)
+                      }}
+                      className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {GROQ_MODELS.map((model) => (
+                        <option key={model.id} value={model.id} className="bg-background">
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <span className="text-text-muted">▼</span>
+                    </div>
                   </div>
+                  <p className="text-xs text-text-muted">
+                    Selected model will be used for all agent operations
+                  </p>
                 </div>
               </div>
             </div>

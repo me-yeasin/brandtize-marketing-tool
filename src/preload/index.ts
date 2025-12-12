@@ -8,6 +8,8 @@ const api = {
   setGroqApiKey: (key: string) => ipcRenderer.invoke('settings:setGroqApiKey', key),
   setSerperApiKey: (key: string) => ipcRenderer.invoke('settings:setSerperApiKey', key),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
+  getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
+  setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),
 
   // Agent
   startAgent: (tabId: string, niche: string) => ipcRenderer.invoke('agent:start', { tabId, niche }),

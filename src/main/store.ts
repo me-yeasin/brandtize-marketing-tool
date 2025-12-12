@@ -3,12 +3,14 @@ import Store from 'electron-store'
 interface StoreSchema {
   groqApiKey: string
   serperApiKey: string
+  selectedModel: string
 }
 
 const store = new Store<StoreSchema>({
   defaults: {
     groqApiKey: '',
-    serperApiKey: ''
+    serperApiKey: '',
+    selectedModel: 'llama-3.3-70b-versatile'
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -26,6 +28,14 @@ export function setGroqApiKey(key: string): void {
 
 export function setSerperApiKey(key: string): void {
   store.set('serperApiKey', key)
+}
+
+export function getSelectedModel(): string {
+  return store.get('selectedModel', 'llama-3.3-70b-versatile')
+}
+
+export function setSelectedModel(model: string): void {
+  store.set('selectedModel', model)
 }
 
 export function hasRequiredApiKeys(): boolean {

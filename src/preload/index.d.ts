@@ -39,6 +39,8 @@ interface Api {
   setGroqApiKey: (key: string) => Promise<{ success: boolean }>
   setSerperApiKey: (key: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
+  getSelectedModel: () => Promise<string>
+  setSelectedModel: (model: string) => Promise<{ success: boolean }>
   startAgent: (tabId: string, niche: string) => Promise<{ success: boolean; error?: string }>
   stopAgent: (tabId: string) => Promise<{ success: boolean; error?: string }>
   onAgentEvent: (callback: (data: { tabId: string; event: AgentEvent }) => void) => () => void

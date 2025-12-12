@@ -31,12 +31,12 @@ export class EmailAgent extends EventEmitter {
   private stopped = false
   private llm: ChatGroq
 
-  constructor(groqApiKey: string, serperApiKey: string) {
+  constructor(groqApiKey: string, serperApiKey: string, model: string = 'llama-3.3-70b-versatile') {
     super()
     this.serperApiKey = serperApiKey
     this.llm = new ChatGroq({
       apiKey: groqApiKey,
-      model: 'llama-3.3-70b-versatile',
+      model: model,
       temperature: 0.7
     })
   }

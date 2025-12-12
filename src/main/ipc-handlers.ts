@@ -1,5 +1,12 @@
 import { ipcMain, shell, BrowserWindow } from 'electron'
-import { getApiKeys, setGroqApiKey, setSerperApiKey, hasRequiredApiKeys } from './store'
+import {
+  getApiKeys,
+  setGroqApiKey,
+  setSerperApiKey,
+  hasRequiredApiKeys,
+  getSelectedModel,
+  setSelectedModel
+} from './store'
 import { EmailAgent } from './agent/email-agent'
 
 const activeAgents: Map<string, EmailAgent> = new Map()
@@ -30,6 +37,15 @@ export function setupIpcHandlers(): void {
     return hasRequiredApiKeys()
   })
 
+  ipcMain.handle('settings:getSelectedModel', () => {
+    return getSelectedModel()
+  })
+
+  ipcMain.handle('settings:setSelectedModel', (_event, model: string) => {
+    setSelectedModel(model)
+    return { success: true }
+  })
+
   // Agent handlers
   ipcMain.handle(
     'agent:start',
@@ -45,7 +61,8 @@ export function setupIpcHandlers(): void {
         activeAgents.delete(tabId)
       }
 
-      const agent = new EmailAgent(keys.groqApiKey, keys.serperApiKey)
+      const selectedModel = getSelectedModel()
+      const agent = new EmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel)
       activeAgents.set(tabId, agent)
 
       // Set up event forwarding to renderer
