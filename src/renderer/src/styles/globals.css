@@ -23,6 +23,16 @@
     border-color: var(--color-border);
   }
 
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
   html {
     font-family: var(--font-family-sans);
     -webkit-font-smoothing: antialiased;
