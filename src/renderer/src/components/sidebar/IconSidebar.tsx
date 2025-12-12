@@ -84,7 +84,7 @@ function SettingsIcon(): React.JSX.Element {
 
 function IconSidebar({ activeTab, onSelectTab }: IconSidebarProps): React.JSX.Element {
   return (
-    <aside className="glass-panel w-[72px] shrink-0 border-r border-border">
+    <aside className="glass-panel w-[72px] shrink-0">
       <div className="flex h-full flex-col items-center gap-2 p-3">
         <div className="mt-1 flex h-11 w-11 items-center justify-center rounded-md bg-surface text-text-main">
           <span className="text-sm font-semibold">AR</span>
