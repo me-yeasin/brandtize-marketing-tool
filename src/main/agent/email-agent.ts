@@ -24,7 +24,20 @@ Your role:
 3. Skip irrelevant businesses (competitors, email sellers, directories)
 4. Speak naturally and explain your thinking clearly
 
-Keep responses concise but informative. Be conversational.`
+IMPORTANT - Response Format:
+Always structure your responses with TWO parts:
+
+[STATUS]
+A brief 2-5 line summary of: what you just did, what you found, and what you'll do next.
+This is shown directly to the user - keep it short and action-focused.
+[/STATUS]
+
+[DETAILS]
+Your full reasoning, analysis, and detailed thoughts.
+This goes into an expandable panel - be as thorough as needed here.
+[/DETAILS]
+
+Always include both sections in every response. The STATUS must be concise (max 5 lines), while DETAILS can be comprehensive.`
 
 export class EmailAgent extends EventEmitter {
   private serperApiKey: string
@@ -70,6 +83,81 @@ export class EmailAgent extends EventEmitter {
     this.emit('event', { type: 'status', content, timestamp: Date.now() } as AgentEvent)
   }
 
+  private parseStructuredResponse(response: string): { status: string; details: string } {
+    let status = ''
+    let details = ''
+
+    // Try format with closing tags first: [STATUS]...[/STATUS]
+    const statusMatchClosed = response.match(/\[STATUS\]([\s\S]*?)\[\/STATUS\]/i)
+    const detailsMatchClosed = response.match(/\[DETAILS\]([\s\S]*?)\[\/DETAILS\]/i)
+
+    if (statusMatchClosed) {
+      status = statusMatchClosed[1].trim()
+    }
+    if (detailsMatchClosed) {
+      details = detailsMatchClosed[1].trim()
+    }
+
+    // Try format without closing tags: [STATUS]...content...[DETAILS]...content...
+    if (!status && !details) {
+      const statusStart = response.search(/\[STATUS\]/i)
+      const detailsStart = response.search(/\[DETAILS\]/i)
+
+      if (statusStart !== -1 && detailsStart !== -1 && statusStart < detailsStart) {
+        // Both tags present, STATUS comes before DETAILS
+        status = response.slice(statusStart + 8, detailsStart).trim()
+        details = response.slice(detailsStart + 9).trim()
+      } else if (statusStart !== -1 && detailsStart === -1) {
+        // Only STATUS tag
+        status = response.slice(statusStart + 8).trim()
+      } else if (detailsStart !== -1 && statusStart === -1) {
+        // Only DETAILS tag
+        details = response.slice(detailsStart + 9).trim()
+      } else if (statusStart !== -1 && detailsStart !== -1 && detailsStart < statusStart) {
+        // DETAILS comes before STATUS (unusual but handle it)
+        details = response.slice(detailsStart + 9, statusStart).trim()
+        status = response.slice(statusStart + 8).trim()
+      }
+    }
+
+    // Final fallback: no tags at all, split by line count
+    if (!status && !details) {
+      const lines = response
+        .trim()
+        .split('\n')
+        .filter((l) => l.trim())
+      if (lines.length <= 5) {
+        status = response.trim()
+      } else {
+        status = lines.slice(0, 4).join('\n')
+        details = lines.slice(4).join('\n')
+      }
+    } else if (!status && details) {
+      // Only details provided, extract a brief status from start
+      const lines = details.split('\n').filter((l) => l.trim())
+      status = lines.slice(0, 3).join('\n')
+    }
+
+    // Clean up any remaining tag artifacts from status and details
+    const tagPattern = /\[\/?(STATUS|DETAILS)\]/gi
+    status = status.replace(tagPattern, '').trim()
+    details = details.replace(tagPattern, '').trim()
+
+    // Additional cleanup: remove any lines that are just tags
+    status = status
+      .split('\n')
+      .filter((line) => !line.trim().match(/^\[\/?(STATUS|DETAILS)\]$/i))
+      .join('\n')
+      .trim()
+    details = details
+      .split('\n')
+      .filter((line) => !line.trim().match(/^\[\/?(STATUS|DETAILS)\]$/i))
+      .join('\n')
+      .trim()
+
+    return { status, details }
+  }
+
   private async speak(prompt: string): Promise<string> {
     try {
       const response = await this.llm.invoke([
@@ -79,6 +167,20 @@ export class EmailAgent extends EventEmitter {
       return typeof response.content === 'string' ? response.content : ''
     } catch {
       return ''
+    }
+  }
+
+  private async speakStructured(prompt: string): Promise<{ status: string; details: string }> {
+    const response = await this.speak(prompt)
+    return this.parseStructuredResponse(response)
+  }
+
+  private emitStructured(response: { status: string; details: string }): void {
+    if (response.details) {
+      this.emitThinking(response.details)
+    }
+    if (response.status) {
+      this.emitResponse(response.status)
     }
   }
 
@@ -149,7 +251,7 @@ export class EmailAgent extends EventEmitter {
 
     try {
       // Step 1: Deep niche analysis
-      const analysisResponse = await this.speak(
+      const analysisResponse = await this.speakStructured(
         `I need to deeply analyze this niche: "${niche}"
 
 Please provide a thorough analysis covering:
@@ -159,15 +261,18 @@ Please provide a thorough analysis covering:
 4. What search terms would find REAL businesses (not directories or email sellers)?
 
 End with exactly 5 search queries in this format:
-QUERIES: ["query1", "query2", "query3", "query4", "query5"]`
+QUERIES: ["query1", "query2", "query3", "query4", "query5"]
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
       )
 
-      this.emitThinking(analysisResponse)
+      this.emitStructured(analysisResponse)
       if (this.stopped) return
 
-      // Extract queries from analysis
+      // Extract queries from analysis (check both status and details for QUERIES)
+      const fullAnalysis = `${analysisResponse.status}\n${analysisResponse.details}`
       let queries: string[] = []
-      const queriesMatch = analysisResponse.match(/QUERIES:\s*\n?\s*(\[[\s\S]*?\])/i)
+      const queriesMatch = fullAnalysis.match(/QUERIES:\s*\n?\s*(\[[\s\S]*?\])/i)
       if (queriesMatch) {
         try {
           queries = JSON.parse(queriesMatch[1])
@@ -179,10 +284,12 @@ QUERIES: ["query1", "query2", "query3", "query4", "query5"]`
       }
 
       // Step 2: Announce search plan
-      const planResponse = await this.speak(
-        `Based on my analysis, I've identified ${queries.length} search queries to find potential clients in the "${niche}" niche. I'll now search for businesses and analyze each one to find quality contacts.`
+      const planResponse = await this.speakStructured(
+        `Based on my analysis, I've identified ${queries.length} search queries to find potential clients in the "${niche}" niche. I'll now search for businesses and analyze each one to find quality contacts.
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
       )
-      this.emitResponse(planResponse)
+      this.emitStructured(planResponse)
       if (this.stopped) return
 
       // Step 3: Execute searches
@@ -207,7 +314,7 @@ QUERIES: ["query1", "query2", "query3", "query4", "query5"]`
           if (!page) continue
 
           // Step 5: LLM analyzes the website
-          const websiteAnalysis = await this.speak(
+          const websiteAnalysisRaw = await this.speak(
             `I just scraped this website. Analyze if this is a potential client for our development services:
 
 URL: ${page.url}
@@ -220,30 +327,34 @@ Determine:
 2. Or is it a directory, competitor, email seller, or irrelevant site?
 3. If there are emails, are they worth contacting?
 
-Be brief and decisive. If it's a good lead, say so clearly.`
+Be brief and decisive. If it's a good lead, say so clearly.
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
           )
+          const websiteAnalysis = this.parseStructuredResponse(websiteAnalysisRaw)
+          const websiteAnalysisFull = `${websiteAnalysis.status}\n${websiteAnalysis.details}`
 
           // Check if LLM thinks it's a good lead
           const isGoodLead =
-            websiteAnalysis.toLowerCase().includes('good lead') ||
-            websiteAnalysis.toLowerCase().includes('potential client') ||
-            websiteAnalysis.toLowerCase().includes('worth contacting') ||
-            websiteAnalysis.toLowerCase().includes('real business')
+            websiteAnalysisFull.toLowerCase().includes('good lead') ||
+            websiteAnalysisFull.toLowerCase().includes('potential client') ||
+            websiteAnalysisFull.toLowerCase().includes('worth contacting') ||
+            websiteAnalysisFull.toLowerCase().includes('real business')
 
           const isSkip =
-            websiteAnalysis.toLowerCase().includes('skip') ||
-            websiteAnalysis.toLowerCase().includes('competitor') ||
-            websiteAnalysis.toLowerCase().includes('directory') ||
-            websiteAnalysis.toLowerCase().includes('irrelevant') ||
-            websiteAnalysis.toLowerCase().includes('email seller')
+            websiteAnalysisFull.toLowerCase().includes('skip') ||
+            websiteAnalysisFull.toLowerCase().includes('competitor') ||
+            websiteAnalysisFull.toLowerCase().includes('directory') ||
+            websiteAnalysisFull.toLowerCase().includes('irrelevant') ||
+            websiteAnalysisFull.toLowerCase().includes('email seller')
 
           if (isSkip && !isGoodLead) {
-            this.emitThinking(websiteAnalysis)
+            this.emitStructured(websiteAnalysis)
             continue
           }
 
           if (page.emails.length === 0) {
-            this.emitResponse(websiteAnalysis)
+            this.emitStructured(websiteAnalysis)
             continue
           }
 
@@ -254,7 +365,7 @@ Be brief and decisive. If it's a good lead, say so clearly.`
             processedEmails.add(email.toLowerCase())
 
             // LLM evaluates the email
-            const emailEval = await this.speak(
+            const emailEvalRaw = await this.speak(
               `Evaluate this email for outreach: ${email}
 From business: ${page.title}
 Website: ${page.url}
@@ -263,18 +374,22 @@ Is this a quality contact worth adding to our lead list? Consider:
 - Is it a personal/decision-maker email or generic (info@, support@)?
 - Would they likely respond to a development services pitch?
 
-Be brief. If it's good, I'll add it to the list.`
+Be brief. If it's good, I'll add it to the list.
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
             )
+            const emailEval = this.parseStructuredResponse(emailEvalRaw)
+            const emailEvalFull = `${emailEval.status}\n${emailEval.details}`
 
             const isQualityEmail =
-              emailEval.toLowerCase().includes('add') ||
-              emailEval.toLowerCase().includes('quality') ||
-              emailEval.toLowerCase().includes('worth') ||
-              emailEval.toLowerCase().includes('good contact') ||
-              emailEval.toLowerCase().includes('decision maker')
+              emailEvalFull.toLowerCase().includes('add') ||
+              emailEvalFull.toLowerCase().includes('quality') ||
+              emailEvalFull.toLowerCase().includes('worth') ||
+              emailEvalFull.toLowerCase().includes('good contact') ||
+              emailEvalFull.toLowerCase().includes('decision maker')
 
             if (!isQualityEmail) {
-              this.emitThinking(emailEval)
+              this.emitStructured(emailEval)
               continue
             }
 
@@ -310,7 +425,7 @@ Format as JSON: {"subject": "...", "body": "..."}`
               context: {
                 businessName: page.title,
                 website: page.url,
-                summary: websiteAnalysis.slice(0, 200)
+                summary: websiteAnalysis.status.slice(0, 200)
               },
               template,
               foundAt: Date.now()
@@ -319,10 +434,12 @@ Format as JSON: {"subject": "...", "body": "..."}`
             this.emit('lead', lead)
 
             // Announce the lead
-            const leadAnnouncement = await this.speak(
-              `I found a qualified lead! ${email} from ${page.title}. This looks like a good fit for our services. Added to the list.`
+            const leadAnnouncement = await this.speakStructured(
+              `I found a qualified lead! ${email} from ${page.title}. This looks like a good fit for our services. Added to the list.
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
             )
-            this.emitResponse(leadAnnouncement)
+            this.emitStructured(leadAnnouncement)
 
             await new Promise((resolve) => setTimeout(resolve, 1000))
           }
@@ -332,10 +449,12 @@ Format as JSON: {"subject": "...", "body": "..."}`
       }
 
       // Final summary
-      const summary = await this.speak(
-        `I've completed my research on the "${niche}" niche. Found ${leadCount} qualified leads. ${leadCount > 0 ? 'These contacts look promising for outreach about our development services.' : 'I may need different search terms to find better leads in this niche.'}`
+      const summary = await this.speakStructured(
+        `I've completed my research on the "${niche}" niche. Found ${leadCount} qualified leads. ${leadCount > 0 ? 'These contacts look promising for outreach about our development services.' : 'I may need different search terms to find better leads in this niche.'}
+
+Remember to format your response with [STATUS] and [DETAILS] sections.`
       )
-      this.emitResponse(summary)
+      this.emitStructured(summary)
 
       this.emit('complete')
     } catch (error) {
