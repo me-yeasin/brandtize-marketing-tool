@@ -39,7 +39,6 @@ function EmailScreen(): React.JSX.Element {
   const closeTab = (tabId: EmailTab['id']): void => {
     setTabs((prev) => {
       if (prev.length <= 1) return prev
-      if (prev[0]?.id === tabId) return prev
 
       const idx = prev.findIndex((t) => t.id === tabId)
       const nextTabs = prev.filter((t) => t.id !== tabId)
@@ -64,9 +63,9 @@ function EmailScreen(): React.JSX.Element {
         aria-label="Email tabs"
         className="flex items-center gap-1 overflow-x-auto border-b border-border bg-surface/40 px-2 py-2"
       >
-        {tabs.map((tab, index) => {
+        {tabs.map((tab) => {
           const isActive = tab.id === activeTab.id
-          const canClose = index !== 0 && tabs.length > 1
+          const canClose = tabs.length > 1
 
           return (
             <div
