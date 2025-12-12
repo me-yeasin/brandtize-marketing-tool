@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 interface AgentEvent {
   type: 'thinking' | 'action' | 'result' | 'status'
-  category?: 'plan' | 'search' | 'visit' | 'scrape' | 'extract' | 'generate'
+  category?: 'plan' | 'search' | 'visit' | 'scrape' | 'extract' | 'generate' | 'analyze'
   content: string
   timestamp: number
   metadata?: Record<string, unknown>
