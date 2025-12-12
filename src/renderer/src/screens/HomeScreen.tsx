@@ -11,9 +11,7 @@ function HomeScreen(): React.JSX.Element {
     <div className="flex min-h-screen bg-background text-text-main">
       <IconSidebar activeTab={activeTab} onSelectTab={setActiveTab} />
 
-      <main className="flex-1">
-        {activeTab === 'email' ? <EmailScreen /> : <SettingsScreen />}
-      </main>
+      <main className="flex-1">{activeTab === 'email' ? <EmailScreen /> : <SettingsScreen />}</main>
     </div>
   )
 }
