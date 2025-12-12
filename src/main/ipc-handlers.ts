@@ -81,6 +81,8 @@ export function setupIpcHandlers(): void {
         }
       }
 
+      const profile = getAgencyProfile()
+
       // Stop existing agent for this tab if any
       if (activeAgents.has(tabId)) {
         activeAgents.get(tabId)?.stop()
@@ -88,7 +90,7 @@ export function setupIpcHandlers(): void {
       }
 
       const selectedModel = getSelectedModel()
-      const agent = new EmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel)
+      const agent = new EmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel, profile)
       activeAgents.set(tabId, agent)
 
       // Set up event forwarding to renderer

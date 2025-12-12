@@ -1,9 +1,10 @@
 import { EventEmitter } from 'events'
 import { ChatGroq } from '@langchain/groq'
 import * as cheerio from 'cheerio'
+import type { AgencyProfile } from '../store'
 import type { AgentEvent, ExtractedLead, SearchResult, ScrapedPage } from './types'
 
-const OUR_SERVICES = `
+const DEFAULT_PROFILE_CONTEXT = `
 Our agency specializes in:
 - Next.js web application development
 - Electron.js cross-platform desktop applications
@@ -14,9 +15,7 @@ Our agency specializes in:
 We help businesses build modern digital solutions to grow their online presence.
 `
 
-const AGENT_SYSTEM = `You are an intelligent email research agent for a software development agency.
-
-${OUR_SERVICES}
+const AGENT_ROLE_AND_FORMAT = `You are an intelligent email research agent.
 
 Your role:
 1. Deeply analyze niches to find businesses that need our services
@@ -39,14 +38,23 @@ This goes into an expandable panel - be as thorough as needed here.
 
 Always include both sections in every response. The STATUS must be concise (max 5 lines), while DETAILS can be comprehensive.`
 
+const JSON_ONLY_RULE = `If the user explicitly asks for JSON output (for example: "Format as JSON"), output ONLY valid JSON with no additional text and do not include [STATUS] or [DETAILS] tags.`
+
 export class EmailAgent extends EventEmitter {
   private serperApiKey: string
   private stopped = false
   private llm: ChatGroq
+  private profile?: AgencyProfile
 
-  constructor(groqApiKey: string, serperApiKey: string, model: string = 'llama-3.3-70b-versatile') {
+  constructor(
+    groqApiKey: string,
+    serperApiKey: string,
+    model: string = 'llama-3.3-70b-versatile',
+    profile?: AgencyProfile
+  ) {
     super()
     this.serperApiKey = serperApiKey
+    this.profile = profile
     this.llm = new ChatGroq({
       apiKey: groqApiKey,
       model: model,
@@ -56,6 +64,12 @@ export class EmailAgent extends EventEmitter {
 
   stop(): void {
     this.stopped = true
+  }
+
+  private truncate(text: string, maxLen: number): string {
+    const trimmed = text.trim()
+    if (trimmed.length <= maxLen) return trimmed
+    return trimmed.slice(0, maxLen).trim() + '…'
   }
 
   private emitResponse(content: string): void {
@@ -76,11 +90,6 @@ export class EmailAgent extends EventEmitter {
       timestamp: Date.now(),
       metadata: { urls }
     } as AgentEvent)
-  }
-
-  private emitStatus(content: string): void {
-    if (this.stopped || !content.trim()) return
-    this.emit('event', { type: 'status', content, timestamp: Date.now() } as AgentEvent)
   }
 
   private parseStructuredResponse(response: string): { status: string; details: string } {
@@ -158,10 +167,69 @@ export class EmailAgent extends EventEmitter {
     return { status, details }
   }
 
+  private getServicesInline(): string {
+    const services = this.profile?.services
+      ?.map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 12)
+
+    if (!services || services.length === 0) return 'software development services'
+    return services.join(', ')
+  }
+
+  private getProfileContext(): string {
+    if (!this.profile) return DEFAULT_PROFILE_CONTEXT
+
+    const services = (this.profile.services ?? [])
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 12)
+      .map((s) => `- ${s}`)
+      .join('\n')
+
+    const portfolio = (this.profile.portfolio ?? [])
+      .filter((p) => p.title.trim() && p.description.trim())
+      .slice(0, 2)
+      .map((p) => {
+        const tech = p.technologies?.length
+          ? ` (Tech: ${p.technologies.slice(0, 8).join(', ')})`
+          : ''
+        return `- ${p.title}: ${p.description}${tech}`
+      })
+      .join('\n')
+
+    return [
+      `Profile:`,
+      `Type: ${this.profile.type}`,
+      `Name: ${this.profile.name}`,
+      '',
+      'Services Offered:',
+      services || '- (none)',
+      this.profile.tagline.trim() ? `\nTagline: ${this.truncate(this.profile.tagline, 160)}` : '',
+      this.profile.bio.trim() ? `\nBio: ${this.truncate(this.profile.bio, 900)}` : '',
+      portfolio ? `\nPortfolio Highlights:\n${portfolio}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+
+  private getSystemPrompt(): string {
+    const context = this.getProfileContext()
+    return `You are an intelligent email research agent for a software development business.
+
+${context}
+
+Key objective: Find real businesses in the provided niche that are likely to need our services (${this.getServicesInline()}).
+
+${JSON_ONLY_RULE}
+
+${AGENT_ROLE_AND_FORMAT}`
+  }
+
   private async speak(prompt: string): Promise<string> {
     try {
       const response = await this.llm.invoke([
-        { role: 'system', content: AGENT_SYSTEM },
+        { role: 'system', content: this.getSystemPrompt() },
         { role: 'user', content: prompt }
       ])
       return typeof response.content === 'string' ? response.content : ''
@@ -257,8 +325,8 @@ export class EmailAgent extends EventEmitter {
 Please provide a thorough analysis covering:
 1. What types of businesses are in this niche?
 2. What are their typical digital needs and pain points?
-3. How could our development services (Next.js, Electron.js, React Native, web/mobile apps) help them?
-4. What search terms would find REAL businesses (not directories or email sellers)?
+3. How could our services (${this.getServicesInline()}) help them?
+4. What search terms would find REAL businesses that need these services (not directories or email sellers)?
 
 End with exactly 5 search queries in this format:
 QUERIES: ["query1", "query2", "query3", "query4", "query5"]
@@ -315,7 +383,7 @@ Remember to format your response with [STATUS] and [DETAILS] sections.`
 
           // Step 5: LLM analyzes the website
           const websiteAnalysisRaw = await this.speak(
-            `I just scraped this website. Analyze if this is a potential client for our development services:
+            `I just scraped this website. Analyze if this is a potential client for our services (${this.getServicesInline()}):
 
 URL: ${page.url}
 Title: ${page.title}
@@ -372,7 +440,7 @@ Website: ${page.url}
 
 Is this a quality contact worth adding to our lead list? Consider:
 - Is it a personal/decision-maker email or generic (info@, support@)?
-- Would they likely respond to a development services pitch?
+- Would they likely respond to a pitch for our services (${this.getServicesInline()})?
 
 Be brief. If it's good, I'll add it to the list.
 
@@ -400,7 +468,10 @@ Business: ${page.title}
 Email: ${email}
 Niche: ${niche}
 
-Write a short, professional outreach email introducing our development services.
+Write a short, professional outreach email introducing our services (${this.getServicesInline()}).
+Use a friendly but professional tone. Keep it concise.
+Include a brief sign-off using our name: ${this.profile?.name ?? 'Our team'}.
+
 Format as JSON: {"subject": "...", "body": "..."}`
             )
 
@@ -450,7 +521,7 @@ Remember to format your response with [STATUS] and [DETAILS] sections.`
 
       // Final summary
       const summary = await this.speakStructured(
-        `I've completed my research on the "${niche}" niche. Found ${leadCount} qualified leads. ${leadCount > 0 ? 'These contacts look promising for outreach about our development services.' : 'I may need different search terms to find better leads in this niche.'}
+        `I've completed my research on the "${niche}" niche. Found ${leadCount} qualified leads. ${leadCount > 0 ? `These contacts look promising for outreach about our services (${this.getServicesInline()}).` : 'I may need different search terms to find better leads in this niche.'}
 
 Remember to format your response with [STATUS] and [DETAILS] sections.`
       )
