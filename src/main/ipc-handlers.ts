@@ -73,6 +73,14 @@ export function setupIpcHandlers(): void {
         return { success: false, error: 'API keys not configured. Please set them in Settings.' }
       }
 
+      if (!hasAgencyProfile()) {
+        return {
+          success: false,
+          error:
+            'Profile not configured. Please go to Settings and add your profile (type, name, and at least one service).'
+        }
+      }
+
       // Stop existing agent for this tab if any
       if (activeAgents.has(tabId)) {
         activeAgents.get(tabId)?.stop()

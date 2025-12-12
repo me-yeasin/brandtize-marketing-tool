@@ -69,6 +69,13 @@ const DEFAULT_PROFILE: AgencyProfile = {
   social: {}
 }
 
+function isProfileComplete(p: AgencyProfile): boolean {
+  const typeOk = p.type === 'agency' || p.type === 'freelancer'
+  const nameOk = p.name.trim().length > 0
+  const servicesOk = p.services.some((s) => s.trim().length > 0)
+  return typeOk && nameOk && servicesOk
+}
+
 const GROQ_MODELS = [
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
@@ -111,7 +118,7 @@ function SettingsScreen(): React.JSX.Element {
     })
     window.api.getProfile().then((p) => {
       setProfile(p)
-      setHasProfile(p.name.trim().length > 0)
+      setHasProfile(isProfileComplete(p))
     })
   }, [])
 
@@ -146,10 +153,19 @@ function SettingsScreen(): React.JSX.Element {
   }
 
   const saveProfile = async (): Promise<void> => {
+    if (!isProfileComplete(profile)) {
+      setMessage({
+        type: 'error',
+        text: 'Please select profile type, enter your name, and add at least one service before saving.'
+      })
+      setTimeout(() => setMessage(null), 3000)
+      return
+    }
+
     setSaving(true)
     try {
       await window.api.setProfile(profile)
-      setHasProfile(profile.name.trim().length > 0)
+      setHasProfile(isProfileComplete(profile))
       setMessage({ type: 'success', text: 'Profile saved successfully!' })
     } catch {
       setMessage({ type: 'error', text: 'Failed to save profile' })
@@ -708,7 +724,11 @@ function SettingsScreen(): React.JSX.Element {
 
               {/* Save Button */}
               <div className="flex justify-end">
-                <Button variant="primary" onClick={saveProfile} disabled={saving}>
+                <Button
+                  variant="primary"
+                  onClick={saveProfile}
+                  disabled={saving || !isProfileComplete(profile)}
+                >
                   {saving ? 'Saving...' : 'Save Profile'}
                 </Button>
               </div>

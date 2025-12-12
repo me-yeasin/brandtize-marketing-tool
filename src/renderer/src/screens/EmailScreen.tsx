@@ -20,6 +20,8 @@ type EmailTab = {
 function EmailScreen(): React.JSX.Element {
   const nextTabNumberRef = useRef(2)
 
+  const [profileReady, setProfileReady] = useState<boolean | null>(null)
+
   const [tabs, setTabs] = useState<EmailTab[]>([
     {
       id: 'tab-1',
@@ -38,7 +40,28 @@ function EmailScreen(): React.JSX.Element {
 
   const showLeads = activeTab.leads.length > 0
 
+  useEffect(() => {
+    let alive = true
+
+    window.api
+      .hasProfile()
+      .then((hasProfile) => {
+        if (!alive) return
+        setProfileReady(hasProfile)
+      })
+      .catch(() => {
+        if (!alive) return
+        setProfileReady(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
   const addTab = (): void => {
+    if (profileReady !== true) return
+
     const tabNumber = nextTabNumberRef.current++
     const newTab: EmailTab = {
       id: `tab-${tabNumber}`,
@@ -95,6 +118,7 @@ function EmailScreen(): React.JSX.Element {
   }, [addEventToTab, addLeadToTab, updateTabState])
 
   const startAgent = async (): Promise<void> => {
+    if (profileReady !== true) return
     if (!activeTab.nicheText.trim()) return
 
     updateTabState(activeTab.id, { state: 'running', events: [], leads: [], error: undefined })
@@ -196,7 +220,8 @@ function EmailScreen(): React.JSX.Element {
           type="button"
           aria-label="Add tab"
           onClick={addTab}
-          className="ml-1 flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface hover:text-text-main"
+          disabled={profileReady !== true}
+          className="ml-1 flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface hover:text-text-main disabled:pointer-events-none disabled:opacity-40"
         >
           <svg
             width="16"
@@ -214,7 +239,24 @@ function EmailScreen(): React.JSX.Element {
         </button>
       </div>
 
-      {activeTab.state === 'idle' ? (
+      {profileReady === false ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="w-full max-w-xl rounded-lg border border-border bg-surface/30 p-6 text-center">
+            <h2 className="text-lg font-medium text-text-main">Profile required</h2>
+            <p className="mt-2 text-sm text-text-muted">
+              Please go to Settings and add your profile (type, name, and at least one service) to
+              get started using the Email service.
+            </p>
+            <p className="mt-2 text-xs text-text-muted">
+              You can open Settings from the left sidebar.
+            </p>
+          </div>
+        </div>
+      ) : profileReady === null ? (
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="text-sm text-text-muted">Checking profile...</div>
+        </div>
+      ) : activeTab.state === 'idle' ? (
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="w-full max-w-xl space-y-4">
             <Input

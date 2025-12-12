@@ -111,7 +111,10 @@ export function setAgencyProfile(profile: AgencyProfile): void {
 
 export function hasAgencyProfile(): boolean {
   const profile = getAgencyProfile()
-  return profile.name.trim().length > 0
+  const typeOk = profile.type === 'agency' || profile.type === 'freelancer'
+  const nameOk = profile.name.trim().length > 0
+  const servicesOk = profile.services.some((s) => s.trim().length > 0)
+  return typeOk && nameOk && servicesOk
 }
 
 export { store }
