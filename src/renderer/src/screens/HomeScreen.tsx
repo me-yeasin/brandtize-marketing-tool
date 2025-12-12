@@ -8,10 +8,12 @@ function HomeScreen(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<TabId>('email')
 
   return (
-    <div className="flex min-h-screen bg-background text-text-main">
+    <div className="flex h-screen overflow-hidden bg-background text-text-main">
       <IconSidebar activeTab={activeTab} onSelectTab={setActiveTab} />
 
-      <main className="flex-1">{activeTab === 'email' ? <EmailScreen /> : <SettingsScreen />}</main>
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        {activeTab === 'email' ? <EmailScreen /> : <SettingsScreen />}
+      </main>
     </div>
   )
 }
