@@ -7,32 +7,6 @@ interface ApiKeys {
   hasSerperKey: boolean
 }
 
-interface AgentEvent {
-  type: 'response' | 'thinking' | 'search' | 'status'
-  content: string
-  timestamp: number
-  metadata?: Record<string, unknown>
-}
-
-interface ExtractedLead {
-  id: string
-  email: string
-  source: string
-  context: {
-    businessName?: string
-    businessType?: string
-    location?: string
-    website?: string
-    needs?: string[]
-    summary: string
-  }
-  template: {
-    subject: string
-    body: string
-  }
-  foundAt: number
-}
-
 interface PortfolioProject {
   id: string
   title: string
@@ -79,13 +53,6 @@ interface Api {
   getProfile: () => Promise<AgencyProfile>
   setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
   hasProfile: () => Promise<boolean>
-  startAgent: (tabId: string, niche: string) => Promise<{ success: boolean; error?: string }>
-  stopAgent: (tabId: string) => Promise<{ success: boolean; error?: string }>
-  onAgentEvent: (callback: (data: { tabId: string; event: AgentEvent }) => void) => () => void
-  onAgentLead: (callback: (data: { tabId: string; lead: ExtractedLead }) => void) => () => void
-  onAgentComplete: (callback: (data: { tabId: string }) => void) => () => void
-  onAgentError: (callback: (data: { tabId: string; error: string }) => void) => () => void
-  openMail: (to: string, subject: string, body: string) => Promise<{ success: boolean }>
 }
 
 declare global {
