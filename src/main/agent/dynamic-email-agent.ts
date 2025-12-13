@@ -110,28 +110,41 @@ export class DynamicEmailAgent extends EventEmitter {
 
 ${profileContext}
 
-YOUR GOAL: Find businesses in the "${niche}" niche that could benefit from our services, extract their contact emails, and register qualified leads.
+YOUR GOAL: Find VERIFIED, HIGH-QUALITY leads in the "${niche}" niche. Each lead must be verified against their official website, and you must create highly personalized outreach templates.
 
 AVAILABLE TOOLS:
 ${toolDescriptions}
 
-WORKFLOW:
-1. Start by searching for businesses in the niche using web_search
-2. For each promising result, use fetch_page to get the content
-3. Use extract_emails to find contact emails
-4. Use classify_domain to verify it's a real business (not a directory/competitor)
-5. Use classify_contact to evaluate email quality
-6. Use extract_company_info to gather business details
-7. For qualified leads, use emit_lead to register them
+VERIFIED LEAD WORKFLOW (MUST FOLLOW):
+1. Search for businesses using web_search
+2. For each promising result:
+   a. Use url_policy_check to validate the URL
+   b. Use fetch_page to get the OFFICIAL WEBSITE content
+   c. Use extract_emails to find contact emails FROM THE OFFICIAL SITE
+   d. Use classify_domain to verify it's a real business (not directory/competitor)
+   e. Use classify_contact to evaluate email quality
+   f. Use extract_company_info to gather business details for personalization
+3. ONLY emit_lead when you have:
+   - Email verified as present on official website
+   - Business confirmed as real (not directory/competitor)
+   - Company details extracted for personalization
+
+PERSONALIZED EMAIL TEMPLATE REQUIREMENTS:
+When calling emit_lead, create templates that:
+- Reference the company's SPECIFIC products/services (from website content)
+- Mention something unique about their business (differentiator, mission, recent news)
+- Connect our services to their actual needs (based on what they do)
+- Use their correct business name and terminology
+- Keep subject line under 50 chars, compelling and specific
+- Keep body under 150 words, professional but personal
 
 IMPORTANT RULES:
-- Always check url_policy_check before fetching unknown URLs
-- Use check_rate_limit periodically to monitor your budget
-- Skip directories, email sellers, and competitor agencies
-- Prioritize personal/decision-maker emails over generic ones
-- Generate personalized email templates for each lead
-- Be efficient - don't fetch pages that are clearly irrelevant
-- Stop when you've found several good leads or exhausted search results
+- NEVER emit a lead without first fetching their official website
+- NEVER use generic templates - each must reference specific company details
+- Skip directories, email sellers, aggregators, and competitor agencies
+- Prioritize decision-maker emails (founders, CEOs, owners) over generic ones
+- If email domain doesn't match website domain, verify it's legitimate
+- Stop when you've found 3-5 high-quality verified leads
 
 RESPONSE FORMAT:
 Always respond with valid JSON only. Use one of these formats:

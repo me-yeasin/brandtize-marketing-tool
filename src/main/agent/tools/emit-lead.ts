@@ -19,6 +19,10 @@ export interface EmitLeadParams {
   summary: string
   emailSubject: string
   emailBody: string
+  // Verification fields
+  verifiedOnSite: boolean
+  companyProducts?: string
+  personalizationNote?: string
 }
 
 export class EmitLeadTool implements AgentTool<EmitLeadParams, LeadData> {
@@ -42,22 +46,44 @@ export class EmitLeadTool implements AgentTool<EmitLeadParams, LeadData> {
       },
       website: {
         type: 'string',
-        description: 'Business website URL'
+        description: 'Business official website URL'
       },
       summary: {
         type: 'string',
-        description: 'Brief summary of the business and why they are a good lead'
+        description: 'Brief summary of what the business does and why they need our services'
       },
       emailSubject: {
         type: 'string',
-        description: 'Suggested email subject line for outreach'
+        description: 'Personalized email subject line (under 50 chars, specific to this company)'
       },
       emailBody: {
         type: 'string',
-        description: 'Suggested email body for outreach'
+        description:
+          'Personalized email body referencing their specific products/services (under 150 words)'
+      },
+      verifiedOnSite: {
+        type: 'boolean',
+        description: 'Whether this email was verified on the official website'
+      },
+      companyProducts: {
+        type: 'string',
+        description: 'Key products/services the company offers (for personalization)'
+      },
+      personalizationNote: {
+        type: 'string',
+        description:
+          'Specific detail used to personalize the outreach (e.g., recent news, unique feature)'
       }
     },
-    required: ['email', 'source', 'businessName', 'summary', 'emailSubject', 'emailBody']
+    required: [
+      'email',
+      'source',
+      'businessName',
+      'summary',
+      'emailSubject',
+      'emailBody',
+      'verifiedOnSite'
+    ]
   }
 
   getDefinition(): ToolDefinition {
@@ -69,7 +95,24 @@ export class EmitLeadTool implements AgentTool<EmitLeadParams, LeadData> {
   }
 
   async execute(params: EmitLeadParams, context: ToolContext): Promise<ToolResult<LeadData>> {
-    const { email, source, businessName, website, summary, emailSubject, emailBody } = params
+    const {
+      email,
+      source,
+      businessName,
+      website,
+      summary,
+      emailSubject,
+      emailBody,
+      verifiedOnSite,
+      companyProducts,
+      personalizationNote
+    } = params
+
+    // Determine quality based on verification
+    const quality = verifiedOnSite ? 'high' : 'medium'
+    const reasoning = verifiedOnSite
+      ? `Email verified on official website. ${personalizationNote || ''}`
+      : 'Email not verified on official site - proceed with caution'
 
     const lead: LeadData = {
       id: `lead-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -78,23 +121,27 @@ export class EmitLeadTool implements AgentTool<EmitLeadParams, LeadData> {
       company: {
         name: businessName,
         website: website || source,
-        summary
+        summary,
+        products: companyProducts
       },
       contactQuality: {
         role: 'unknown',
-        quality: 'medium',
-        reasoning: 'Lead registered via tool'
+        quality,
+        reasoning
       },
       template: {
         subject: emailSubject,
         body: emailBody
       },
+      verified: verifiedOnSite,
+      personalizationNote,
       foundAt: Date.now()
     }
 
+    const verifiedBadge = verifiedOnSite ? '✓ Verified' : '⚠ Unverified'
     context.emitEvent({
       type: 'response',
-      content: `Found qualified lead: ${email} from ${businessName}`,
+      content: `${verifiedBadge} lead: ${email} from ${businessName}`,
       timestamp: Date.now(),
       metadata: { lead }
     })
@@ -102,7 +149,7 @@ export class EmitLeadTool implements AgentTool<EmitLeadParams, LeadData> {
     return {
       success: true,
       data: lead,
-      metadata: { registered: true }
+      metadata: { registered: true, verified: verifiedOnSite }
     }
   }
 }

@@ -193,6 +193,7 @@ export interface CompanyInfo {
   website?: string
   signals?: string[]
   summary: string
+  products?: string
 }
 
 /**
@@ -208,5 +209,7 @@ export interface LeadData {
     subject: string
     body: string
   }
+  verified?: boolean
+  personalizationNote?: string
   foundAt: number
 }
