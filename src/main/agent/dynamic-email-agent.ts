@@ -28,6 +28,53 @@ import type { ToolContext, ToolEvent, RateLimiterState } from './tools/types'
 
 const MAX_ITERATIONS = 25
 
+const DEFAULT_SEARCH_NEGATIVE_KEYWORDS = [
+  '-yelp',
+  '-yellowpages',
+  '-agency',
+  '-studio',
+  '-marketing',
+  '-branding',
+  '-portfolio',
+  '-behance',
+  '-dribbble',
+  '-clutch',
+  '-upwork',
+  '-fiverr'
+]
+
+function normalizeSearchQuery(query: string): string {
+  const trimmed = query.trim()
+  if (!trimmed) return trimmed
+
+  const lower = trimmed.toLowerCase()
+  const additions = DEFAULT_SEARCH_NEGATIVE_KEYWORDS.filter(
+    (kw) => !lower.includes(kw.toLowerCase())
+  )
+
+  return additions.length > 0 ? `${trimmed} ${additions.join(' ')}` : trimmed
+}
+
+function formatWebSearchResultForPrompt(data: unknown): string {
+  const d = data as {
+    query?: string
+    totalResults?: number
+    results?: Array<{ title?: string; url?: string; position?: number }>
+  }
+
+  const compact = {
+    query: d.query,
+    totalResults: d.totalResults,
+    results: (d.results || []).slice(0, 10).map((r) => ({
+      position: r.position,
+      title: r.title,
+      url: r.url
+    }))
+  }
+
+  return JSON.stringify(compact, null, 2)
+}
+
 interface AgentMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
@@ -318,6 +365,13 @@ Always respond with valid JSON only. No other text.`
       }
     ]
 
+    let lastSearchResults: Array<{
+      title: string
+      url: string
+      position: number
+    }> | null = null
+    let urlsProcessedSinceLastSearch = 0
+
     // Emit initial status (short, shown directly on screen)
     this.emit('event', {
       type: 'status',
@@ -388,6 +442,25 @@ Always respond with valid JSON only. No other text.`
           const toolName = parsed.tool
           const params = parsed.params
 
+          if (toolName === 'web_search') {
+            const query = typeof params.query === 'string' ? params.query : ''
+            params.query = normalizeSearchQuery(query)
+
+            if (lastSearchResults && urlsProcessedSinceLastSearch === 0) {
+              const choices = lastSearchResults.slice(0, 8)
+              const choicesText = choices
+                .map((r) => `${r.position}. ${r.title} - ${r.url}`)
+                .join('\n')
+
+              messages.push({ role: 'assistant', content: response })
+              messages.push({
+                role: 'user',
+                content: `You already have search results and MUST process at least 1 URL before searching again.\n\nPick 1-3 URLs from:\n${choicesText}\n\nNext actions:\n1) Call url_policy_check for the chosen URL(s).\n2) Call fetch_page for approved URL(s).\nDo NOT call web_search again until you have fetched at least one page.`
+              })
+              continue
+            }
+          }
+
           // Short status for tool usage (shown directly on screen)
           this.emit('event', {
             type: 'status',
@@ -397,18 +470,39 @@ Always respond with valid JSON only. No other text.`
 
           const result = await this.registry.executeTool(toolName, params)
 
+          if (toolName === 'web_search' && result.success) {
+            const data = result.data as {
+              results?: Array<{ title: string; url: string; position: number }>
+            }
+            lastSearchResults = (data.results || []).slice(0, 10)
+            urlsProcessedSinceLastSearch = 0
+          }
+
+          if (
+            (toolName === 'fetch_page' || toolName === 'url_policy_check') &&
+            result.success &&
+            lastSearchResults
+          ) {
+            urlsProcessedSinceLastSearch++
+          }
+
           if (toolName === 'emit_lead' && result.success) {
             leadCount++
           }
 
           const resultSummary = result.success
-            ? JSON.stringify(result.data, null, 2).slice(0, 2000)
+            ? toolName === 'web_search'
+              ? formatWebSearchResultForPrompt(result.data).slice(0, 2000)
+              : JSON.stringify(result.data, null, 2).slice(0, 2000)
             : `Error: ${result.error}`
 
           messages.push({ role: 'assistant', content: response })
           messages.push({
             role: 'user',
-            content: `Tool result for ${toolName}:\n${resultSummary}\n\nAnalyze this result and decide what to do next. Remember to use emit_lead when you find a qualified business with contact emails.`
+            content:
+              toolName === 'web_search'
+                ? `Tool result for ${toolName}:\n${resultSummary}\n\nPick 1-3 URLs from the results and call url_policy_check, then fetch_page. Do NOT call web_search again until you have fetched at least one page.`
+                : `Tool result for ${toolName}:\n${resultSummary}\n\nAnalyze this result and decide what to do next. Remember to use emit_lead when you find a qualified business with contact emails.`
           })
 
           if (messages.length > 30) {
