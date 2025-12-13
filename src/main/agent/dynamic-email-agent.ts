@@ -19,6 +19,11 @@ import { domainClassifierTool } from './tools/domain-classifier'
 import { contactClassifierTool } from './tools/contact-classifier'
 import { companyExtractorTool } from './tools/company-extractor'
 import { emitLeadTool } from './tools/emit-lead'
+import { emailVerifierTool } from './tools/email-verifier'
+import { leadScorerTool } from './tools/lead-scorer'
+import { detectTechStackTool } from './tools/detect-tech-stack'
+import { detectHiringIntentTool } from './tools/detect-hiring-intent'
+import { icpMatcherTool } from './tools/icp-matcher'
 import type { ToolContext, ToolEvent, RateLimiterState } from './tools/types'
 
 const MAX_ITERATIONS = 25
@@ -81,6 +86,11 @@ export class DynamicEmailAgent extends EventEmitter {
     this.registry.register(contactClassifierTool)
     this.registry.register(companyExtractorTool)
     this.registry.register(emitLeadTool)
+    this.registry.register(emailVerifierTool)
+    this.registry.register(leadScorerTool)
+    this.registry.register(detectTechStackTool)
+    this.registry.register(detectHiringIntentTool)
+    this.registry.register(icpMatcherTool)
   }
 
   stop(): void {
@@ -110,41 +120,77 @@ export class DynamicEmailAgent extends EventEmitter {
 
 ${profileContext}
 
-YOUR GOAL: Find VERIFIED, HIGH-QUALITY leads in the "${niche}" niche. Each lead must be verified against their official website, and you must create highly personalized outreach templates.
+YOUR GOAL: Find VERIFIED, HIGH-QUALITY, CONVERTIBLE leads in the "${niche}" niche. Each lead must be thoroughly verified, scored, and matched against our services. Create hyper-personalized outreach templates.
 
 AVAILABLE TOOLS:
 ${toolDescriptions}
 
-VERIFIED LEAD WORKFLOW (MUST FOLLOW):
-1. Search for businesses using web_search
-2. For each promising result:
-   a. Use url_policy_check to validate the URL
-   b. Use fetch_page to get the OFFICIAL WEBSITE content
-   c. Use extract_emails to find contact emails FROM THE OFFICIAL SITE
-   d. Use classify_domain to verify it's a real business (not directory/competitor)
-   e. Use classify_contact to evaluate email quality
-   f. Use extract_company_info to gather business details for personalization
-3. ONLY emit_lead when you have:
-   - Email verified as present on official website
-   - Business confirmed as real (not directory/competitor)
-   - Company details extracted for personalization
+ENHANCED VERIFIED LEAD WORKFLOW (MUST FOLLOW):
+1. Search for businesses using web_search with INTENT-BASED queries like:
+   - "${niche} business needs website" or "${niche} looking for developer"
+   - "${niche} small business contact" (exclude directories with -yelp -yellowpages)
 
-PERSONALIZED EMAIL TEMPLATE REQUIREMENTS:
-When calling emit_lead, create templates that:
-- Reference the company's SPECIFIC products/services (from website content)
-- Mention something unique about their business (differentiator, mission, recent news)
-- Connect our services to their actual needs (based on what they do)
-- Use their correct business name and terminology
-- Keep subject line under 50 chars, compelling and specific
-- Keep body under 150 words, professional but personal
+2. For each promising result, perform FULL VERIFICATION:
+   a. url_policy_check - Validate URL is accessible
+   b. fetch_page - Get OFFICIAL WEBSITE content
+   c. extract_emails - Find contact emails from the official site
+   d. classify_domain - Verify real business (not directory/competitor)
+   e. verify_email - CHECK EMAIL DELIVERABILITY (MX records, disposable detection)
+   f. classify_contact - Evaluate if decision-maker or generic email
+
+3. For QUALIFIED leads, gather DEEP INTELLIGENCE:
+   a. extract_company_info - Get business details, size, products, signals, pain indicators
+   b. detect_tech_stack - Identify outdated tech (high-intent signal for our services)
+   c. detect_hiring_intent - Find hiring signals (indicates growth/budget)
+   d. match_icp - Score how well they match our ideal customer profile
+
+4. SCORE each lead using score_lead before emitting:
+   - Only emit leads with score >= 50 (warm or hot tier)
+   - Hot leads (70+) are priority - decision-maker + intent signals + service match
+   - Include lead score and tier in the emit_lead call
+
+5. ONLY emit_lead when you have:
+   - Email VERIFIED as deliverable (not disposable, has MX records)
+   - Business confirmed as REAL (not directory/competitor)
+   - Lead score calculated (include in personalizationNote)
+   - Company details extracted for HYPER-PERSONALIZATION
+   - ICP match showing relevance to our services
+
+HYPER-PERSONALIZED EMAIL TEMPLATE REQUIREMENTS:
+Create templates at Level 3-4 personalization:
+- Level 3 (Specific): "I noticed your [specific_product] page..."
+- Level 4 (Hyper): "After seeing your [blog_post/news]..."
+
+Each template MUST include:
+- Opener: Reference something SPECIFIC from their website (product, service, blog)
+- Pain Point: Address a likely challenge based on their industry/tech stack
+- Solution: Brief connection to our services (based on ICP match)
+- Social Proof: Mention similar clients/results
+- CTA: Simple next step (10-minute chat)
+
+Template structure:
+Subject: Under 50 chars, specific hook mentioning their business
+Body: 
+1. Personalized opener (reference their specific product/blog/news)
+2. Identify pain point (based on tech stack/hiring signals)
+3. Brief value prop (matched to their needs)
+4. Quick CTA
+
+INTENT SIGNALS TO PRIORITIZE (higher conversion):
+- Hiring for tech roles = They have budget and need help
+- Outdated tech stack = High need for modernization
+- Recent funding/growth news = Budget available
+- No modern web presence = Easy win for us
+- Active job postings = Growing company
 
 IMPORTANT RULES:
-- NEVER emit a lead without first fetching their official website
-- NEVER use generic templates - each must reference specific company details
-- Skip directories, email sellers, aggregators, and competitor agencies
-- Prioritize decision-maker emails (founders, CEOs, owners) over generic ones
-- If email domain doesn't match website domain, verify it's legitimate
-- Stop when you've found 3-5 high-quality verified leads
+- ALWAYS verify_email before emit_lead (skip disposable/invalid emails)
+- ALWAYS score_lead before emit_lead (only emit score >= 50)
+- Prioritize DECISION-MAKER emails (founders, CEOs, owners)
+- Use detect_tech_stack to find businesses with outdated tech (high intent)
+- Use detect_hiring_intent to find growing companies (budget signals)
+- Skip free email providers (gmail, yahoo) unless clearly a small business owner
+- Stop when you've found 3-5 HOT or WARM verified leads (score >= 50)
 
 RESPONSE FORMAT:
 Always respond with valid JSON only. Use one of these formats:

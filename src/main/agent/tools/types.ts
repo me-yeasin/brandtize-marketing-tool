@@ -203,7 +203,7 @@ export interface LeadData {
   id: string
   email: string
   source: string
-  company: CompanyInfo
+  company: EnhancedCompanyInfo
   contactQuality: ContactClassification
   template: {
     subject: string
@@ -212,4 +212,165 @@ export interface LeadData {
   verified?: boolean
   personalizationNote?: string
   foundAt: number
+  emailVerification?: EmailVerificationResult
+  leadScore?: LeadScoreResult
+  intentSignals?: IntentSignals
+  icpMatch?: ICPMatchResult
+}
+
+// ============================================
+// Enhanced Types for 2025 Lead Quality System
+// ============================================
+
+/**
+ * Email verification result with deliverability data
+ */
+export interface EmailVerificationResult {
+  isValid: boolean
+  isDeliverable: boolean
+  isMxValid: boolean
+  isDisposable: boolean
+  isRoleBased: boolean
+  isFreeProvider: boolean
+  riskScore: number // 0-100, lower is better
+  provider?: string
+  mxRecords?: string[]
+  verificationStatus: 'verified' | 'unverified' | 'risky' | 'invalid'
+  reasoning: string
+}
+
+/**
+ * Lead scoring result with breakdown
+ */
+export interface LeadScoreResult {
+  totalScore: number // 0-100
+  tier: 'hot' | 'warm' | 'cold'
+  breakdown: {
+    emailQuality: number // 0-25
+    businessFit: number // 0-25
+    intentSignals: number // 0-25
+    personalizationDepth: number // 0-25
+  }
+  reasoning: string
+  priorityRank?: number
+}
+
+/**
+ * Intent signals detected from various sources
+ */
+export interface IntentSignals {
+  hasHiringIntent: boolean
+  hasTechUpgradeIntent: boolean
+  hasGrowthIntent: boolean
+  hasPainSignals: boolean
+  signals: IntentSignalDetail[]
+  overallIntentScore: number // 0-100
+}
+
+/**
+ * Individual intent signal detail
+ */
+export interface IntentSignalDetail {
+  type: 'hiring' | 'technology' | 'growth' | 'pain' | 'funding' | 'expansion'
+  signal: string
+  source: string
+  strength: 'strong' | 'moderate' | 'weak'
+  timestamp?: number
+}
+
+/**
+ * Technology stack detection result
+ */
+export interface TechStackResult {
+  technologies: TechnologyDetail[]
+  hasOutdatedTech: boolean
+  hasModernStack: boolean
+  needsUpgrade: boolean
+  techFitScore: number // 0-100
+  recommendations: string[]
+}
+
+/**
+ * Individual technology detail
+ */
+export interface TechnologyDetail {
+  name: string
+  category: 'cms' | 'framework' | 'language' | 'analytics' | 'ecommerce' | 'hosting' | 'other'
+  version?: string
+  isOutdated: boolean
+  confidence: number
+}
+
+/**
+ * Hiring intent detection result
+ */
+export interface HiringIntentResult {
+  hasRelevantJobs: boolean
+  jobs: JobPosting[]
+  hiringIntentScore: number // 0-100
+  relevanceToServices: string[]
+}
+
+/**
+ * Job posting detail
+ */
+export interface JobPosting {
+  title: string
+  isRelevant: boolean
+  relevanceReason?: string
+  source: string
+}
+
+/**
+ * ICP (Ideal Customer Profile) match result
+ */
+export interface ICPMatchResult {
+  matchScore: number // 0-100
+  matchedServices: string[]
+  matchedIndustry: boolean
+  matchedSize: boolean
+  recommendation: 'ideal' | 'good' | 'moderate' | 'poor'
+  reasoning: string
+  gapAnalysis: string[]
+}
+
+/**
+ * Enhanced company information with deeper data extraction
+ */
+export interface EnhancedCompanyInfo extends CompanyInfo {
+  companySize?: 'micro' | 'small' | 'medium' | 'large' | 'enterprise'
+  employeeCount?: string
+  yearsInBusiness?: number
+  foundedYear?: number
+  keyProducts?: string[]
+  keyServices?: string[]
+  recentNews?: string
+  recentBlogPost?: string
+  awards?: string[]
+  certifications?: string[]
+  clientLogos?: string[]
+  painIndicators?: string[]
+  differentiator?: string
+  socialProfiles?: {
+    linkedin?: string
+    twitter?: string
+    facebook?: string
+  }
+  contactPageUrl?: string
+  aboutPageContent?: string
+}
+
+/**
+ * Hyper-personalized email template
+ */
+export interface HyperPersonalizedTemplate {
+  subject: string
+  opener: string
+  painPoint: string
+  solution: string
+  socialProof: string
+  cta: string
+  fullBody: string
+  personalizationLevel: 'basic' | 'industry' | 'specific' | 'hyper'
+  personalizationElements: string[]
 }
