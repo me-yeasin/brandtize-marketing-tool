@@ -12,8 +12,12 @@ import {
   type AgencyProfile
 } from './store'
 import { EmailAgent } from './agent/email-agent'
+import { DynamicEmailAgent } from './agent/dynamic-email-agent'
 
-const activeAgents: Map<string, EmailAgent> = new Map()
+const activeAgents: Map<string, EmailAgent | DynamicEmailAgent> = new Map()
+
+// Set to true to use the new dynamic agent with tool calling
+const USE_DYNAMIC_AGENT = true
 
 export function setupIpcHandlers(): void {
   // Settings handlers
@@ -90,7 +94,9 @@ export function setupIpcHandlers(): void {
       }
 
       const selectedModel = getSelectedModel()
-      const agent = new EmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel, profile)
+      const agent = USE_DYNAMIC_AGENT
+        ? new DynamicEmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel, profile)
+        : new EmailAgent(keys.groqApiKey, keys.serperApiKey, selectedModel, profile)
       activeAgents.set(tabId, agent)
 
       // Set up event forwarding to renderer
