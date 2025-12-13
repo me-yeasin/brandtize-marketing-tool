@@ -19,7 +19,7 @@ function ChatMessageBubble({ message }: ChatMessageBubbleProps): React.JSX.Eleme
           isUser ? userStyle : assistantStyle
         ].join(' ')}
       >
-        {message.text || (message.role === 'assistant' && <span className="opacity-50">...</span>)}
+        {message.text || (message.role === 'assistant' && <span className="opacity-50"></span>)}
       </div>
     </div>
   )

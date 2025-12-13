@@ -62,7 +62,7 @@ export function setupIpcHandlers(): void {
     return hasAgencyProfile()
   })
 
-  // Chat streaming handler
+  // Chat streaming handler with fallback support
   ipcMain.handle('chat:stream', async (_event, messages: ChatMessage[]) => {
     const window = BrowserWindow.getFocusedWindow()
 
@@ -80,6 +80,14 @@ export function setupIpcHandlers(): void {
         },
         onError: (error) => {
           window.webContents.send('chat:error', error)
+        },
+        onModelSwitch: (fromModel, toModel) => {
+          console.log(`[IPC] Model switch: ${fromModel} -> ${toModel}`)
+          window.webContents.send('chat:modelSwitch', { fromModel, toModel })
+        },
+        onRetry: (model, attempt, maxAttempts) => {
+          console.log(`[IPC] Retry: ${model} attempt ${attempt}/${maxAttempts}`)
+          window.webContents.send('chat:retry', { model, attempt, maxAttempts })
         }
       })
 
