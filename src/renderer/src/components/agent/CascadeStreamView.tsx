@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { FiChevronDown, FiChevronRight, FiSearch, FiArrowRight } from 'react-icons/fi'
 import type { AgentEvent } from './AgentStreamingLog'
 
@@ -6,6 +6,74 @@ interface CascadeStreamViewProps {
   events: AgentEvent[]
   isRunning: boolean
   niche?: string
+}
+
+// Threshold for content length - anything longer goes into thinking panel
+const LONG_CONTENT_THRESHOLD = 120
+
+/**
+ * Check if content looks like raw JSON that should be parsed
+ */
+function looksLikeJson(content: string): boolean {
+  const trimmed = content.trim()
+  return trimmed.startsWith('{') && trimmed.includes('"')
+}
+
+/**
+ * Try to parse JSON content and extract display parts
+ */
+function parseJsonContent(content: string): {
+  thinking?: string
+  status?: string
+  summary?: string
+  done?: boolean
+  tool?: string
+  params?: Record<string, unknown>
+  message?: string
+  rawText?: string
+} {
+  try {
+    const parsed = JSON.parse(content.trim())
+    return {
+      thinking: parsed.thinking,
+      status: parsed.status,
+      summary: parsed.summary,
+      done: parsed.done,
+      tool: parsed.tool,
+      params: parsed.params,
+      message: parsed.message
+    }
+  } catch {
+    // Not valid JSON, return as raw text
+    return { rawText: content }
+  }
+}
+
+/**
+ * Determine if content should go into thinking panel
+ * - Long content (> threshold)
+ * - Content that contains detailed analysis keywords
+ */
+function shouldBeInThinkingPanel(content: string): boolean {
+  if (content.length > LONG_CONTENT_THRESHOLD) return true
+
+  // Check for analysis/reasoning keywords
+  const thinkingKeywords = [
+    'analyzing',
+    'analysis',
+    'examining',
+    'evaluating',
+    'considering',
+    'this appears to be',
+    'i found',
+    'i notice',
+    'looking at',
+    'the search results',
+    'this website',
+    'this business'
+  ]
+  const lowerContent = content.toLowerCase()
+  return thinkingKeywords.some((kw) => lowerContent.includes(kw))
 }
 
 function ThinkingBlock({ content }: { content: string }): React.JSX.Element {
@@ -70,6 +138,133 @@ function SearchBlock({
   )
 }
 
+/**
+ * Process and normalize events for display
+ * - Parse JSON content and extract parts
+ * - Route long content to thinking panel
+ * - Skip duplicate/redundant events
+ */
+function useProcessedEvents(events: AgentEvent[]): AgentEvent[] {
+  return useMemo(() => {
+    const processed: AgentEvent[] = []
+    const seenContent = new Set<string>()
+
+    for (const event of events) {
+      const content = event.content.trim()
+
+      // Skip empty content
+      if (!content) continue
+
+      // Skip exact duplicates
+      const contentKey = `${event.type}:${content.slice(0, 100)}`
+      if (seenContent.has(contentKey)) continue
+      seenContent.add(contentKey)
+
+      // Check if content looks like raw JSON
+      if (looksLikeJson(content)) {
+        const parsed = parseJsonContent(content)
+        let hasStructuredContent = false
+
+        // PRIORITY 1: Summary - always show directly on screen (completion message)
+        if (parsed.summary) {
+          hasStructuredContent = true
+          const summaryKey = `response:${parsed.summary.slice(0, 50)}`
+          if (!seenContent.has(summaryKey)) {
+            seenContent.add(summaryKey)
+            processed.push({
+              ...event,
+              type: 'response',
+              content: parsed.summary
+            })
+          }
+        }
+
+        // PRIORITY 2: Status - always show directly on screen (short updates)
+        if (parsed.status) {
+          hasStructuredContent = true
+          const statusKey = `status:${parsed.status.slice(0, 50)}`
+          if (!seenContent.has(statusKey)) {
+            seenContent.add(statusKey)
+            processed.push({
+              ...event,
+              type: 'status',
+              content: parsed.status
+            })
+          }
+        }
+
+        // PRIORITY 3: Message - show directly on screen
+        if (parsed.message) {
+          hasStructuredContent = true
+          const msgKey = `response:${parsed.message.slice(0, 50)}`
+          if (!seenContent.has(msgKey)) {
+            seenContent.add(msgKey)
+            processed.push({
+              ...event,
+              type: 'response',
+              content: parsed.message
+            })
+          }
+        }
+
+        // PRIORITY 4: Thinking - goes into expandable panel
+        if (parsed.thinking) {
+          hasStructuredContent = true
+          processed.push({
+            ...event,
+            type: 'thinking',
+            content: parsed.thinking
+          })
+        }
+
+        // PRIORITY 5: Tool info - show as status
+        if (parsed.tool) {
+          hasStructuredContent = true
+          const toolStatus = `Using tool: ${parsed.tool}`
+          if (!seenContent.has(`status:${toolStatus}`)) {
+            seenContent.add(`status:${toolStatus}`)
+            processed.push({
+              ...event,
+              type: 'status',
+              content: toolStatus
+            })
+          }
+        }
+
+        // If it's raw text that couldn't be parsed, handle normally
+        if (parsed.rawText && !hasStructuredContent) {
+          // Check if this long content should be in thinking panel
+          if (shouldBeInThinkingPanel(parsed.rawText)) {
+            processed.push({
+              ...event,
+              type: 'thinking',
+              content: parsed.rawText
+            })
+          } else {
+            processed.push({
+              ...event,
+              content: parsed.rawText
+            })
+          }
+        }
+      } else {
+        // Not JSON - check if long content should go to thinking panel
+        if (event.type === 'response' && shouldBeInThinkingPanel(content)) {
+          processed.push({
+            ...event,
+            type: 'thinking',
+            content
+          })
+        } else {
+          processed.push(event)
+        }
+      }
+    }
+
+    return processed
+  }, [events])
+}
+
 function CascadeStreamView({
   events,
   isRunning,
@@ -78,11 +273,14 @@ function CascadeStreamView({
   const containerRef = useRef<HTMLDivElement>(null)
   const shouldAutoScroll = useRef(true)
 
+  // Process events to properly route content
+  const processedEvents = useProcessedEvents(events)
+
   useEffect(() => {
     if (shouldAutoScroll.current && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [events])
+  }, [processedEvents])
 
   const handleScroll = (): void => {
     if (!containerRef.current) return
@@ -104,15 +302,18 @@ function CascadeStreamView({
   return (
     <div ref={containerRef} onScroll={handleScroll} className="h-full overflow-y-auto">
       <div className="space-y-1 p-4 text-sm leading-relaxed">
-        {events.map((event, index) => {
+        {processedEvents.map((event, index) => {
+          // Thinking events go into expandable panel
           if (event.type === 'thinking') {
             return <ThinkingBlock key={index} content={event.content} />
           }
 
+          // Search events get special treatment
           if (event.type === 'search') {
             return <SearchBlock key={index} query={event.content} urls={event.metadata?.urls} />
           }
 
+          // Response events shown directly (short messages)
           if (event.type === 'response') {
             return (
               <div key={index} className="my-2 whitespace-pre-wrap text-text-main">
@@ -121,6 +322,7 @@ function CascadeStreamView({
             )
           }
 
+          // Status events shown directly (short status updates)
           if (event.type === 'status') {
             return (
               <div key={index} className="my-1 text-blue-400">
@@ -129,6 +331,7 @@ function CascadeStreamView({
             )
           }
 
+          // Default fallback
           return (
             <div key={index} className="text-text-muted">
               {event.content}
@@ -139,7 +342,7 @@ function CascadeStreamView({
         {isRunning && (
           <div className="mt-2 flex items-center gap-2 text-text-muted">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <span className="animate-pulse">Thinking...</span>
+            <span className="animate-pulse">Processing...</span>
           </div>
         )}
       </div>

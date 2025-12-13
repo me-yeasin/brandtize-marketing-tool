@@ -133,14 +133,25 @@ IMPORTANT RULES:
 - Be efficient - don't fetch pages that are clearly irrelevant
 - Stop when you've found several good leads or exhausted search results
 
-When you want to use a tool, respond with a JSON object like:
+RESPONSE FORMAT:
+Always respond with valid JSON only. Use one of these formats:
+
+1. To use a tool:
 {"tool": "tool_name", "params": {...}}
 
-When you want to share your thinking or findings with the user, respond with:
-{"message": "your message here"}
+2. To share your detailed analysis/reasoning (shown in expandable panel):
+{"thinking": "your detailed analysis, reasoning, or observations here..."}
 
-When you're done, respond with:
+3. To share a brief status update with the user (shown directly on screen):
+{"status": "brief 1-2 sentence update"}
+
+4. When you're done:
 {"done": true, "summary": "brief summary of what you found"}
+
+Guidelines:
+- Use "thinking" for detailed analysis, observations about websites, reasoning about lead quality
+- Use "status" for brief progress updates the user should see immediately
+- You can combine them: {"tool": "...", "params": {...}, "status": "Searching for businesses..."}
 
 Always respond with valid JSON only. No other text.`
   }
@@ -204,6 +215,8 @@ Always respond with valid JSON only. No other text.`
     tool?: string
     params?: Record<string, unknown>
     message?: string
+    thinking?: string
+    status?: string
     done?: boolean
     summary?: string
   } {
@@ -246,8 +259,9 @@ Always respond with valid JSON only. No other text.`
       }
     ]
 
+    // Emit initial status (short, shown directly on screen)
     this.emit('event', {
-      type: 'thinking',
+      type: 'status',
       content: `Starting research for "${niche}" niche...`,
       timestamp: Date.now()
     } as AgentEvent)
@@ -281,6 +295,25 @@ Always respond with valid JSON only. No other text.`
           break
         }
 
+        // Handle detailed thinking (goes into expandable panel)
+        if (parsed.thinking) {
+          this.emit('event', {
+            type: 'thinking',
+            content: parsed.thinking,
+            timestamp: Date.now()
+          } as AgentEvent)
+        }
+
+        // Handle brief status updates (shown directly on screen)
+        if (parsed.status) {
+          this.emit('event', {
+            type: 'status',
+            content: parsed.status,
+            timestamp: Date.now()
+          } as AgentEvent)
+        }
+
+        // Handle legacy message format (treat as response)
         if (parsed.message) {
           this.emit('event', {
             type: 'response',
@@ -296,8 +329,9 @@ Always respond with valid JSON only. No other text.`
           const toolName = parsed.tool
           const params = parsed.params
 
+          // Short status for tool usage (shown directly on screen)
           this.emit('event', {
-            type: 'thinking',
+            type: 'status',
             content: `Using tool: ${toolName}`,
             timestamp: Date.now()
           } as AgentEvent)

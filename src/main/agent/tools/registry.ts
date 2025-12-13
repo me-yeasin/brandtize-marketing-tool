@@ -168,27 +168,25 @@ ${params}`
 
     const context = this.createContext()
 
-    // Emit tool start event
+    // Emit tool start event (status type for direct display)
     context.emitEvent({
-      type: 'tool_start',
+      type: 'status',
       toolName: name,
-      content: `Starting ${name}...`,
+      content: `Running ${name}...`,
       timestamp: Date.now(),
-      metadata: { arguments: args }
+      metadata: { toolEvent: 'start', arguments: args }
     })
 
     try {
       const result = await tool.execute(args, context)
 
-      // Emit tool end event
+      // Emit tool end event (status type for direct display)
       context.emitEvent({
-        type: 'tool_end',
+        type: 'status',
         toolName: name,
-        content: result.success
-          ? `${name} completed successfully`
-          : `${name} failed: ${result.error}`,
+        content: result.success ? `✓ ${name} completed` : `✗ ${name} failed: ${result.error}`,
         timestamp: Date.now(),
-        metadata: { success: result.success }
+        metadata: { toolEvent: 'end', success: result.success }
       })
 
       return result
@@ -196,11 +194,11 @@ ${params}`
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
       context.emitEvent({
-        type: 'tool_end',
+        type: 'status',
         toolName: name,
-        content: `${name} threw an error: ${errorMessage}`,
+        content: `✗ ${name} error: ${errorMessage}`,
         timestamp: Date.now(),
-        metadata: { success: false, error: errorMessage }
+        metadata: { toolEvent: 'error', success: false, error: errorMessage }
       })
 
       return {
