@@ -5,6 +5,7 @@ interface Tab {
   id: string
   title: string
   prompt: string
+  submittedPrompt: string
 }
 
 function getTabTitleFromPrompt(prompt: string): string {
@@ -21,7 +22,8 @@ function EmailScreen(): React.JSX.Element {
     {
       id: '1',
       title: 'New Tab',
-      prompt: ''
+      prompt: '',
+      submittedPrompt: ''
     }
   ])
   const [activeTabId, setActiveTabId] = useState<string>('1')
@@ -30,7 +32,8 @@ function EmailScreen(): React.JSX.Element {
     const newTab: Tab = {
       id: Date.now().toString(),
       title: 'New Tab',
-      prompt: ''
+      prompt: '',
+      submittedPrompt: ''
     }
     setTabs((prev) => [...prev, newTab])
     setActiveTabId(newTab.id)
@@ -44,9 +47,20 @@ function EmailScreen(): React.JSX.Element {
     setTabs((prev) =>
       prev.map((tab) => {
         if (tab.id !== tabId) return tab
+
+        const trimmed = tab.prompt.trim()
+        if (!trimmed) {
+          return {
+            ...tab,
+            title: 'New Tab',
+            submittedPrompt: ''
+          }
+        }
+
         return {
           ...tab,
-          title: getTabTitleFromPrompt(tab.prompt)
+          title: getTabTitleFromPrompt(tab.prompt),
+          submittedPrompt: trimmed
         }
       })
     )
@@ -116,37 +130,43 @@ function EmailScreen(): React.JSX.Element {
 
       {/* Tab Content Area */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full w-full flex flex-col p-3 items-center justify-center">
-          <h1 className="text-4xl font-medium mb-8 pb-1 bg-linear-to-r from-purple-400 via-primary to-indigo-400 bg-clip-text text-transparent">
-            Lets start generating the leads
-          </h1>
-          <div className="bg-slate-800 rounded-xl p-2 w-[40%] min-w-[400px]">
-            <input
-              type="text"
-              name="prompt"
-              id={`prompt-${activeTabId}`}
-              value={activeTab?.prompt ?? ''}
-              onChange={(e) => updateTabPrompt(activeTabId, e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  submitTabPrompt(activeTabId)
-                }
-              }}
-              className="bg-transparent text-white placeholder-white/70 text-xl focus:outline-none w-full pt-2 pl-4 text-left"
-              placeholder="e.g. gym in Los Angeles"
-            />
-            <div className="h-10 w-full flex justify-end items-center">
-              <button
-                type="button"
-                className="p-3 text-white hover:text-primary transition-colors"
-                onClick={() => submitTabPrompt(activeTabId)}
-              >
-                <FiSend size={25} />
-              </button>
+        {activeTab?.submittedPrompt ? (
+          <div className="h-full w-full flex items-center justify-center">
+            <div className="text-2xl font-medium text-text-main">Hello World</div>
+          </div>
+        ) : (
+          <div className="h-full w-full flex flex-col p-3 items-center justify-center">
+            <h1 className="text-4xl font-medium mb-8 pb-1 bg-linear-to-r from-purple-400 via-primary to-indigo-400 bg-clip-text text-transparent">
+              Lets start generating the leads
+            </h1>
+            <div className="bg-slate-800 rounded-xl p-2 w-[40%] min-w-[400px]">
+              <input
+                type="text"
+                name="prompt"
+                id={`prompt-${activeTabId}`}
+                value={activeTab?.prompt ?? ''}
+                onChange={(e) => updateTabPrompt(activeTabId, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    submitTabPrompt(activeTabId)
+                  }
+                }}
+                className="bg-transparent text-white placeholder-white/70 text-xl focus:outline-none w-full pt-2 pl-4 text-left"
+                placeholder="e.g. gym in Los Angeles"
+              />
+              <div className="h-10 w-full flex justify-end items-center">
+                <button
+                  type="button"
+                  className="p-3 text-white hover:text-primary transition-colors"
+                  onClick={() => submitTabPrompt(activeTabId)}
+                >
+                  <FiSend size={25} />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
