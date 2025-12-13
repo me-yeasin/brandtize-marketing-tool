@@ -76,6 +76,8 @@ function isProfileComplete(p: AgencyProfile): boolean {
   return typeOk && nameOk && servicesOk
 }
 
+type AiProvider = 'groq' | 'mistral'
+
 const GROQ_MODELS = [
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
@@ -91,13 +93,30 @@ const GROQ_MODELS = [
   { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick 17B' }
 ]
 
+const MISTRAL_MODELS = [
+  { id: 'mistral-large-2512', name: 'Mistral Large 2512' },
+  { id: 'mistral-medium-2508', name: 'Mistral Medium 2508' },
+  { id: 'codestral-2508', name: 'Codestral 2508' },
+  { id: 'mistral-small-2506', name: 'Mistral Small 2506' },
+  { id: 'ministral-14b-2512', name: 'Ministral 14B 2512' },
+  { id: 'ministral-8b-2512', name: 'Ministral 8B 2512' },
+  { id: 'ministral-3b-2512', name: 'Ministral 3B 2512' },
+  { id: 'magistral-medium-2509', name: 'Magistral Medium 2509' },
+  { id: 'magistral-small-2509', name: 'Magistral Small 2509' }
+  // Add more Mistral models here as needed
+]
+
 function SettingsScreen(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [groqKey, setGroqKey] = useState('')
+  const [mistralKey, setMistralKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
   const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile')
+  const [selectedMistralModel, setSelectedMistralModel] = useState('mistral-large-2512')
   const [hasGroqKey, setHasGroqKey] = useState(false)
+  const [hasMistralKey, setHasMistralKey] = useState(false)
   const [hasSerperKey, setHasSerperKey] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -111,10 +130,18 @@ function SettingsScreen(): React.JSX.Element {
   useEffect(() => {
     window.api.getApiKeys().then((keys) => {
       setHasGroqKey(keys.hasGroqKey)
+      setHasMistralKey(keys.hasMistralKey)
       setHasSerperKey(keys.hasSerperKey)
     })
-    window.api.getSelectedModel().then((model: string) => {
-      setSelectedModel(model)
+    window.api.getSelectedAiProvider().then((provider: AiProvider) => {
+      setSelectedProvider(provider)
+      window.api.getSelectedModel().then((model: string) => {
+        if (provider === 'mistral') {
+          setSelectedMistralModel(model)
+        } else {
+          setSelectedModel(model)
+        }
+      })
     })
     window.api.getProfile().then((p) => {
       setProfile(p)
@@ -137,6 +164,21 @@ function SettingsScreen(): React.JSX.Element {
     setTimeout(() => setMessage(null), 3000)
   }
 
+  const saveMistralKey = async (): Promise<void> => {
+    if (!mistralKey.trim()) return
+    setSaving(true)
+    try {
+      await window.api.setMistralApiKey(mistralKey.trim())
+      setHasMistralKey(true)
+      setMistralKey('')
+      setMessage({ type: 'success', text: 'Mistral API key saved successfully!' })
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to save Mistral API key' })
+    }
+    setSaving(false)
+    setTimeout(() => setMessage(null), 3000)
+  }
+
   const saveSerperKey = async (): Promise<void> => {
     if (!serperKey.trim()) return
     setSaving(true)
@@ -149,6 +191,16 @@ function SettingsScreen(): React.JSX.Element {
       setMessage({ type: 'error', text: 'Failed to save Serper API key' })
     }
     setSaving(false)
+    setTimeout(() => setMessage(null), 3000)
+  }
+
+  const switchProvider = async (provider: AiProvider): Promise<void> => {
+    setSelectedProvider(provider)
+    await window.api.setSelectedAiProvider(provider)
+    setMessage({
+      type: 'success',
+      text: `Switched to ${provider === 'groq' ? 'Groq' : 'Mistral'} AI provider!`
+    })
     setTimeout(() => setMessage(null), 3000)
   }
 
@@ -271,7 +323,7 @@ function SettingsScreen(): React.JSX.Element {
                 {tab.id === 'profile' && hasProfile && (
                   <span className="ml-auto h-2 w-2 rounded-full bg-green-400" />
                 )}
-                {tab.id === 'ai-provider' && hasGroqKey && (
+                {tab.id === 'ai-provider' && (hasGroqKey || hasMistralKey) && (
                   <span className="ml-auto h-2 w-2 rounded-full bg-green-400" />
                 )}
                 {tab.id === 'search-api' && hasSerperKey && (
@@ -740,11 +792,53 @@ function SettingsScreen(): React.JSX.Element {
               <div>
                 <h2 className="text-lg font-medium text-text-main">AI Provider Configuration</h2>
                 <p className="mt-1 text-sm text-text-muted">
-                  Configure your Groq API key and select the model for email research
+                  Configure your AI provider and select the model for email research
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+              {/* Provider Selection Toggle */}
+              <div className="rounded-lg border border-border bg-surface/30 p-4">
+                <label className="block text-sm text-text-muted mb-3">Active Provider</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => switchProvider('groq')}
+                    className={`flex-1 rounded-lg border px-4 py-3 text-sm transition-colors ${
+                      selectedProvider === 'groq'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-text-muted hover:border-text-muted'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <FiZap size={16} />
+                      <span>Groq</span>
+                      {hasGroqKey && <span className="h-2 w-2 rounded-full bg-green-400" />}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchProvider('mistral')}
+                    className={`flex-1 rounded-lg border px-4 py-3 text-sm transition-colors ${
+                      selectedProvider === 'mistral'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-text-muted hover:border-text-muted'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <FiCpu size={16} />
+                      <span>Mistral</span>
+                      {hasMistralKey && <span className="h-2 w-2 rounded-full bg-green-400" />}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Groq Configuration */}
+              <div
+                className={`rounded-lg border bg-surface/30 p-6 space-y-4 ${
+                  selectedProvider === 'groq' ? 'border-primary' : 'border-border'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
@@ -755,11 +849,18 @@ function SettingsScreen(): React.JSX.Element {
                       <p className="text-xs text-text-muted">Ultra-fast LLM inference</p>
                     </div>
                   </div>
-                  {hasGroqKey && (
-                    <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                      Connected
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {selectedProvider === 'groq' && (
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+                        Active
+                      </span>
+                    )}
+                    {hasGroqKey && (
+                      <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                        Connected
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -802,13 +903,111 @@ function SettingsScreen(): React.JSX.Element {
                       onChange={async (e) => {
                         const model = e.target.value
                         setSelectedModel(model)
-                        await window.api.setSelectedModel(model)
-                        setMessage({ type: 'success', text: 'Model updated successfully!' })
-                        setTimeout(() => setMessage(null), 3000)
+                        if (selectedProvider === 'groq') {
+                          await window.api.setSelectedModel(model)
+                          setMessage({ type: 'success', text: 'Model updated successfully!' })
+                          setTimeout(() => setMessage(null), 3000)
+                        }
                       }}
                       className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       {GROQ_MODELS.map((model) => (
+                        <option key={model.id} value={model.id} className="bg-background">
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <FiChevronDown className="text-text-muted" size={16} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    Selected model will be used for all agent operations
+                  </p>
+                </div>
+              </div>
+
+              {/* Mistral Configuration */}
+              <div
+                className={`rounded-lg border bg-surface/30 p-6 space-y-4 ${
+                  selectedProvider === 'mistral' ? 'border-primary' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
+                      <FiCpu className="text-xl text-purple-400" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-main">Mistral API</h3>
+                      <p className="text-xs text-text-muted">Powerful European AI models</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedProvider === 'mistral' && (
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+                        Active
+                      </span>
+                    )}
+                    {hasMistralKey && (
+                      <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm text-text-muted">API Key</label>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Input
+                        type="password"
+                        placeholder={
+                          hasMistralKey ? '••••••••••••••••' : 'Enter your Mistral API key'
+                        }
+                        value={mistralKey}
+                        onChange={(e) => setMistralKey(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      variant="primary"
+                      onClick={saveMistralKey}
+                      disabled={saving || !mistralKey.trim()}
+                    >
+                      {saving ? 'Saving...' : 'Save'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-text-muted">
+                    Get your API key from{' '}
+                    <a
+                      href="https://console.mistral.ai/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      console.mistral.ai
+                    </a>
+                  </p>
+                </div>
+
+                <div className="border-t border-border pt-4 space-y-3">
+                  <label className="block text-sm text-text-muted">Model Selection</label>
+                  <div className="relative">
+                    <select
+                      value={selectedMistralModel}
+                      onChange={async (e) => {
+                        const model = e.target.value
+                        setSelectedMistralModel(model)
+                        if (selectedProvider === 'mistral') {
+                          await window.api.setSelectedModel(model)
+                          setMessage({ type: 'success', text: 'Model updated successfully!' })
+                          setTimeout(() => setMessage(null), 3000)
+                        }
+                      }}
+                      className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {MISTRAL_MODELS.map((model) => (
                         <option key={model.id} value={model.id} className="bg-background">
                           {model.name}
                         </option>

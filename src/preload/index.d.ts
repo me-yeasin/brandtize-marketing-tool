@@ -1,9 +1,13 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
+type AiProvider = 'groq' | 'mistral'
+
 interface ApiKeys {
   groqApiKey: string
+  mistralApiKey: string
   serperApiKey: string
   hasGroqKey: boolean
+  hasMistralKey: boolean
   hasSerperKey: boolean
 }
 
@@ -52,10 +56,13 @@ interface ChatMessage {
 interface Api {
   getApiKeys: () => Promise<ApiKeys>
   setGroqApiKey: (key: string) => Promise<{ success: boolean }>
+  setMistralApiKey: (key: string) => Promise<{ success: boolean }>
   setSerperApiKey: (key: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>
+  getSelectedAiProvider: () => Promise<AiProvider>
+  setSelectedAiProvider: (provider: AiProvider) => Promise<{ success: boolean }>
   getProfile: () => Promise<AgencyProfile>
   setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
   hasProfile: () => Promise<boolean>

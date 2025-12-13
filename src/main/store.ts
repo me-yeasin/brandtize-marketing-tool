@@ -56,26 +56,35 @@ const DEFAULT_PROFILE: AgencyProfile = {
   social: {}
 }
 
+export type AiProvider = 'groq' | 'mistral'
+
 interface StoreSchema {
   groqApiKey: string
+  mistralApiKey: string
   serperApiKey: string
-  selectedModel: string
+  selectedAiProvider: AiProvider
+  selectedGroqModel: string
+  selectedMistralModel: string
   agencyProfile: AgencyProfile
 }
 
 const store = new Store<StoreSchema>({
   defaults: {
     groqApiKey: '',
+    mistralApiKey: '',
     serperApiKey: '',
-    selectedModel: 'llama-3.3-70b-versatile',
+    selectedAiProvider: 'groq',
+    selectedGroqModel: 'llama-3.3-70b-versatile',
+    selectedMistralModel: 'mistral-large-2512',
     agencyProfile: DEFAULT_PROFILE
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
 
-export function getApiKeys(): { groqApiKey: string; serperApiKey: string } {
+export function getApiKeys(): { groqApiKey: string; mistralApiKey: string; serperApiKey: string } {
   return {
     groqApiKey: store.get('groqApiKey', ''),
+    mistralApiKey: store.get('mistralApiKey', ''),
     serperApiKey: store.get('serperApiKey', '')
   }
 }
@@ -88,17 +97,49 @@ export function setSerperApiKey(key: string): void {
   store.set('serperApiKey', key)
 }
 
+export function setMistralApiKey(key: string): void {
+  store.set('mistralApiKey', key)
+}
+
+export function getSelectedAiProvider(): AiProvider {
+  return store.get('selectedAiProvider', 'groq')
+}
+
+export function setSelectedAiProvider(provider: AiProvider): void {
+  store.set('selectedAiProvider', provider)
+}
+
 export function getSelectedModel(): string {
-  return store.get('selectedModel', 'llama-3.3-70b-versatile')
+  const provider = getSelectedAiProvider()
+  if (provider === 'mistral') {
+    return store.get('selectedMistralModel', 'mistral-large-2512')
+  }
+  return store.get('selectedGroqModel', 'llama-3.3-70b-versatile')
 }
 
 export function setSelectedModel(model: string): void {
-  store.set('selectedModel', model)
+  const provider = getSelectedAiProvider()
+  if (provider === 'mistral') {
+    store.set('selectedMistralModel', model)
+  } else {
+    store.set('selectedGroqModel', model)
+  }
+}
+
+export function getSelectedGroqModel(): string {
+  return store.get('selectedGroqModel', 'llama-3.3-70b-versatile')
+}
+
+export function getSelectedMistralModel(): string {
+  return store.get('selectedMistralModel', 'mistral-large-2512')
 }
 
 export function hasRequiredApiKeys(): boolean {
   const keys = getApiKeys()
-  return keys.groqApiKey.length > 0 && keys.serperApiKey.length > 0
+  const provider = getSelectedAiProvider()
+  const hasAiKey =
+    provider === 'mistral' ? keys.mistralApiKey.length > 0 : keys.groqApiKey.length > 0
+  return hasAiKey && keys.serperApiKey.length > 0
 }
 
 export function getAgencyProfile(): AgencyProfile {

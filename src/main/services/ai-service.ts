@@ -1,8 +1,16 @@
 import { ChatGroq } from '@langchain/groq'
+import { ChatMistralAI } from '@langchain/mistralai'
 import { HumanMessage, AIMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages'
 
-import { getApiKeys, getSelectedModel } from '../store'
-import { GROQ_MODELS, findModelIndex, getNextModelIndex } from './models'
+import { getApiKeys, getSelectedModel, getSelectedAiProvider } from '../store'
+import {
+  GROQ_MODELS,
+  MISTRAL_MODELS,
+  findModelIndex,
+  findMistralModelIndex,
+  getNextModelIndex,
+  getNextMistralModelIndex
+} from './models'
 import {
   isRetryableError,
   calculateBackoffDelay,
@@ -46,6 +54,21 @@ function createGroqClientWithModel(modelId: string): ChatGroq | null {
   })
 }
 
+function createMistralClientWithModel(modelId: string): ChatMistralAI | null {
+  const { mistralApiKey } = getApiKeys()
+
+  if (!mistralApiKey) {
+    return null
+  }
+
+  return new ChatMistralAI({
+    apiKey: mistralApiKey,
+    model: modelId,
+    temperature: 0.7,
+    streaming: true
+  })
+}
+
 function convertToLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
   return messages.map((msg) => {
     if (msg.role === 'user') {
@@ -73,7 +96,7 @@ function createContinuationMessages(
   return baseMessages
 }
 
-async function attemptStreamWithModel(
+async function attemptStreamWithGroqModel(
   modelId: string,
   langChainMessages: BaseMessage[],
   callbacks: StreamCallbacks,
@@ -104,20 +127,63 @@ async function attemptStreamWithModel(
   }
 }
 
+async function attemptStreamWithMistralModel(
+  modelId: string,
+  langChainMessages: BaseMessage[],
+  callbacks: StreamCallbacks,
+  state: StreamState
+): Promise<{ success: boolean; error?: unknown }> {
+  const client = createMistralClientWithModel(modelId)
+
+  if (!client) {
+    return { success: false, error: new Error('Mistral API key not configured') }
+  }
+
+  try {
+    const stream = await client.stream(langChainMessages)
+
+    for await (const chunk of stream) {
+      const token = chunk.content as string
+
+      if (token) {
+        state.partialText += token
+        state.hasStartedStreaming = true
+        callbacks.onToken(token)
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
 export async function streamChatResponse(
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
 ): Promise<void> {
-  const { groqApiKey } = getApiKeys()
+  const provider = getSelectedAiProvider()
+  const { groqApiKey, mistralApiKey } = getApiKeys()
 
-  if (!groqApiKey) {
+  if (provider === 'groq' && !groqApiKey) {
     callbacks.onError('Groq API key not configured. Please set it in Settings.')
     return
   }
 
+  if (provider === 'mistral' && !mistralApiKey) {
+    callbacks.onError('Mistral API key not configured. Please set it in Settings.')
+    return
+  }
+
   const selectedModel = getSelectedModel()
-  let currentModelIndex = findModelIndex(selectedModel)
+  const models = provider === 'mistral' ? MISTRAL_MODELS : GROQ_MODELS
+  const findIndex = provider === 'mistral' ? findMistralModelIndex : findModelIndex
+  const getNextIndex = provider === 'mistral' ? getNextMistralModelIndex : getNextModelIndex
+  const attemptStream =
+    provider === 'mistral' ? attemptStreamWithMistralModel : attemptStreamWithGroqModel
+
+  let currentModelIndex = findIndex(selectedModel)
   const startingModelIndex = currentModelIndex
 
   const state: StreamState = {
@@ -129,7 +195,7 @@ export async function streamChatResponse(
   let totalModelSwitches = 0
 
   while (true) {
-    const currentModel = GROQ_MODELS[currentModelIndex].id
+    const currentModel = models[currentModelIndex].id
 
     for (let attempt = 0; attempt < retryConfig.maxRetries; attempt++) {
       if (attempt > 0) {
@@ -138,7 +204,7 @@ export async function streamChatResponse(
         await sleep(delay)
       }
 
-      const result = await attemptStreamWithModel(currentModel, langChainMessages, callbacks, state)
+      const result = await attemptStream(currentModel, langChainMessages, callbacks, state)
 
       if (result.success) {
         callbacks.onComplete(state.partialText)
@@ -159,8 +225,8 @@ export async function streamChatResponse(
     }
 
     const previousModel = currentModel
-    currentModelIndex = getNextModelIndex(currentModelIndex)
-    const nextModel = GROQ_MODELS[currentModelIndex].id
+    currentModelIndex = getNextIndex(currentModelIndex)
+    const nextModel = models[currentModelIndex].id
     totalModelSwitches++
 
     console.log(
@@ -176,7 +242,7 @@ export async function streamChatResponse(
       )
     }
 
-    if (currentModelIndex === startingModelIndex && totalModelSwitches >= GROQ_MODELS.length) {
+    if (currentModelIndex === startingModelIndex && totalModelSwitches >= models.length) {
       console.log('[AI Service] Completed full cycle through all models, starting new cycle...')
     }
   }

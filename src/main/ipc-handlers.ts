@@ -2,14 +2,18 @@ import { ipcMain, BrowserWindow } from 'electron'
 import {
   getApiKeys,
   setGroqApiKey,
+  setMistralApiKey,
   setSerperApiKey,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
+  getSelectedAiProvider,
+  setSelectedAiProvider,
   getAgencyProfile,
   setAgencyProfile,
   hasAgencyProfile,
-  type AgencyProfile
+  type AgencyProfile,
+  type AiProvider
 } from './store'
 import { streamChatResponse, type ChatMessage } from './services'
 
@@ -19,14 +23,21 @@ export function setupIpcHandlers(): void {
     const keys = getApiKeys()
     return {
       groqApiKey: keys.groqApiKey ? '••••••••' + keys.groqApiKey.slice(-4) : '',
+      mistralApiKey: keys.mistralApiKey ? '••••••••' + keys.mistralApiKey.slice(-4) : '',
       serperApiKey: keys.serperApiKey ? '••••••••' + keys.serperApiKey.slice(-4) : '',
       hasGroqKey: keys.groqApiKey.length > 0,
+      hasMistralKey: keys.mistralApiKey.length > 0,
       hasSerperKey: keys.serperApiKey.length > 0
     }
   })
 
   ipcMain.handle('settings:setGroqApiKey', (_event, key: string) => {
     setGroqApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setMistralApiKey', (_event, key: string) => {
+    setMistralApiKey(key)
     return { success: true }
   })
 
@@ -45,6 +56,15 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setSelectedModel', (_event, model: string) => {
     setSelectedModel(model)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:getSelectedAiProvider', () => {
+    return getSelectedAiProvider()
+  })
+
+  ipcMain.handle('settings:setSelectedAiProvider', (_event, provider: AiProvider) => {
+    setSelectedAiProvider(provider)
     return { success: true }
   })
 

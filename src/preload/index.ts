@@ -8,14 +8,20 @@ interface ChatMessage {
 }
 
 // Custom APIs for renderer
+type AiProvider = 'groq' | 'mistral'
+
 const api = {
   // Settings
   getApiKeys: () => ipcRenderer.invoke('settings:getApiKeys'),
   setGroqApiKey: (key: string) => ipcRenderer.invoke('settings:setGroqApiKey', key),
+  setMistralApiKey: (key: string) => ipcRenderer.invoke('settings:setMistralApiKey', key),
   setSerperApiKey: (key: string) => ipcRenderer.invoke('settings:setSerperApiKey', key),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
   setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),
+  getSelectedAiProvider: () => ipcRenderer.invoke('settings:getSelectedAiProvider'),
+  setSelectedAiProvider: (provider: AiProvider) =>
+    ipcRenderer.invoke('settings:setSelectedAiProvider', provider),
 
   // Profile
   getProfile: () => ipcRenderer.invoke('profile:get'),
