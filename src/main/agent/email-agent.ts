@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events'
-import { ChatGroq } from '@langchain/groq'
 import * as cheerio from 'cheerio'
 import type { AgencyProfile } from '../store'
 import type { AgentEvent, ExtractedLead, SearchResult, ScrapedPage } from './types'
+import { LLMProviderManager } from './core'
 
 const DEFAULT_PROFILE_CONTEXT = `
 Our agency specializes in:
@@ -43,7 +43,7 @@ const JSON_ONLY_RULE = `If the user explicitly asks for JSON output (for example
 export class EmailAgent extends EventEmitter {
   private serperApiKey: string
   private stopped = false
-  private llm: ChatGroq
+  private llmProvider: LLMProviderManager
   private profile?: AgencyProfile
 
   constructor(
@@ -55,10 +55,29 @@ export class EmailAgent extends EventEmitter {
     super()
     this.serperApiKey = serperApiKey
     this.profile = profile
-    this.llm = new ChatGroq({
-      apiKey: groqApiKey,
-      model: model,
+
+    // Initialize LLM Provider Manager with failover support
+    this.llmProvider = new LLMProviderManager(groqApiKey, {
+      preferredModel: model,
       temperature: 0.7
+    })
+
+    // Set up provider event listeners for status updates
+    this.setupProviderListeners()
+  }
+
+  private setupProviderListeners(): void {
+    this.llmProvider.on('model:switch', ({ from, to, reason }) => {
+      console.log(`[EmailAgent] Switching model: ${from} -> ${to} (${reason})`)
+      this.emit('event', {
+        type: 'response',
+        content: `Switching AI model (${reason}). Continuing...`,
+        timestamp: Date.now()
+      } as AgentEvent)
+    })
+
+    this.llmProvider.on('retry:attempt', ({ model, attempt, maxRetries, delayMs }) => {
+      console.log(`[EmailAgent] Retrying ${model} (${attempt}/${maxRetries}) in ${delayMs}ms`)
     })
   }
 
@@ -251,12 +270,20 @@ ${AGENT_ROLE_AND_FORMAT}`
 
   private async speak(prompt: string): Promise<string> {
     try {
-      const response = await this.llm.invoke([
+      // Use LLM Provider Manager with automatic retry and failover
+      const result = await this.llmProvider.invoke([
         { role: 'system', content: this.getSystemPrompt() },
         { role: 'user', content: prompt }
       ])
-      return typeof response.content === 'string' ? response.content : ''
-    } catch {
+
+      if (result.success) {
+        return result.content
+      } else {
+        console.error('[EmailAgent] LLM invocation failed:', result.error)
+        return ''
+      }
+    } catch (error) {
+      console.error('[EmailAgent] Speak error:', error)
       return ''
     }
   }

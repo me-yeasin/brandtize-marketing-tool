@@ -42,7 +42,9 @@ import {
   getFeedbackSystem,
   LeadQualificationChecker,
   PersonalizationEngine,
-  IntentSignalScorer
+  IntentSignalScorer,
+  LLMProviderManager,
+  type HandoffSnapshot
 } from './core'
 
 const MAX_ITERATIONS = 25
@@ -106,6 +108,7 @@ export class DynamicEmailAgent extends EventEmitter {
   private serperApiKey: string
   private stopped = false
   private llm: ChatGroq
+  private llmProvider: LLMProviderManager
   private profile?: AgencyProfile
   private registry: ToolRegistry
   private toolContext!: ToolContext
@@ -120,6 +123,14 @@ export class DynamicEmailAgent extends EventEmitter {
   private intentScorer: IntentSignalScorer
   private sessionId: string
 
+  // State tracking for handoff context
+  private currentNiche: string = ''
+  private lastSuccessfulStep: string = ''
+  private lastAttemptedAction: string = ''
+  private recentToolResults: Array<{ tool: string; result: string }> = []
+  private keyFacts: string[] = []
+  private openTasks: string[] = []
+
   constructor(
     groqApiKey: string,
     serperApiKey: string,
@@ -131,11 +142,17 @@ export class DynamicEmailAgent extends EventEmitter {
     this.profile = profile
     this.sessionId = `session_${Date.now()}`
 
-    this.llm = new ChatGroq({
-      apiKey: groqApiKey,
-      model: model,
+    // Initialize LLM Provider Manager with failover support
+    this.llmProvider = new LLMProviderManager(groqApiKey, {
+      preferredModel: model,
       temperature: 0.3
     })
+
+    // Set up provider event listeners
+    this.setupProviderListeners()
+
+    // Get the current model instance for backward compatibility
+    this.llm = this.llmProvider.getCurrentModelInstance()
 
     // Initialize core modules with LLM
     this.qualificationChecker = new LeadQualificationChecker(this.llm)
@@ -177,6 +194,52 @@ export class DynamicEmailAgent extends EventEmitter {
     this.registry.register(detectTechStackTool)
     this.registry.register(detectHiringIntentTool)
     this.registry.register(icpMatcherTool)
+  }
+
+  private setupProviderListeners(): void {
+    this.llmProvider.on('model:switch', ({ from, to, reason }) => {
+      console.log(`[LLMProvider] Switching model: ${from} -> ${to} (${reason})`)
+      this.emit('event', {
+        type: 'status',
+        content: `Switching AI model (${reason}). Continuing with ${to}...`,
+        timestamp: Date.now()
+      } as AgentEvent)
+
+      // Update the LLM instance for core modules
+      this.llm = this.llmProvider.getCurrentModelInstance()
+      this.qualificationChecker = new LeadQualificationChecker(this.llm)
+      this.personalizationEngine = new PersonalizationEngine(this.llm)
+    })
+
+    this.llmProvider.on('model:cooldown', ({ model, until, reason }) => {
+      const waitSeconds = Math.ceil((until - Date.now()) / 1000)
+      console.log(`[LLMProvider] Model ${model} in cooldown for ${waitSeconds}s (${reason})`)
+    })
+
+    this.llmProvider.on('retry:attempt', ({ model, attempt, maxRetries, delayMs }) => {
+      console.log(`[LLMProvider] Retrying ${model} (${attempt}/${maxRetries}) in ${delayMs}ms`)
+      this.emit('event', {
+        type: 'thinking',
+        content: `Rate limit hit, retrying in ${Math.ceil(delayMs / 1000)}s...`,
+        timestamp: Date.now()
+      } as AgentEvent)
+    })
+
+    this.llmProvider.on('error:classified', ({ errorType, message, recoverable }) => {
+      console.log(`[LLMProvider] Error: ${errorType} - ${message} (recoverable: ${recoverable})`)
+    })
+  }
+
+  private createHandoffSnapshot(): HandoffSnapshot {
+    return this.llmProvider.createHandoffSnapshot({
+      objective: `Find qualified leads in the "${this.currentNiche}" niche`,
+      progress: `Searching for businesses, analyzing websites, extracting contacts`,
+      facts: this.keyFacts,
+      tasks: this.openTasks,
+      lastSuccess: this.lastSuccessfulStep,
+      lastAttempt: this.lastAttemptedAction,
+      recentResults: this.recentToolResults
+    })
   }
 
   stop(): void {
@@ -379,15 +442,50 @@ Always respond with valid JSON only. No other text.`
 
   private async invokeWithTools(messages: AgentMessage[]): Promise<string> {
     try {
-      const response = await this.llm.invoke(
+      // Use the LLM Provider Manager with automatic retry and failover
+      const result = await this.llmProvider.invoke(
         messages.map((m) => ({
           role: m.role,
           content: m.content
-        }))
+        })),
+        {
+          handoffSnapshot: this.createHandoffSnapshot(),
+          onRetry: (attempt, model) => {
+            console.log(`[Agent] Retry attempt ${attempt} with model ${model}`)
+          },
+          onSwitch: (from, to) => {
+            console.log(`[Agent] Model switched from ${from} to ${to}`)
+            // Update LLM instance for dependent modules
+            this.llm = this.llmProvider.getCurrentModelInstance()
+          }
+        }
       )
-      return typeof response.content === 'string'
-        ? response.content
-        : JSON.stringify(response.content)
+
+      if (result.success) {
+        // Track successful invocation
+        if (result.switchCount > 0) {
+          this.emit('event', {
+            type: 'thinking',
+            content: `Successfully continued with model ${result.model} after ${result.switchCount} switch(es)`,
+            timestamp: Date.now()
+          } as AgentEvent)
+        }
+        return result.content
+      } else {
+        // All models exhausted - this should be rare
+        console.error('All LLM models exhausted:', result.error)
+        this.emit('event', {
+          type: 'status',
+          content: `AI temporarily unavailable (${result.errorType}). Will retry...`,
+          timestamp: Date.now()
+        } as AgentEvent)
+
+        // Return a graceful degradation response
+        return JSON.stringify({
+          thinking: `Encountered ${result.errorType} error. Waiting for rate limits to reset...`,
+          status: 'Temporarily paused due to rate limits. Will continue shortly.'
+        })
+      }
     } catch (error) {
       console.error('LLM invocation error:', error)
       return JSON.stringify({ done: true, summary: 'Error occurred during processing' })
@@ -396,6 +494,20 @@ Always respond with valid JSON only. No other text.`
 
   async run(niche: string): Promise<void> {
     this.toolContext = this.createToolContext()
+
+    // Initialize state tracking for handoff context
+    this.currentNiche = niche
+    this.lastSuccessfulStep = 'Starting research'
+    this.lastAttemptedAction = ''
+    this.recentToolResults = []
+    this.keyFacts = []
+    this.openTasks = [
+      'Search for businesses in niche',
+      'Analyze websites',
+      'Extract contact emails',
+      'Verify and qualify leads',
+      'Generate personalized templates'
+    ]
 
     // Start observability trace for this session
     this.observability.startTrace(this.sessionId, this.sessionId, 'finder')
@@ -521,7 +633,23 @@ Always respond with valid JSON only. No other text.`
             timestamp: Date.now()
           } as AgentEvent)
 
+          // Track attempted action for handoff context
+          this.lastAttemptedAction = `${toolName}: ${JSON.stringify(params).slice(0, 100)}`
+
           const result = await this.registry.executeTool(toolName, params)
+
+          // Update handoff state tracking
+          if (result.success) {
+            this.lastSuccessfulStep = `${toolName} completed successfully`
+            // Keep only last 5 tool results for context
+            this.recentToolResults.push({
+              tool: toolName,
+              result: JSON.stringify(result.data).slice(0, 500)
+            })
+            if (this.recentToolResults.length > 5) {
+              this.recentToolResults.shift()
+            }
+          }
 
           if (toolName === 'web_search' && result.success) {
             const data = result.data as {
@@ -549,6 +677,18 @@ Always respond with valid JSON only. No other text.`
               score?: number
             }
             if (leadData?.email) {
+              // Track key fact for handoff context
+              this.keyFacts.push(
+                `Found lead: ${leadData.email} (${leadData.company?.name || 'Unknown'})`
+              )
+              if (this.keyFacts.length > 10) this.keyFacts.shift()
+
+              // Update open tasks
+              this.openTasks = this.openTasks.filter((t) => !t.includes('Search for businesses'))
+              if (leadCount < 3) {
+                this.openTasks.unshift('Continue finding more leads')
+              }
+
               this.feedback.registerLead(
                 `lead_${Date.now()}`,
                 leadData.email,
