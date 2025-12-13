@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import {
   getApiKeys,
   setGroqApiKey,
@@ -11,6 +11,7 @@ import {
   hasAgencyProfile,
   type AgencyProfile
 } from './store'
+import { streamChatResponse, type ChatMessage } from './services'
 
 export function setupIpcHandlers(): void {
   // Settings handlers
@@ -59,5 +60,33 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('profile:hasProfile', () => {
     return hasAgencyProfile()
+  })
+
+  // Chat streaming handler
+  ipcMain.handle('chat:stream', async (_event, messages: ChatMessage[]) => {
+    const window = BrowserWindow.getFocusedWindow()
+
+    if (!window) {
+      return { success: false, error: 'No active window' }
+    }
+
+    try {
+      await streamChatResponse(messages, {
+        onToken: (token) => {
+          window.webContents.send('chat:token', token)
+        },
+        onComplete: (fullText) => {
+          window.webContents.send('chat:complete', fullText)
+        },
+        onError: (error) => {
+          window.webContents.send('chat:error', error)
+        }
+      })
+
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: errorMessage }
+    }
   })
 }

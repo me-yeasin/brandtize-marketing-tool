@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+}
+
 // Custom APIs for renderer
 const api = {
   // Settings
@@ -14,7 +20,26 @@ const api = {
   // Profile
   getProfile: () => ipcRenderer.invoke('profile:get'),
   setProfile: (profile: unknown) => ipcRenderer.invoke('profile:set', profile),
-  hasProfile: () => ipcRenderer.invoke('profile:hasProfile')
+  hasProfile: () => ipcRenderer.invoke('profile:hasProfile'),
+
+  // Chat streaming
+  streamChat: (messages: ChatMessage[]) => ipcRenderer.invoke('chat:stream', messages),
+  onChatToken: (callback: (token: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, token: string): void => callback(token)
+    ipcRenderer.on('chat:token', handler)
+    return () => ipcRenderer.removeListener('chat:token', handler)
+  },
+  onChatComplete: (callback: (fullText: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, fullText: string): void =>
+      callback(fullText)
+    ipcRenderer.on('chat:complete', handler)
+    return () => ipcRenderer.removeListener('chat:complete', handler)
+  },
+  onChatError: (callback: (error: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, error: string): void => callback(error)
+    ipcRenderer.on('chat:error', handler)
+    return () => ipcRenderer.removeListener('chat:error', handler)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

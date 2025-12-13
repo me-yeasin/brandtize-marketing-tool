@@ -29,7 +29,7 @@ function EmailScreen(): React.JSX.Element {
       {/* Tab Content Area */}
       <div className="flex-1 overflow-hidden">
         {activeTab?.submittedPrompt ? (
-          <EmailAgentStreamingView />
+          <EmailAgentStreamingView initialPrompt={activeTab.submittedPrompt} />
         ) : (
           <EmailPromptView
             activeTabId={activeTabId}

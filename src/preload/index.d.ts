@@ -43,6 +43,12 @@ interface AgencyProfile {
   }
 }
 
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+}
+
 interface Api {
   getApiKeys: () => Promise<ApiKeys>
   setGroqApiKey: (key: string) => Promise<{ success: boolean }>
@@ -53,6 +59,10 @@ interface Api {
   getProfile: () => Promise<AgencyProfile>
   setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
   hasProfile: () => Promise<boolean>
+  streamChat: (messages: ChatMessage[]) => Promise<{ success: boolean; error?: string }>
+  onChatToken: (callback: (token: string) => void) => () => void
+  onChatComplete: (callback: (fullText: string) => void) => () => void
+  onChatError: (callback: (error: string) => void) => () => void
 }
 
 declare global {
