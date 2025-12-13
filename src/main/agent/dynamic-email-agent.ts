@@ -3,6 +3,14 @@
  *
  * This agent implements a ReAct-style loop where the LLM decides which tools
  * to use based on the current context and goals.
+ *
+ * Integrated with Core Modules:
+ * - Memory System: Cross-session learning
+ * - Guardrails: Safety and rate limiting
+ * - Observability: Tracing and metrics
+ * - Reflexion: Lead qualification checking
+ * - Personalization: Hyper-personalized emails
+ * - Feedback: Learning from outcomes
  */
 
 import { EventEmitter } from 'events'
@@ -25,6 +33,17 @@ import { detectTechStackTool } from './tools/detect-tech-stack'
 import { detectHiringIntentTool } from './tools/detect-hiring-intent'
 import { icpMatcherTool } from './tools/icp-matcher'
 import type { ToolContext, ToolEvent, RateLimiterState } from './tools/types'
+
+// Core Module Imports
+import {
+  getMemorySystem,
+  getGuardrailsSystem,
+  getObservabilitySystem,
+  getFeedbackSystem,
+  LeadQualificationChecker,
+  PersonalizationEngine,
+  IntentSignalScorer
+} from './core'
 
 const MAX_ITERATIONS = 25
 
@@ -91,6 +110,16 @@ export class DynamicEmailAgent extends EventEmitter {
   private registry: ToolRegistry
   private toolContext!: ToolContext
 
+  // Core module instances
+  private memory = getMemorySystem()
+  private guardrails = getGuardrailsSystem()
+  private observability = getObservabilitySystem()
+  private feedback = getFeedbackSystem()
+  private qualificationChecker: LeadQualificationChecker
+  private personalizationEngine: PersonalizationEngine
+  private intentScorer: IntentSignalScorer
+  private sessionId: string
+
   constructor(
     groqApiKey: string,
     serperApiKey: string,
@@ -100,11 +129,21 @@ export class DynamicEmailAgent extends EventEmitter {
     super()
     this.serperApiKey = serperApiKey
     this.profile = profile
+    this.sessionId = `session_${Date.now()}`
+
     this.llm = new ChatGroq({
       apiKey: groqApiKey,
       model: model,
       temperature: 0.3
     })
+
+    // Initialize core modules with LLM
+    this.qualificationChecker = new LeadQualificationChecker(this.llm)
+    this.personalizationEngine = new PersonalizationEngine(this.llm)
+    this.intentScorer = new IntentSignalScorer()
+
+    // Reset guardrails for new session
+    this.guardrails.reset()
 
     this.registry = new ToolRegistry({
       serperApiKey: this.serperApiKey,
@@ -357,8 +396,22 @@ Always respond with valid JSON only. No other text.`
 
   async run(niche: string): Promise<void> {
     this.toolContext = this.createToolContext()
+
+    // Start observability trace for this session
+    this.observability.startTrace(this.sessionId, this.sessionId, 'finder')
+
+    // Start a new memory session
+    this.memory.startNewSession(niche, `Find leads in ${niche} for ${this.getServicesInline()}`)
+
+    // Get learned patterns from memory for this niche
+    const bestQueries = this.memory.getBestQueriesForNiche(niche)
+    const memoryContext =
+      bestQueries.length > 0
+        ? `\n\nLearned patterns from previous sessions:\n${bestQueries.map((q) => `- Try query: ${q}`).join('\n')}`
+        : ''
+
     const messages: AgentMessage[] = [
-      { role: 'system', content: this.getSystemPrompt(niche) },
+      { role: 'system', content: this.getSystemPrompt(niche) + memoryContext },
       {
         role: 'user',
         content: `Find businesses in the "${niche}" niche that could benefit from our services (${this.getServicesInline()}). Search for real businesses, analyze their websites, extract contact emails, and register qualified leads. Start by searching.`
@@ -488,6 +541,52 @@ Always respond with valid JSON only. No other text.`
 
           if (toolName === 'emit_lead' && result.success) {
             leadCount++
+
+            // Register lead with feedback system for tracking
+            const leadData = result.data as {
+              email?: string
+              company?: { name?: string }
+              score?: number
+            }
+            if (leadData?.email) {
+              this.feedback.registerLead(
+                `lead_${Date.now()}`,
+                leadData.email,
+                niche,
+                'dynamic-agent',
+                3, // personalization level
+                leadData.score || 50
+              )
+
+              // Record in memory
+              this.memory.recordLeadFound(leadData.email)
+
+              // Calculate intent score based on detected signals
+              const intentScore = this.intentScorer.scoreSignals([])
+
+              // Emit enhanced event with intent data
+              this.emit('event', {
+                type: 'thinking',
+                content: `Lead intent score: ${intentScore.totalScore} (${intentScore.priority})`,
+                timestamp: Date.now()
+              } as AgentEvent)
+            }
+          }
+
+          // Record search queries in memory
+          if (toolName === 'web_search' && result.success) {
+            const searchParams = params as { query?: string }
+            if (searchParams.query) {
+              this.memory.recordQueryUsed(searchParams.query)
+            }
+          }
+
+          // Record URLs visited in memory
+          if (toolName === 'fetch_page' && result.success) {
+            const fetchParams = params as { url?: string }
+            if (fetchParams.url) {
+              this.memory.recordUrlVisited(fetchParams.url)
+            }
           }
 
           const resultSummary = result.success
@@ -547,6 +646,112 @@ Always respond with valid JSON only. No other text.`
       } as AgentEvent)
     }
 
+    // End observability trace
+    this.observability.endTrace(this.sessionId)
+
+    // Get session summary from memory
+    const sessionSummary = this.memory.getSessionSummary()
+
+    // Get feedback analysis
+    const feedbackAnalysis = this.feedback.analyze()
+
+    // Emit final stats
+    this.emit('event', {
+      type: 'thinking',
+      content: `Session complete:\n- Leads found: ${sessionSummary.leadsFound}\n- URLs visited: ${sessionSummary.urlsVisited}\n- Queries used: ${sessionSummary.queriesUsed}\n- Response rate: ${feedbackAnalysis.responseRate.toFixed(1)}%`,
+      timestamp: Date.now()
+    } as AgentEvent)
+
     this.emit('complete')
+  }
+
+  /**
+   * Qualify a lead using the LeadQualificationChecker
+   * Checks if a company is a competitor, in target niche, and has decision-maker contact
+   */
+  async qualifyLead(
+    email: string,
+    companyInfo: string,
+    niche: string
+  ): Promise<{
+    qualified: boolean
+    checks: Array<{ name: string; passed: boolean; confidence: number }>
+  }> {
+    const ourServices = this.profile?.services || ['software development']
+
+    const competitorCheck = await this.qualificationChecker.checkNotCompetitor(
+      companyInfo,
+      ourServices
+    )
+    const nicheCheck = await this.qualificationChecker.checkInTargetNiche(companyInfo, niche)
+    const decisionMakerCheck = await this.qualificationChecker.checkDecisionMaker(
+      email,
+      companyInfo
+    )
+
+    const checks = [
+      {
+        name: 'Not Competitor',
+        passed: competitorCheck.passed,
+        confidence: competitorCheck.confidence
+      },
+      { name: 'In Target Niche', passed: nicheCheck.passed, confidence: nicheCheck.confidence },
+      {
+        name: 'Decision Maker',
+        passed: decisionMakerCheck.passed,
+        confidence: decisionMakerCheck.confidence
+      }
+    ]
+
+    const qualified = checks.every((c) => c.passed)
+
+    return { qualified, checks }
+  }
+
+  /**
+   * Generate a hyper-personalized email template
+   * This can be called externally or used in the workflow
+   */
+  async generatePersonalizedEmail(
+    companyName: string,
+    industry: string,
+    painPoints: string[]
+  ): Promise<{ subject: string; body: string; personalizationLevel: number }> {
+    const ourServices = this.profile?.services || ['software development']
+    const agencyName = this.profile?.name || 'Our Agency'
+
+    const template = await this.personalizationEngine.generateHyperPersonalizedEmail(
+      {
+        companyName,
+        industry,
+        painPoints
+      },
+      ourServices,
+      agencyName,
+      'Team'
+    )
+    return {
+      subject: template.template.subject,
+      body: template.template.body,
+      personalizationLevel: template.level
+    }
+  }
+
+  /**
+   * Get guardrails stats for the current session
+   */
+  getGuardrailsStats(): {
+    searchCalls: number
+    fetchCalls: number
+    leadsEmitted: number
+    violations: number
+  } {
+    const stats = this.guardrails.getStats()
+    return {
+      searchCalls: stats.counters.searchCalls,
+      fetchCalls: stats.counters.fetchCalls,
+      leadsEmitted: stats.counters.leadsEmitted,
+      violations: stats.violations
+    }
   }
 }

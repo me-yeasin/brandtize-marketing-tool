@@ -3,13 +3,23 @@
  *
  * Provides short-term, working, and long-term memory for agents.
  * Enables cross-session learning and pattern recognition.
+ * Uses electron-store for persistence across sessions.
  */
 
+import Store from 'electron-store'
 import { EpisodicMemory, LongTermMemory, Decision, Action, Hypothesis } from './types'
+
+// Create a dedicated store for agent memory
+const memoryStore = new Store<{ agentMemory: LongTermMemory | null }>({
+  name: 'agent-memory',
+  defaults: {
+    agentMemory: null
+  }
+})
 
 export class AgentMemorySystem {
   private memory: EpisodicMemory
-  private storageKey = 'agent-memory-v1'
+  private storageKey = 'agentMemory'
 
   constructor() {
     this.memory = this.initializeMemory()
@@ -387,15 +397,9 @@ ${session.leadsRejected
 
   private saveToStorage(): void {
     try {
-      const data = {
-        longTermMemory: this.memory.longTermMemory,
-        lastSaved: Date.now()
-      }
-      // In Electron, we'd use electron-store here
-      // For now, store in localStorage if available
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(this.storageKey, JSON.stringify(data))
-      }
+      // Save long-term memory to electron-store for persistence
+      memoryStore.set(this.storageKey, this.memory.longTermMemory)
+      console.log('[Memory] Saved to electron-store')
     } catch (error) {
       console.error('Failed to save memory:', error)
     }
@@ -403,8 +407,12 @@ ${session.leadsRejected
 
   private loadFromStorage(): void {
     try {
-      // Load from external storage if available
-      // For now, memory starts fresh each app launch
+      // Load long-term memory from electron-store
+      const savedMemory = memoryStore.get(this.storageKey) as LongTermMemory | null
+      if (savedMemory && typeof savedMemory === 'object' && 'successfulNiches' in savedMemory) {
+        this.memory.longTermMemory = savedMemory
+        console.log('[Memory] Loaded from electron-store')
+      }
     } catch (error) {
       console.error('Failed to load memory:', error)
     }
