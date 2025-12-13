@@ -1,4 +1,4 @@
-function EmailSubmittedView(): React.JSX.Element {
+function EmailAgentStreamingView(): React.JSX.Element {
   return (
     <div className="h-full w-full flex items-center justify-center">
       <div className="text-2xl font-medium text-text-main">Hello World</div>
@@ -6,4 +6,4 @@ function EmailSubmittedView(): React.JSX.Element {
   )
 }
 
-export { EmailSubmittedView }
+export { EmailAgentStreamingView }

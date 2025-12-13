@@ -1,5 +1,5 @@
 import { EmailPromptView } from './email/components/EmailPromptView'
-import { EmailSubmittedView } from './email/components/EmailSubmittedView'
+import { EmailAgentStreamingView } from './email/components/EmailSubmittedView'
 import { EmailTabBar } from './email/components/EmailTabBar'
 import { useEmailTabs } from './email/logic/useEmailTabs'
 
@@ -29,7 +29,7 @@ function EmailScreen(): React.JSX.Element {
       {/* Tab Content Area */}
       <div className="flex-1 overflow-hidden">
         {activeTab?.submittedPrompt ? (
-          <EmailSubmittedView />
+          <EmailAgentStreamingView />
         ) : (
           <EmailPromptView
             activeTabId={activeTabId}
