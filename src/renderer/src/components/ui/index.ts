@@ -10,3 +10,4 @@ export {
   type CardProps
 } from './Card'
 export { MarkdownRenderer } from './MarkdownRenderer'
+export { ThinkingBlock } from './ThinkingBlock'

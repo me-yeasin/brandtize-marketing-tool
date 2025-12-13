@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import type { ChatMessage } from '../logic/useEmailChat'
-import { MarkdownRenderer } from '../../../components/ui'
+import { MarkdownRenderer, ThinkingBlock } from '../../../components/ui'
+import { parseReasoning } from '../../../utils/reasoning-parser'
 
 interface ChatMessageBubbleProps {
   message: ChatMessage
@@ -7,6 +9,13 @@ interface ChatMessageBubbleProps {
 
 function ChatMessageBubble({ message }: ChatMessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
+
+  const parsed = useMemo(() => {
+    if (isUser || !message.text) {
+      return { thinking: '', content: message.text || '', hasThinking: false }
+    }
+    return parseReasoning(message.text)
+  }, [message.text, isUser])
 
   const userStyle = 'bg-surface text-text-main text-lg font-medium'
   const assistantStyle = 'text-text-main'
@@ -23,9 +32,12 @@ function ChatMessageBubble({ message }: ChatMessageBubbleProps): React.JSX.Eleme
         {isUser ? (
           <span className="whitespace-pre-wrap">{message.text}</span>
         ) : message.text ? (
-          <MarkdownRenderer content={message.text} />
+          <>
+            {parsed.hasThinking && <ThinkingBlock thinking={parsed.thinking} />}
+            <MarkdownRenderer content={parsed.content} />
+          </>
         ) : (
-          <span className="opacity-50">...</span>
+          <span className="opacity-50"></span>
         )}
       </div>
     </div>
