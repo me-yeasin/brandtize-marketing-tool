@@ -9,3 +9,4 @@ export {
   CardFooter,
   type CardProps
 } from './Card'
+export { MarkdownRenderer } from './MarkdownRenderer'
