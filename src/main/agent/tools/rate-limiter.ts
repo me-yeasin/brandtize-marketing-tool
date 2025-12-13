@@ -47,7 +47,7 @@ export class RateLimiterTool implements AgentTool<RateLimiterParams, RateLimiter
   }
 
   async execute(
-    params: RateLimiterParams,
+    _params: RateLimiterParams,
     context: ToolContext
   ): Promise<ToolResult<RateLimiterData>> {
     const state = context.rateLimiter
