@@ -788,7 +788,7 @@ function SettingsScreen(): React.JSX.Element {
           )}
 
           {activeTab === 'ai-provider' && (
-            <div className="max-w-xl space-y-6">
+            <div className="max-w-full space-y-6">
               <div>
                 <h2 className="text-lg font-medium text-text-main">AI Provider Configuration</h2>
                 <p className="mt-1 text-sm text-text-muted">
@@ -797,7 +797,7 @@ function SettingsScreen(): React.JSX.Element {
               </div>
 
               {/* Provider Selection Toggle */}
-              <div className="rounded-lg border border-border bg-surface/30 p-4">
+              <div className="rounded-lg border border-border bg-surface/30 p-4 max-w-xl">
                 <label className="block text-sm text-text-muted mb-3">Active Provider</label>
                 <div className="flex gap-3">
                   <button
@@ -832,194 +832,195 @@ function SettingsScreen(): React.JSX.Element {
                   </button>
                 </div>
               </div>
-
-              {/* Groq Configuration */}
-              <div
-                className={`rounded-lg border bg-surface/30 p-6 space-y-4 ${
-                  selectedProvider === 'groq' ? 'border-primary' : 'border-border'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
-                      <FiZap className="text-xl text-orange-400" size={20} />
+              <div className="flex flex-wrap gap-4">
+                {/* Groq Configuration */}
+                <div
+                  className={`rounded-lg border bg-surface/30 p-6 flex-1 ${
+                    selectedProvider === 'groq' ? 'border-primary' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
+                        <FiZap className="text-xl text-orange-400" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-text-main">Groq API</h3>
+                        <p className="text-xs text-text-muted">Ultra-fast LLM inference</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-text-main">Groq API</h3>
-                      <p className="text-xs text-text-muted">Ultra-fast LLM inference</p>
+                    <div className="flex items-center gap-2">
+                      {selectedProvider === 'groq' && (
+                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+                          Active
+                        </span>
+                      )}
+                      {hasGroqKey && (
+                        <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                          Connected
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {selectedProvider === 'groq' && (
-                      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
-                        Active
-                      </span>
-                    )}
-                    {hasGroqKey && (
-                      <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                        Connected
-                      </span>
-                    )}
+
+                  <div className="space-y-3">
+                    <label className="block text-sm text-text-muted">API Key</label>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <Input
+                          type="password"
+                          placeholder={hasGroqKey ? '••••••••••••••••' : 'gsk_...'}
+                          value={groqKey}
+                          onChange={(e) => setGroqKey(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="primary"
+                        onClick={saveGroqKey}
+                        disabled={saving || !groqKey.trim()}
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      Get your free API key from{' '}
+                      <a
+                        href="https://console.groq.com/keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        console.groq.com
+                      </a>
+                    </p>
+                  </div>
+
+                  <div className="border-t border-border pt-4 space-y-3">
+                    <label className="block text-sm text-text-muted">Model Selection</label>
+                    <div className="relative">
+                      <select
+                        value={selectedModel}
+                        onChange={async (e) => {
+                          const model = e.target.value
+                          setSelectedModel(model)
+                          if (selectedProvider === 'groq') {
+                            await window.api.setSelectedModel(model)
+                            setMessage({ type: 'success', text: 'Model updated successfully!' })
+                            setTimeout(() => setMessage(null), 3000)
+                          }
+                        }}
+                        className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {GROQ_MODELS.map((model) => (
+                          <option key={model.id} value={model.id} className="bg-background">
+                            {model.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <FiChevronDown className="text-text-muted" size={16} />
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      Selected model will be used for all agent operations
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block text-sm text-text-muted">API Key</label>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <Input
-                        type="password"
-                        placeholder={hasGroqKey ? '••••••••••••••••' : 'gsk_...'}
-                        value={groqKey}
-                        onChange={(e) => setGroqKey(e.target.value)}
-                      />
+                {/* Mistral Configuration */}
+                <div
+                  className={`rounded-lg border bg-surface/30 p-6 space-y-4 flex-1 ${
+                    selectedProvider === 'mistral' ? 'border-primary' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
+                        <FiCpu className="text-xl text-purple-400" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-text-main">Mistral API</h3>
+                        <p className="text-xs text-text-muted">Powerful European AI models</p>
+                      </div>
                     </div>
-                    <Button
-                      variant="primary"
-                      onClick={saveGroqKey}
-                      disabled={saving || !groqKey.trim()}
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {selectedProvider === 'mistral' && (
+                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+                          Active
+                        </span>
+                      )}
+                      {hasMistralKey && (
+                        <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                          Connected
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-text-muted">
-                    Get your free API key from{' '}
-                    <a
-                      href="https://console.groq.com/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      console.groq.com
-                    </a>
-                  </p>
-                </div>
 
-                <div className="border-t border-border pt-4 space-y-3">
-                  <label className="block text-sm text-text-muted">Model Selection</label>
-                  <div className="relative">
-                    <select
-                      value={selectedModel}
-                      onChange={async (e) => {
-                        const model = e.target.value
-                        setSelectedModel(model)
-                        if (selectedProvider === 'groq') {
-                          await window.api.setSelectedModel(model)
-                          setMessage({ type: 'success', text: 'Model updated successfully!' })
-                          setTimeout(() => setMessage(null), 3000)
-                        }
-                      }}
-                      className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {GROQ_MODELS.map((model) => (
-                        <option key={model.id} value={model.id} className="bg-background">
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                      <FiChevronDown className="text-text-muted" size={16} />
+                  <div className="space-y-3">
+                    <label className="block text-sm text-text-muted">API Key</label>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <Input
+                          type="password"
+                          placeholder={
+                            hasMistralKey ? '••••••••••••••••' : 'Enter your Mistral API key'
+                          }
+                          value={mistralKey}
+                          onChange={(e) => setMistralKey(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        variant="primary"
+                        onClick={saveMistralKey}
+                        disabled={saving || !mistralKey.trim()}
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </Button>
                     </div>
+                    <p className="text-xs text-text-muted">
+                      Get your API key from{' '}
+                      <a
+                        href="https://console.mistral.ai/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        console.mistral.ai
+                      </a>
+                    </p>
                   </div>
-                  <p className="text-xs text-text-muted">
-                    Selected model will be used for all agent operations
-                  </p>
-                </div>
-              </div>
 
-              {/* Mistral Configuration */}
-              <div
-                className={`rounded-lg border bg-surface/30 p-6 space-y-4 ${
-                  selectedProvider === 'mistral' ? 'border-primary' : 'border-border'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20">
-                      <FiCpu className="text-xl text-purple-400" size={20} />
+                  <div className="border-t border-border pt-4 space-y-3">
+                    <label className="block text-sm text-text-muted">Model Selection</label>
+                    <div className="relative">
+                      <select
+                        value={selectedMistralModel}
+                        onChange={async (e) => {
+                          const model = e.target.value
+                          setSelectedMistralModel(model)
+                          if (selectedProvider === 'mistral') {
+                            await window.api.setSelectedModel(model)
+                            setMessage({ type: 'success', text: 'Model updated successfully!' })
+                            setTimeout(() => setMessage(null), 3000)
+                          }
+                        }}
+                        className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {MISTRAL_MODELS.map((model) => (
+                          <option key={model.id} value={model.id} className="bg-background">
+                            {model.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                        <FiChevronDown className="text-text-muted" size={16} />
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-text-main">Mistral API</h3>
-                      <p className="text-xs text-text-muted">Powerful European AI models</p>
-                    </div>
+                    <p className="text-xs text-text-muted">
+                      Selected model will be used for all agent operations
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {selectedProvider === 'mistral' && (
-                      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
-                        Active
-                      </span>
-                    )}
-                    {hasMistralKey && (
-                      <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                        Connected
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="block text-sm text-text-muted">API Key</label>
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <Input
-                        type="password"
-                        placeholder={
-                          hasMistralKey ? '••••••••••••••••' : 'Enter your Mistral API key'
-                        }
-                        value={mistralKey}
-                        onChange={(e) => setMistralKey(e.target.value)}
-                      />
-                    </div>
-                    <Button
-                      variant="primary"
-                      onClick={saveMistralKey}
-                      disabled={saving || !mistralKey.trim()}
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-text-muted">
-                    Get your API key from{' '}
-                    <a
-                      href="https://console.mistral.ai/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      console.mistral.ai
-                    </a>
-                  </p>
-                </div>
-
-                <div className="border-t border-border pt-4 space-y-3">
-                  <label className="block text-sm text-text-muted">Model Selection</label>
-                  <div className="relative">
-                    <select
-                      value={selectedMistralModel}
-                      onChange={async (e) => {
-                        const model = e.target.value
-                        setSelectedMistralModel(model)
-                        if (selectedProvider === 'mistral') {
-                          await window.api.setSelectedModel(model)
-                          setMessage({ type: 'success', text: 'Model updated successfully!' })
-                          setTimeout(() => setMessage(null), 3000)
-                        }
-                      }}
-                      className="w-full appearance-none rounded-lg border border-border bg-surface/30 px-4 py-3 pr-10 text-sm text-text-main transition-colors hover:bg-surface/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {MISTRAL_MODELS.map((model) => (
-                        <option key={model.id} value={model.id} className="bg-background">
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                      <FiChevronDown className="text-text-muted" size={16} />
-                    </div>
-                  </div>
-                  <p className="text-xs text-text-muted">
-                    Selected model will be used for all agent operations
-                  </p>
                 </div>
               </div>
             </div>
