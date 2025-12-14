@@ -56,6 +56,24 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, error: string): void => callback(error)
     ipcRenderer.on('chat:error', handler)
     return () => ipcRenderer.removeListener('chat:error', handler)
+  },
+  onChatRetry: (
+    callback: (data: { model: string; attempt: number; maxAttempts: number }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { model: string; attempt: number; maxAttempts: number }
+    ): void => callback(data)
+    ipcRenderer.on('chat:retry', handler)
+    return () => ipcRenderer.removeListener('chat:retry', handler)
+  },
+  onChatModelSwitch: (callback: (data: { fromModel: string; toModel: string }) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { fromModel: string; toModel: string }
+    ): void => callback(data)
+    ipcRenderer.on('chat:modelSwitch', handler)
+    return () => ipcRenderer.removeListener('chat:modelSwitch', handler)
   }
 }
 

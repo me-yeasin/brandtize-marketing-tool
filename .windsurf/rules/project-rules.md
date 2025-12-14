@@ -18,3 +18,5 @@ trigger: always_on
 14. Keep up with modern JavaScript/TypeScript features and use them appropriately @web.
 15. Before writing any code, research on the @web for 2025 best practices and patterns.
 16. When implementing new features, follow the existing codebase's architecture and patterns.
+17. Must follow our existing design system when you do implement a new design or a new component code.
+18. Use consistent spacing and indentation throughout the codebase.

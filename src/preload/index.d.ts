@@ -80,6 +80,12 @@ interface Api {
   onChatToken: (callback: (token: string) => void) => () => void
   onChatComplete: (callback: (fullText: string) => void) => () => void
   onChatError: (callback: (error: string) => void) => () => void
+  onChatRetry: (
+    callback: (data: { model: string; attempt: number; maxAttempts: number }) => void
+  ) => () => void
+  onChatModelSwitch: (
+    callback: (data: { fromModel: string; toModel: string }) => void
+  ) => () => void
 }
 
 declare global {

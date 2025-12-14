@@ -6,12 +6,23 @@ export interface ChatMessage {
   text: string
 }
 
+export interface ModelStatus {
+  visible: boolean
+  currentModel: string
+  attempt: number
+  maxAttempts: number
+  isModelSwitch: boolean
+  previousModel?: string
+}
+
 interface UseEmailChatResult {
   messages: ChatMessage[]
   isStreaming: boolean
   error: string | null
+  modelStatus: ModelStatus
   sendMessage: (text: string) => void
   clearError: () => void
+  hideModelStatus: () => void
 }
 
 function generateId(): string {
@@ -29,6 +40,13 @@ function useEmailChat(initialPrompt: string): UseEmailChatResult {
   })
   const [isStreaming, setIsStreaming] = useState(() => !!initialPrompt.trim())
   const [error, setError] = useState<string | null>(null)
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({
+    visible: false,
+    currentModel: '',
+    attempt: 0,
+    maxAttempts: 3,
+    isModelSwitch: false
+  })
   const streamingMessageIdRef = useRef<string | null>(null)
   const hasInitializedRef = useRef(false)
 
@@ -90,18 +108,43 @@ function useEmailChat(initialPrompt: string): UseEmailChatResult {
     const unsubComplete = window.api.onChatComplete(() => {
       streamingMessageIdRef.current = null
       setIsStreaming(false)
+      setModelStatus((prev) => ({ ...prev, visible: false }))
     })
 
     const unsubError = window.api.onChatError((errorMsg) => {
       streamingMessageIdRef.current = null
       setIsStreaming(false)
       setError(errorMsg)
+      setModelStatus((prev) => ({ ...prev, visible: false }))
+    })
+
+    const unsubRetry = window.api.onChatRetry((data) => {
+      setModelStatus({
+        visible: true,
+        currentModel: data.model,
+        attempt: data.attempt,
+        maxAttempts: data.maxAttempts,
+        isModelSwitch: false
+      })
+    })
+
+    const unsubModelSwitch = window.api.onChatModelSwitch((data) => {
+      setModelStatus({
+        visible: true,
+        currentModel: data.toModel,
+        attempt: 0,
+        maxAttempts: 3,
+        isModelSwitch: true,
+        previousModel: data.fromModel
+      })
     })
 
     return () => {
       unsubToken()
       unsubComplete()
       unsubError()
+      unsubRetry()
+      unsubModelSwitch()
     }
   }, [])
 
@@ -109,12 +152,18 @@ function useEmailChat(initialPrompt: string): UseEmailChatResult {
     setError(null)
   }, [])
 
+  const hideModelStatus = useCallback(() => {
+    setModelStatus((prev) => ({ ...prev, visible: false }))
+  }, [])
+
   return {
     messages,
     isStreaming,
     error,
+    modelStatus,
     sendMessage,
-    clearError
+    clearError,
+    hideModelStatus
   }
 }
 

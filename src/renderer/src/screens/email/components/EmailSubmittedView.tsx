@@ -3,6 +3,7 @@ import { useRef, useEffect } from 'react'
 import { useEmailChat } from '../logic/useEmailChat'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { StreamingIndicator } from './StreamingIndicator'
+import { ModelStatusNotification } from './ModelStatusNotification'
 
 interface EmailAgentStreamingViewProps {
   initialPrompt: string
@@ -11,7 +12,7 @@ interface EmailAgentStreamingViewProps {
 function EmailAgentStreamingView({
   initialPrompt
 }: EmailAgentStreamingViewProps): React.JSX.Element {
-  const { messages, isStreaming, error } = useEmailChat(initialPrompt)
+  const { messages, isStreaming, error, modelStatus, hideModelStatus } = useEmailChat(initialPrompt)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -35,6 +36,17 @@ function EmailAgentStreamingView({
           )}
         </div>
       </div>
+
+      {modelStatus.visible && (
+        <ModelStatusNotification
+          currentModel={modelStatus.currentModel}
+          attempt={modelStatus.attempt}
+          maxAttempts={modelStatus.maxAttempts}
+          isModelSwitch={modelStatus.isModelSwitch}
+          previousModel={modelStatus.previousModel}
+          onClose={hideModelStatus}
+        />
+      )}
     </div>
   )
 }
