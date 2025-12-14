@@ -2,11 +2,15 @@
 trigger: always_on
 ---
 
-1. Use the best project structure that we currently follow. If you find out that okay, I need to modify the project structure here, then do that.
-2. Use the best practices for the best performance and security.
-3. Always follow our design system for design. For visuals, when we create any visuals, make sure that we must follow our design system that we created inside this project. You can analyze this, always what the design system we are going to work on this project then use that design system.
-4. Never touched already working existing functionality that we've done. You don't need to touch anything that's already working. When you are creating something new or implementing new features, fixing bugs, and so on, we must keep in mind that you do not touch any of existing working functionality. That needs to remain the same, untouched, and with exact working behavior as before.
-5. Always write up-to-date code. Research on @web for 2025 and do up to date writing using the best practices.
-6. Don't miss a file and folders. Keep them clean. Clean files, clean folders, clean codes are easy to read, easy to understand, and easy to modify. Easy to scale and so on. This is very important that you write clean code. For one, for a file, you don't write too many lines of code. If you see that, okay, this file actually becomes very big, then split that file in multiple files, multiple subfiles. It's very easy to understand by other developers like me as a human and others as well, and it's very easy to remove or scale up a thing, okay, a feature or a functionality from there.
-7. Always use our design system. That's important when you try to write code or any design, follow only our design system that we implemented on this project.
-8. Always follow or respect my changes inside the base. That means, if you do something, but I feel that okay, I think this will be more better if we remove that or I add that manually, then track my changes, and for the next time you need to respect my changes. You don't need to revert my changes. This is very important; you need to respect my changes and keep these changes. Also, you need to follow my changes. That means you need to follow what I change. Like, what type of design actually I am expecting from that. I manually change the code and get that one. So, on the next time, you need to do exactly how I want. You know, how I change the code based on that. You to write code, then on the next time.
+1. Do not touch any existing design functionality or features. That works fine.
+2. Respect user modified codes, do not change them.
+3. Respect user modified quotes and follow that pattern.
+4. Maintain consistency with existing code style and patterns.
+5. Keep code structure and naming conventions aligned with the existing codebase.
+6. Write clean, readable, and well-documented code.
+7. Follow the best folder structure.
+8. Organize code into logical, reusable components.
+9. Use meaningful variable and function names that describe their purpose.
+10. Don't make any file too large, a max line of code in each file is 300.
+11. Break down complex functions into smaller, focused functions.
+12. Avoid deeply nested code; prefer early returns and clear conditional logic.
