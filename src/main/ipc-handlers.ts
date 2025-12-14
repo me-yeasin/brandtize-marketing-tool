@@ -15,7 +15,7 @@ import {
   type AgencyProfile,
   type AiProvider
 } from './store'
-import { streamChatResponse, type ChatMessage } from './services'
+import { streamAgentResponse, type ChatMessage } from './services'
 
 export function setupIpcHandlers(): void {
   // Settings handlers
@@ -91,7 +91,7 @@ export function setupIpcHandlers(): void {
     }
 
     try {
-      await streamChatResponse(messages, {
+      await streamAgentResponse(messages, {
         onToken: (token) => {
           window.webContents.send('chat:token', token)
         },
