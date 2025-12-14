@@ -14,3 +14,7 @@ trigger: always_on
 10. Don't make any file too large, a max line of code in each file is 300.
 11. Break down complex functions into smaller, focused functions.
 12. Avoid deeply nested code; prefer early returns and clear conditional logic.
+13. Always research on a @web to know about the best practices and up-to-date codes for modern development patterns.
+14. Keep up with modern JavaScript/TypeScript features and use them appropriately @web.
+15. Before writing any code, research on the @web for 2025 best practices and patterns.
+16. When implementing new features, follow the existing codebase's architecture and patterns.
