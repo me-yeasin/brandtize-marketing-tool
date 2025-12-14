@@ -3,17 +3,25 @@ import {
   getApiKeys,
   setGroqApiKey,
   setMistralApiKey,
+  setGoogleApiKey,
   setSerperApiKey,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
   getSelectedAiProvider,
   setSelectedAiProvider,
+  getSelectedGoogleMode,
+  setSelectedGoogleMode,
+  getGoogleProjectId,
+  setGoogleProjectId,
+  getGoogleLocation,
+  setGoogleLocation,
   getAgencyProfile,
   setAgencyProfile,
   hasAgencyProfile,
   type AgencyProfile,
-  type AiProvider
+  type AiProvider,
+  type GoogleMode
 } from './store'
 import { streamAgentResponse, type ChatMessage } from './services'
 
@@ -24,9 +32,11 @@ export function setupIpcHandlers(): void {
     return {
       groqApiKey: keys.groqApiKey ? '••••••••' + keys.groqApiKey.slice(-4) : '',
       mistralApiKey: keys.mistralApiKey ? '••••••••' + keys.mistralApiKey.slice(-4) : '',
+      googleApiKey: keys.googleApiKey ? '••••••••' + keys.googleApiKey.slice(-4) : '',
       serperApiKey: keys.serperApiKey ? '••••••••' + keys.serperApiKey.slice(-4) : '',
       hasGroqKey: keys.groqApiKey.length > 0,
       hasMistralKey: keys.mistralApiKey.length > 0,
+      hasGoogleKey: keys.googleApiKey.length > 0,
       hasSerperKey: keys.serperApiKey.length > 0
     }
   })
@@ -38,6 +48,11 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setMistralApiKey', (_event, key: string) => {
     setMistralApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setGoogleApiKey', (_event, key: string) => {
+    setGoogleApiKey(key)
     return { success: true }
   })
 
@@ -65,6 +80,33 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setSelectedAiProvider', (_event, provider: AiProvider) => {
     setSelectedAiProvider(provider)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:getSelectedGoogleMode', () => {
+    return getSelectedGoogleMode()
+  })
+
+  ipcMain.handle('settings:setSelectedGoogleMode', (_event, mode: GoogleMode) => {
+    setSelectedGoogleMode(mode)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:getGoogleProjectId', () => {
+    return getGoogleProjectId()
+  })
+
+  ipcMain.handle('settings:setGoogleProjectId', (_event, projectId: string) => {
+    setGoogleProjectId(projectId)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:getGoogleLocation', () => {
+    return getGoogleLocation()
+  })
+
+  ipcMain.handle('settings:setGoogleLocation', (_event, location: string) => {
+    setGoogleLocation(location)
     return { success: true }
   })
 

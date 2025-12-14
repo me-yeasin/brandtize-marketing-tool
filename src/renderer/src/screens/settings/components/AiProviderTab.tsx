@@ -1,44 +1,72 @@
 import type React from 'react'
 import { FiChevronDown, FiCpu, FiZap } from 'react-icons/fi'
+import { SiGoogle } from 'react-icons/si'
 
 import { Button, Input } from '../../../components/ui'
-import type { AiProvider } from '../types'
+import type { AiProvider, GoogleMode } from '../types'
 import { GROQ_MODELS, MISTRAL_MODELS } from '../constants'
+import { GoogleProviderCard } from './GoogleProviderCard'
 
 interface AiProviderTabProps {
   selectedProvider: AiProvider
   hasGroqKey: boolean
   hasMistralKey: boolean
+  hasGoogleKey: boolean
   groqKey: string
   mistralKey: string
+  googleKey: string
   selectedModel: string
   selectedMistralModel: string
+  selectedGoogleModel: string
+  selectedGoogleMode: GoogleMode
+  googleProjectId: string
+  googleLocation: string
   saving: boolean
   onGroqKeyChange: (value: string) => void
   onMistralKeyChange: (value: string) => void
+  onGoogleKeyChange: (value: string) => void
   onSaveGroqKey: () => Promise<void>
   onSaveMistralKey: () => Promise<void>
+  onSaveGoogleKey: () => Promise<void>
   onSwitchProvider: (provider: AiProvider) => Promise<void>
   onSelectModel: (model: string) => Promise<void>
   onSelectMistralModel: (model: string) => Promise<void>
+  onSelectGoogleModel: (model: string) => Promise<void>
+  onSelectGoogleMode: (mode: GoogleMode) => Promise<void>
+  onGoogleProjectIdChange: (value: string) => void
+  onGoogleLocationChange: (value: string) => void
+  onSaveVertexConfig: () => Promise<void>
 }
 
 function AiProviderTab({
   selectedProvider,
   hasGroqKey,
   hasMistralKey,
+  hasGoogleKey,
   groqKey,
   mistralKey,
+  googleKey,
   selectedModel,
   selectedMistralModel,
+  selectedGoogleModel,
+  selectedGoogleMode,
+  googleProjectId,
+  googleLocation,
   saving,
   onGroqKeyChange,
   onMistralKeyChange,
+  onGoogleKeyChange,
   onSaveGroqKey,
   onSaveMistralKey,
+  onSaveGoogleKey,
   onSwitchProvider,
   onSelectModel,
-  onSelectMistralModel
+  onSelectMistralModel,
+  onSelectGoogleModel,
+  onSelectGoogleMode,
+  onGoogleProjectIdChange,
+  onGoogleLocationChange,
+  onSaveVertexConfig
 }: AiProviderTabProps): React.JSX.Element {
   return (
     <div className="max-w-full space-y-6">
@@ -80,6 +108,21 @@ function AiProviderTab({
               <FiCpu size={16} />
               <span>Mistral</span>
               {hasMistralKey && <span className="h-2 w-2 rounded-full bg-green-400" />}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSwitchProvider('google')}
+            className={`flex-1 rounded-lg border px-4 py-3 text-sm transition-colors ${
+              selectedProvider === 'google'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border text-text-muted hover:border-text-muted'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <SiGoogle size={16} />
+              <span>Google</span>
+              {hasGoogleKey && <span className="h-2 w-2 rounded-full bg-green-400" />}
             </div>
           </button>
         </div>
@@ -255,6 +298,24 @@ function AiProviderTab({
             </p>
           </div>
         </div>
+
+        <GoogleProviderCard
+          isActive={selectedProvider === 'google'}
+          hasGoogleKey={hasGoogleKey}
+          googleKey={googleKey}
+          selectedGoogleModel={selectedGoogleModel}
+          selectedGoogleMode={selectedGoogleMode}
+          googleProjectId={googleProjectId}
+          googleLocation={googleLocation}
+          saving={saving}
+          onGoogleKeyChange={onGoogleKeyChange}
+          onSaveGoogleKey={onSaveGoogleKey}
+          onSelectGoogleModel={onSelectGoogleModel}
+          onSelectGoogleMode={onSelectGoogleMode}
+          onGoogleProjectIdChange={onGoogleProjectIdChange}
+          onGoogleLocationChange={onGoogleLocationChange}
+          onSaveVertexConfig={onSaveVertexConfig}
+        />
       </div>
     </div>
   )

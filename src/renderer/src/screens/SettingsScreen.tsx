@@ -5,9 +5,15 @@ import { SettingsTabs } from './settings/components/SettingsTabs'
 import { AiProviderTab } from './settings/components/AiProviderTab'
 import { ProfileTab } from './settings/components/ProfileTab'
 import { SearchApiTab } from './settings/components/SearchApiTab'
-import { DEFAULT_PROFILE, GROQ_MODELS, MISTRAL_MODELS } from './settings/constants'
+import { DEFAULT_PROFILE, GROQ_MODELS, MISTRAL_MODELS, GOOGLE_MODELS } from './settings/constants'
 import { isProfileComplete } from './settings/utils'
-import type { AiProvider, AgencyProfile, MessageState, SettingsTab } from './settings/types'
+import type {
+  AiProvider,
+  GoogleMode,
+  AgencyProfile,
+  MessageState,
+  SettingsTab
+} from './settings/types'
 
 const MESSAGE_TIMEOUT = 3000
 
@@ -15,11 +21,17 @@ function SettingsScreen(): JSX.Element {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [groqKey, setGroqKey] = useState('')
   const [mistralKey, setMistralKey] = useState('')
+  const [googleKey, setGoogleKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
   const [selectedModel, setSelectedModel] = useState(GROQ_MODELS[0]?.id ?? '')
   const [selectedMistralModel, setSelectedMistralModel] = useState(MISTRAL_MODELS[0]?.id ?? '')
+  const [selectedGoogleModel, setSelectedGoogleModel] = useState(GOOGLE_MODELS[0]?.id ?? '')
+  const [selectedGoogleMode, setSelectedGoogleMode] = useState<GoogleMode>('aiStudio')
+  const [googleProjectId, setGoogleProjectId] = useState('')
+  const [googleLocation, setGoogleLocation] = useState('us-central1')
   const [hasGroqKey, setHasGroqKey] = useState(false)
   const [hasMistralKey, setHasMistralKey] = useState(false)
+  const [hasGoogleKey, setHasGoogleKey] = useState(false)
   const [hasSerperKey, setHasSerperKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
@@ -31,6 +43,7 @@ function SettingsScreen(): JSX.Element {
     window.api.getApiKeys().then((keys) => {
       setHasGroqKey(keys.hasGroqKey)
       setHasMistralKey(keys.hasMistralKey)
+      setHasGoogleKey(keys.hasGoogleKey)
       setHasSerperKey(keys.hasSerperKey)
     })
 
@@ -39,10 +52,24 @@ function SettingsScreen(): JSX.Element {
       window.api.getSelectedModel().then((model: string) => {
         if (provider === 'mistral') {
           setSelectedMistralModel(model)
+        } else if (provider === 'google') {
+          setSelectedGoogleModel(model)
         } else {
           setSelectedModel(model)
         }
       })
+    })
+
+    window.api.getSelectedGoogleMode().then((mode: GoogleMode) => {
+      setSelectedGoogleMode(mode)
+    })
+
+    window.api.getGoogleProjectId().then((projectId: string) => {
+      setGoogleProjectId(projectId)
+    })
+
+    window.api.getGoogleLocation().then((location: string) => {
+      setGoogleLocation(location)
     })
 
     window.api.getProfile().then((p) => {
@@ -86,6 +113,20 @@ function SettingsScreen(): JSX.Element {
     setSaving(false)
   }
 
+  const saveGoogleKey = async (): Promise<void> => {
+    if (!googleKey.trim()) return
+    setSaving(true)
+    try {
+      await window.api.setGoogleApiKey(googleKey.trim())
+      setHasGoogleKey(true)
+      setGoogleKey('')
+      scheduleMessage({ type: 'success', text: 'Google API key saved successfully!' })
+    } catch {
+      scheduleMessage({ type: 'error', text: 'Failed to save Google API key' })
+    }
+    setSaving(false)
+  }
+
   const saveSerperKey = async (): Promise<void> => {
     if (!serperKey.trim()) return
     setSaving(true)
@@ -103,9 +144,14 @@ function SettingsScreen(): JSX.Element {
   const switchProvider = async (provider: AiProvider): Promise<void> => {
     setSelectedProvider(provider)
     await window.api.setSelectedAiProvider(provider)
+    const providerNames: Record<AiProvider, string> = {
+      groq: 'Groq',
+      mistral: 'Mistral',
+      google: 'Google'
+    }
     scheduleMessage({
       type: 'success',
-      text: `Switched to ${provider === 'groq' ? 'Groq' : 'Mistral'} AI provider!`
+      text: `Switched to ${providerNames[provider]} AI provider!`
     })
   }
 
@@ -145,6 +191,35 @@ function SettingsScreen(): JSX.Element {
     }
   }
 
+  const handleSelectGoogleModel = async (model: string): Promise<void> => {
+    setSelectedGoogleModel(model)
+    if (selectedProvider === 'google') {
+      await window.api.setSelectedModel(model)
+      scheduleMessage({ type: 'success', text: 'Model updated successfully!' })
+    }
+  }
+
+  const handleSelectGoogleMode = async (mode: GoogleMode): Promise<void> => {
+    setSelectedGoogleMode(mode)
+    await window.api.setSelectedGoogleMode(mode)
+    scheduleMessage({
+      type: 'success',
+      text: `Switched to ${mode === 'aiStudio' ? 'AI Studio' : 'Vertex AI'} mode!`
+    })
+  }
+
+  const saveVertexConfig = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.setGoogleProjectId(googleProjectId)
+      await window.api.setGoogleLocation(googleLocation)
+      scheduleMessage({ type: 'success', text: 'Vertex AI configuration saved!' })
+    } catch {
+      scheduleMessage({ type: 'error', text: 'Failed to save Vertex AI configuration' })
+    }
+    setSaving(false)
+  }
+
   const tabs = useMemo(
     () => [
       { id: 'profile' as const, label: 'Agency Profile', icon: <FiUser size={16} /> },
@@ -169,7 +244,7 @@ function SettingsScreen(): JSX.Element {
             items={tabs}
             statuses={{
               profile: hasProfile,
-              aiProvider: hasGroqKey || hasMistralKey,
+              aiProvider: hasGroqKey || hasMistralKey || hasGoogleKey,
               searchApi: hasSerperKey
             }}
           />
@@ -204,18 +279,31 @@ function SettingsScreen(): JSX.Element {
               selectedProvider={selectedProvider}
               hasGroqKey={hasGroqKey}
               hasMistralKey={hasMistralKey}
+              hasGoogleKey={hasGoogleKey}
               groqKey={groqKey}
               mistralKey={mistralKey}
+              googleKey={googleKey}
               selectedModel={selectedModel}
               selectedMistralModel={selectedMistralModel}
+              selectedGoogleModel={selectedGoogleModel}
+              selectedGoogleMode={selectedGoogleMode}
+              googleProjectId={googleProjectId}
+              googleLocation={googleLocation}
               saving={saving}
               onGroqKeyChange={setGroqKey}
               onMistralKeyChange={setMistralKey}
+              onGoogleKeyChange={setGoogleKey}
               onSaveGroqKey={saveGroqKey}
               onSaveMistralKey={saveMistralKey}
+              onSaveGoogleKey={saveGoogleKey}
               onSwitchProvider={switchProvider}
               onSelectModel={handleSelectGroqModel}
               onSelectMistralModel={handleSelectMistralModel}
+              onSelectGoogleModel={handleSelectGoogleModel}
+              onSelectGoogleMode={handleSelectGoogleMode}
+              onGoogleProjectIdChange={setGoogleProjectId}
+              onGoogleLocationChange={setGoogleLocation}
+              onSaveVertexConfig={saveVertexConfig}
             />
           )}
 

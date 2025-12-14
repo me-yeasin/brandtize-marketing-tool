@@ -1,6 +1,8 @@
 import { StateGraph, START, END, Annotation, messagesStateReducer } from '@langchain/langgraph'
 import { ChatGroq } from '@langchain/groq'
 import { ChatMistralAI } from '@langchain/mistralai'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatVertexAI } from '@langchain/google-vertexai'
 import {
   HumanMessage,
   AIMessage,
@@ -8,7 +10,14 @@ import {
   isAIMessageChunk
 } from '@langchain/core/messages'
 
-import { getApiKeys, getSelectedModel, getSelectedAiProvider } from '../store'
+import {
+  getApiKeys,
+  getSelectedModel,
+  getSelectedAiProvider,
+  getSelectedGoogleMode,
+  getGoogleProjectId,
+  getGoogleLocation
+} from '../store'
 import type { ChatMessage, StreamCallbacks } from './ai-service'
 
 const AgentState = Annotation.Root({
@@ -20,10 +29,12 @@ const AgentState = Annotation.Root({
 
 type AgentStateType = typeof AgentState.State
 
-function createModel(): ChatGroq | ChatMistralAI | null {
+type ChatModel = ChatGroq | ChatMistralAI | ChatGoogleGenerativeAI | ChatVertexAI
+
+function createModel(): ChatModel | null {
   const provider = getSelectedAiProvider()
   const selectedModel = getSelectedModel()
-  const { groqApiKey, mistralApiKey } = getApiKeys()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
 
   if (provider === 'groq') {
     if (!groqApiKey) return null
@@ -35,13 +46,42 @@ function createModel(): ChatGroq | ChatMistralAI | null {
     })
   }
 
-  if (!mistralApiKey) return null
-  return new ChatMistralAI({
-    apiKey: mistralApiKey,
-    model: selectedModel,
-    temperature: 0.7,
-    streaming: true
-  })
+  if (provider === 'mistral') {
+    if (!mistralApiKey) return null
+    return new ChatMistralAI({
+      apiKey: mistralApiKey,
+      model: selectedModel,
+      temperature: 0.7,
+      streaming: true
+    })
+  }
+
+  if (provider === 'google') {
+    if (!googleApiKey) return null
+    const googleMode = getSelectedGoogleMode()
+
+    if (googleMode === 'vertexApiKey') {
+      const projectId = getGoogleProjectId()
+      const location = getGoogleLocation()
+      return new ChatVertexAI({
+        model: selectedModel,
+        temperature: 0.7,
+        streaming: true,
+        authOptions: { apiKey: googleApiKey },
+        ...(projectId && { projectId }),
+        ...(location && { location })
+      })
+    }
+
+    return new ChatGoogleGenerativeAI({
+      apiKey: googleApiKey,
+      model: selectedModel,
+      temperature: 0.7,
+      streaming: true
+    })
+  }
+
+  return null
 }
 
 async function callModel(state: AgentStateType): Promise<Partial<AgentStateType>> {
@@ -78,7 +118,7 @@ export async function streamAgentResponse(
   callbacks: StreamCallbacks
 ): Promise<void> {
   const provider = getSelectedAiProvider()
-  const { groqApiKey, mistralApiKey } = getApiKeys()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
 
   if (provider === 'groq' && !groqApiKey) {
     callbacks.onError('Groq API key not configured. Please set it in Settings.')
@@ -87,6 +127,11 @@ export async function streamAgentResponse(
 
   if (provider === 'mistral' && !mistralApiKey) {
     callbacks.onError('Mistral API key not configured. Please set it in Settings.')
+    return
+  }
+
+  if (provider === 'google' && !googleApiKey) {
+    callbacks.onError('Google API key not configured. Please set it in Settings.')
     return
   }
 

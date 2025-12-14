@@ -56,15 +56,21 @@ const DEFAULT_PROFILE: AgencyProfile = {
   social: {}
 }
 
-export type AiProvider = 'groq' | 'mistral'
+export type AiProvider = 'groq' | 'mistral' | 'google'
+export type GoogleMode = 'aiStudio' | 'vertexApiKey'
 
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
+  googleApiKey: string
   serperApiKey: string
   selectedAiProvider: AiProvider
+  selectedGoogleMode: GoogleMode
   selectedGroqModel: string
   selectedMistralModel: string
+  selectedGoogleModel: string
+  googleProjectId: string
+  googleLocation: string
   agencyProfile: AgencyProfile
 }
 
@@ -72,19 +78,30 @@ const store = new Store<StoreSchema>({
   defaults: {
     groqApiKey: '',
     mistralApiKey: '',
+    googleApiKey: '',
     serperApiKey: '',
     selectedAiProvider: 'groq',
+    selectedGoogleMode: 'aiStudio',
     selectedGroqModel: 'llama-3.3-70b-versatile',
     selectedMistralModel: 'mistral-large-2512',
+    selectedGoogleModel: 'gemini-2.0-flash',
+    googleProjectId: '',
+    googleLocation: 'us-central1',
     agencyProfile: DEFAULT_PROFILE
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
 
-export function getApiKeys(): { groqApiKey: string; mistralApiKey: string; serperApiKey: string } {
+export function getApiKeys(): {
+  groqApiKey: string
+  mistralApiKey: string
+  googleApiKey: string
+  serperApiKey: string
+} {
   return {
     groqApiKey: store.get('groqApiKey', ''),
     mistralApiKey: store.get('mistralApiKey', ''),
+    googleApiKey: store.get('googleApiKey', ''),
     serperApiKey: store.get('serperApiKey', '')
   }
 }
@@ -101,6 +118,10 @@ export function setMistralApiKey(key: string): void {
   store.set('mistralApiKey', key)
 }
 
+export function setGoogleApiKey(key: string): void {
+  store.set('googleApiKey', key)
+}
+
 export function getSelectedAiProvider(): AiProvider {
   return store.get('selectedAiProvider', 'groq')
 }
@@ -114,6 +135,9 @@ export function getSelectedModel(): string {
   if (provider === 'mistral') {
     return store.get('selectedMistralModel', 'mistral-large-2512')
   }
+  if (provider === 'google') {
+    return store.get('selectedGoogleModel', 'gemini-2.0-flash')
+  }
   return store.get('selectedGroqModel', 'llama-3.3-70b-versatile')
 }
 
@@ -121,6 +145,8 @@ export function setSelectedModel(model: string): void {
   const provider = getSelectedAiProvider()
   if (provider === 'mistral') {
     store.set('selectedMistralModel', model)
+  } else if (provider === 'google') {
+    store.set('selectedGoogleModel', model)
   } else {
     store.set('selectedGroqModel', model)
   }
@@ -134,11 +160,45 @@ export function getSelectedMistralModel(): string {
   return store.get('selectedMistralModel', 'mistral-large-2512')
 }
 
+export function getSelectedGoogleModel(): string {
+  return store.get('selectedGoogleModel', 'gemini-2.0-flash')
+}
+
+export function getSelectedGoogleMode(): GoogleMode {
+  return store.get('selectedGoogleMode', 'aiStudio')
+}
+
+export function setSelectedGoogleMode(mode: GoogleMode): void {
+  store.set('selectedGoogleMode', mode)
+}
+
+export function getGoogleProjectId(): string {
+  return store.get('googleProjectId', '')
+}
+
+export function setGoogleProjectId(projectId: string): void {
+  store.set('googleProjectId', projectId)
+}
+
+export function getGoogleLocation(): string {
+  return store.get('googleLocation', 'us-central1')
+}
+
+export function setGoogleLocation(location: string): void {
+  store.set('googleLocation', location)
+}
+
 export function hasRequiredApiKeys(): boolean {
   const keys = getApiKeys()
   const provider = getSelectedAiProvider()
-  const hasAiKey =
-    provider === 'mistral' ? keys.mistralApiKey.length > 0 : keys.groqApiKey.length > 0
+  let hasAiKey = false
+  if (provider === 'mistral') {
+    hasAiKey = keys.mistralApiKey.length > 0
+  } else if (provider === 'google') {
+    hasAiKey = keys.googleApiKey.length > 0
+  } else {
+    hasAiKey = keys.groqApiKey.length > 0
+  }
   return hasAiKey && keys.serperApiKey.length > 0
 }
 

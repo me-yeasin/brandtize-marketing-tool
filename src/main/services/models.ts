@@ -5,6 +5,7 @@ export interface AiModel {
 
 export interface GroqModel extends AiModel {}
 export interface MistralModel extends AiModel {}
+export interface GoogleModel extends AiModel {}
 
 export const GROQ_MODELS: GroqModel[] = [
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile' },
@@ -31,7 +32,15 @@ export const MISTRAL_MODELS: MistralModel[] = [
   { id: 'ministral-3b-2512', name: 'Ministral 3B 2512' },
   { id: 'magistral-medium-2509', name: 'Magistral Medium 2509' },
   { id: 'magistral-small-2509', name: 'Magistral Small 2509' }
-  // Add more Mistral models here as needed
+]
+
+export const GOOGLE_MODELS: GoogleModel[] = [
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B' },
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+  { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro' }
 ]
 
 export function getModelIds(): string[] {
@@ -57,5 +66,18 @@ export function getNextMistralModelIndex(currentIndex: number): number {
 
 export function findMistralModelIndex(modelId: string): number {
   const index = MISTRAL_MODELS.findIndex((m) => m.id === modelId)
+  return index === -1 ? 0 : index
+}
+
+export function getGoogleModelIds(): string[] {
+  return GOOGLE_MODELS.map((m) => m.id)
+}
+
+export function getNextGoogleModelIndex(currentIndex: number): number {
+  return (currentIndex + 1) % GOOGLE_MODELS.length
+}
+
+export function findGoogleModelIndex(modelId: string): number {
+  const index = GOOGLE_MODELS.findIndex((m) => m.id === modelId)
   return index === -1 ? 0 : index
 }

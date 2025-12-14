@@ -8,13 +8,15 @@ interface ChatMessage {
 }
 
 // Custom APIs for renderer
-type AiProvider = 'groq' | 'mistral'
+type AiProvider = 'groq' | 'mistral' | 'google'
+type GoogleMode = 'aiStudio' | 'vertexApiKey'
 
 const api = {
   // Settings
   getApiKeys: () => ipcRenderer.invoke('settings:getApiKeys'),
   setGroqApiKey: (key: string) => ipcRenderer.invoke('settings:setGroqApiKey', key),
   setMistralApiKey: (key: string) => ipcRenderer.invoke('settings:setMistralApiKey', key),
+  setGoogleApiKey: (key: string) => ipcRenderer.invoke('settings:setGoogleApiKey', key),
   setSerperApiKey: (key: string) => ipcRenderer.invoke('settings:setSerperApiKey', key),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
@@ -22,6 +24,15 @@ const api = {
   getSelectedAiProvider: () => ipcRenderer.invoke('settings:getSelectedAiProvider'),
   setSelectedAiProvider: (provider: AiProvider) =>
     ipcRenderer.invoke('settings:setSelectedAiProvider', provider),
+  getSelectedGoogleMode: () => ipcRenderer.invoke('settings:getSelectedGoogleMode'),
+  setSelectedGoogleMode: (mode: GoogleMode) =>
+    ipcRenderer.invoke('settings:setSelectedGoogleMode', mode),
+  getGoogleProjectId: () => ipcRenderer.invoke('settings:getGoogleProjectId'),
+  setGoogleProjectId: (projectId: string) =>
+    ipcRenderer.invoke('settings:setGoogleProjectId', projectId),
+  getGoogleLocation: () => ipcRenderer.invoke('settings:getGoogleLocation'),
+  setGoogleLocation: (location: string) =>
+    ipcRenderer.invoke('settings:setGoogleLocation', location),
 
   // Profile
   getProfile: () => ipcRenderer.invoke('profile:get'),

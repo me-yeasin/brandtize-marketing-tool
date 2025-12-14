@@ -1,15 +1,27 @@
 import { ChatGroq } from '@langchain/groq'
 import { ChatMistralAI } from '@langchain/mistralai'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatVertexAI } from '@langchain/google-vertexai'
 import { HumanMessage, AIMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages'
 
-import { getApiKeys, getSelectedModel, getSelectedAiProvider } from '../store'
+import {
+  getApiKeys,
+  getSelectedModel,
+  getSelectedAiProvider,
+  getSelectedGoogleMode,
+  getGoogleProjectId,
+  getGoogleLocation
+} from '../store'
 import {
   GROQ_MODELS,
   MISTRAL_MODELS,
+  GOOGLE_MODELS,
   findModelIndex,
   findMistralModelIndex,
+  findGoogleModelIndex,
   getNextModelIndex,
-  getNextMistralModelIndex
+  getNextMistralModelIndex,
+  getNextGoogleModelIndex
 } from './models'
 import {
   isRetryableError,
@@ -63,6 +75,38 @@ function createMistralClientWithModel(modelId: string): ChatMistralAI | null {
 
   return new ChatMistralAI({
     apiKey: mistralApiKey,
+    model: modelId,
+    temperature: 0.7,
+    streaming: true
+  })
+}
+
+type GoogleChatModel = ChatGoogleGenerativeAI | ChatVertexAI
+
+function createGoogleClientWithModel(modelId: string): GoogleChatModel | null {
+  const { googleApiKey } = getApiKeys()
+
+  if (!googleApiKey) {
+    return null
+  }
+
+  const googleMode = getSelectedGoogleMode()
+
+  if (googleMode === 'vertexApiKey') {
+    const projectId = getGoogleProjectId()
+    const location = getGoogleLocation()
+    return new ChatVertexAI({
+      model: modelId,
+      temperature: 0.7,
+      streaming: true,
+      authOptions: { apiKey: googleApiKey },
+      ...(projectId && { projectId }),
+      ...(location && { location })
+    })
+  }
+
+  return new ChatGoogleGenerativeAI({
+    apiKey: googleApiKey,
     model: modelId,
     temperature: 0.7,
     streaming: true
@@ -158,13 +202,44 @@ async function attemptStreamWithMistralModel(
   }
 }
 
+async function attemptStreamWithGoogleModel(
+  modelId: string,
+  langChainMessages: BaseMessage[],
+  callbacks: StreamCallbacks,
+  state: StreamState
+): Promise<{ success: boolean; error?: unknown }> {
+  const client = createGoogleClientWithModel(modelId)
+
+  if (!client) {
+    return { success: false, error: new Error('Google API key not configured') }
+  }
+
+  try {
+    const stream = await client.stream(langChainMessages)
+
+    for await (const chunk of stream) {
+      const token = chunk.content as string
+
+      if (token) {
+        state.partialText += token
+        state.hasStartedStreaming = true
+        callbacks.onToken(token)
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
 export async function streamChatResponse(
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
   retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
 ): Promise<void> {
   const provider = getSelectedAiProvider()
-  const { groqApiKey, mistralApiKey } = getApiKeys()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
 
   if (provider === 'groq' && !groqApiKey) {
     callbacks.onError('Groq API key not configured. Please set it in Settings.')
@@ -176,12 +251,29 @@ export async function streamChatResponse(
     return
   }
 
+  if (provider === 'google' && !googleApiKey) {
+    callbacks.onError('Google API key not configured. Please set it in Settings.')
+    return
+  }
+
   const selectedModel = getSelectedModel()
-  const models = provider === 'mistral' ? MISTRAL_MODELS : GROQ_MODELS
-  const findIndex = provider === 'mistral' ? findMistralModelIndex : findModelIndex
-  const getNextIndex = provider === 'mistral' ? getNextMistralModelIndex : getNextModelIndex
-  const attemptStream =
-    provider === 'mistral' ? attemptStreamWithMistralModel : attemptStreamWithGroqModel
+
+  let models = GROQ_MODELS
+  let findIndex = findModelIndex
+  let getNextIndex = getNextModelIndex
+  let attemptStream = attemptStreamWithGroqModel
+
+  if (provider === 'mistral') {
+    models = MISTRAL_MODELS
+    findIndex = findMistralModelIndex
+    getNextIndex = getNextMistralModelIndex
+    attemptStream = attemptStreamWithMistralModel
+  } else if (provider === 'google') {
+    models = GOOGLE_MODELS
+    findIndex = findGoogleModelIndex
+    getNextIndex = getNextGoogleModelIndex
+    attemptStream = attemptStreamWithGoogleModel
+  }
 
   let currentModelIndex = findIndex(selectedModel)
   const startingModelIndex = currentModelIndex
