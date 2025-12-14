@@ -20,3 +20,6 @@ trigger: always_on
 16. When implementing new features, follow the existing codebase's architecture and patterns.
 17. Must follow our existing design system when you do implement a new design or a new component code.
 18. Use consistent spacing and indentation throughout the codebase.
+19. Do not touch or modify any existing UI/UX design.
+20. Maintain existing color schemes, typography, and component styles.
+21. Reuse existing components and patterns instead of creating new ones.

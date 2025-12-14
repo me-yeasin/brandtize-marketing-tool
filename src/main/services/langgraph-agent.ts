@@ -6,6 +6,7 @@ import { ChatVertexAI } from '@langchain/google-vertexai'
 import {
   HumanMessage,
   AIMessage,
+  SystemMessage,
   type BaseMessage,
   isAIMessageChunk
 } from '@langchain/core/messages'
@@ -18,6 +19,7 @@ import {
   getGoogleProjectId,
   getGoogleLocation
 } from '../store'
+import { getSystemPrompt } from '../agents/lead-discovery'
 import type { ChatMessage, StreamCallbacks } from './ai-service'
 
 const AgentState = Annotation.Root({
@@ -105,12 +107,17 @@ function createEmailAgent() {
 }
 
 function convertToLangChainMessages(messages: ChatMessage[]): BaseMessage[] {
-  return messages.map((msg) => {
+  const systemPrompt = getSystemPrompt()
+  const systemMessage = new SystemMessage(systemPrompt)
+
+  const chatMessages = messages.map((msg) => {
     if (msg.role === 'user') {
       return new HumanMessage(msg.text)
     }
     return new AIMessage(msg.text)
   })
+
+  return [systemMessage, ...chatMessages]
 }
 
 export async function streamAgentResponse(
