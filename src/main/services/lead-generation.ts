@@ -1,4 +1,16 @@
-import { getApiKeys } from '../store'
+import { ChatGroq } from '@langchain/groq'
+import { ChatMistralAI } from '@langchain/mistralai'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatVertexAI } from '@langchain/google-vertexai'
+import { HumanMessage } from '@langchain/core/messages'
+import {
+  getApiKeys,
+  getSelectedAiProvider,
+  getSelectedModel,
+  getSelectedGoogleMode,
+  getGoogleProjectId,
+  getGoogleLocation
+} from '../store'
 
 // Types
 export interface LeadGenerationInput {
@@ -191,6 +203,88 @@ async function findEmailByName(
   }
 }
 
+// AI Analysis - Extract email and decision maker from content
+interface AiAnalysisResult {
+  email: string | null
+  decisionMaker: string | null
+}
+
+async function analyzeContentWithAi(content: string): Promise<AiAnalysisResult> {
+  const provider = getSelectedAiProvider()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
+  const selectedModel = getSelectedModel()
+
+  const prompt = `Analyze the following website content and extract:
+1. Any email addresses you find (look for patterns like name@domain.com)
+2. The name of the business owner, CEO, founder, or main decision maker
+
+Respond ONLY in this exact JSON format, nothing else:
+{"email": "found_email@example.com or null", "decisionMaker": "Person Name or null"}
+
+Website content:
+${content.slice(0, 8000)}`
+
+  try {
+    let response: string = ''
+
+    if (provider === 'groq' && groqApiKey) {
+      const client = new ChatGroq({
+        apiKey: groqApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'mistral' && mistralApiKey) {
+      const client = new ChatMistralAI({
+        apiKey: mistralApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'google' && googleApiKey) {
+      const googleMode = getSelectedGoogleMode()
+      let client
+      if (googleMode === 'vertexApiKey') {
+        const projectId = getGoogleProjectId()
+        const location = getGoogleLocation()
+        client = new ChatVertexAI({
+          model: selectedModel,
+          temperature: 0,
+          authOptions: { apiKey: googleApiKey },
+          ...(projectId && { projectId }),
+          ...(location && { location })
+        })
+      } else {
+        client = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey,
+          model: selectedModel,
+          temperature: 0
+        })
+      }
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else {
+      return { email: null, decisionMaker: null }
+    }
+
+    // Parse JSON response
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      return {
+        email: parsed.email === 'null' ? null : parsed.email || null,
+        decisionMaker: parsed.decisionMaker === 'null' ? null : parsed.decisionMaker || null
+      }
+    }
+    return { email: null, decisionMaker: null }
+  } catch (error) {
+    console.error('AI analysis error:', error)
+    return { email: null, decisionMaker: null }
+  }
+}
+
 // Reoon API - Email Verification (Power Mode)
 async function verifyEmailWithReoon(email: string): Promise<boolean> {
   const { reoonApiKey } = getApiKeys()
@@ -242,11 +336,9 @@ export async function generateLeads(
         const scraped = await scrapeWithJina(url)
         callbacks.onScrapeComplete(url, scraped)
 
-        // Step 4: AI Analysis - will be implemented via IPC to use existing AI service
+        // Step 4: AI Analysis - uses selected provider from settings
         callbacks.onAiAnalysisStart(url)
-        // For now, we'll call the AI service through IPC
-        // This will be connected in the next step
-        const aiResult = { email: null as string | null, decisionMaker: null as string | null }
+        const aiResult = await analyzeContentWithAi(scraped.content)
         callbacks.onAiAnalysisResult(url, aiResult.email, aiResult.decisionMaker)
 
         const domain = extractDomain(url)

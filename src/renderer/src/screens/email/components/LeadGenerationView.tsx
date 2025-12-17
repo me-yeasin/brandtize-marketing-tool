@@ -149,9 +149,9 @@ function LeadGenerationView({
   }, [searchQuery, niche, location])
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex gap-10">
       {/* Main Content - Progress Panels */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto max-w-[60%] p-4 space-y-4">
         {/* Search Query Panel */}
         <div className="bg-slate-800 rounded-xl overflow-hidden">
           <button
@@ -306,7 +306,7 @@ function LeadGenerationView({
       </div>
 
       {/* Sidebar - Verified Leads */}
-      <div className="w-80 border-l border-slate-700 bg-slate-900/50 flex flex-col">
+      <div className="w-full max-w-[30%] border-l border-slate-700 bg-slate-900/50 flex flex-col">
         <div className="p-4 border-b border-slate-700">
           <div className="flex items-center gap-2">
             <FiMail className="text-green-400" size={18} />
