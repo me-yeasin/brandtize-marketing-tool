@@ -7,7 +7,9 @@ import {
   FiMail,
   FiCheckCircle,
   FiChevronDown,
-  FiChevronRight
+  FiChevronRight,
+  FiTarget,
+  FiXCircle
 } from 'react-icons/fi'
 
 interface SearchResult {
@@ -28,6 +30,14 @@ interface Lead {
   decisionMaker: string | null
   verified: boolean
   source: string
+  needsServices?: boolean
+  serviceMatchReason?: string | null
+}
+
+interface ServiceMatchResult {
+  url: string
+  needsServices: boolean
+  reason: string | null
 }
 
 interface LeadGenerationViewProps {
@@ -50,11 +60,14 @@ function LeadGenerationView({
   const [aiResults, setAiResults] = useState<
     Map<string, { email: string | null; decisionMaker: string | null }>
   >(new Map())
+  const [serviceMatches, setServiceMatches] = useState<Map<string, ServiceMatchResult>>(new Map())
+  const [currentServiceMatch, setCurrentServiceMatch] = useState<string>('')
   const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([])
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
-    new Set(['search', 'cleanup', 'scrape'])
+    new Set(['search', 'cleanup', 'scrape', 'serviceMatch'])
   )
   const [error, setError] = useState<string>('')
+  const [skippedCount, setSkippedCount] = useState(0)
 
   const togglePanel = (panel: string): void => {
     setExpandedPanels((prev) => {
@@ -120,6 +133,24 @@ function LeadGenerationView({
       setCurrentAiUrl('')
     })
 
+    const unsubServiceMatchStart = window.api.onLeadsServiceMatchStart((url) => {
+      setCurrentServiceMatch(url)
+      setStage('serviceMatch')
+    })
+
+    const unsubServiceMatchResult = window.api.onLeadsServiceMatchResult((data) => {
+      const { url, needsServices, reason } = data as {
+        url: string
+        needsServices: boolean
+        reason: string | null
+      }
+      setServiceMatches((prev) => new Map(prev).set(url, { url, needsServices, reason }))
+      setCurrentServiceMatch('')
+      if (!needsServices) {
+        setSkippedCount((prev) => prev + 1)
+      }
+    })
+
     const unsubLeadFound = window.api.onLeadFound((lead) => {
       setVerifiedLeads((prev) => [...prev, lead as Lead])
     })
@@ -142,6 +173,8 @@ function LeadGenerationView({
       unsubScrapeError()
       unsubAiStart()
       unsubAiResult()
+      unsubServiceMatchStart()
+      unsubServiceMatchResult()
       unsubLeadFound()
       unsubComplete()
       unsubError()
@@ -282,6 +315,62 @@ function LeadGenerationView({
                       Email: {result.email || 'Not found'} | DM:{' '}
                       {result.decisionMaker || 'Not found'}
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Service Match Panel - Shows qualification based on your profile services */}
+        {(currentServiceMatch || serviceMatches.size > 0) && (
+          <div className="bg-slate-800 rounded-xl overflow-hidden">
+            <button
+              onClick={() => togglePanel('serviceMatch')}
+              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
+            >
+              <FiTarget className="text-pink-400" size={20} />
+              <span className="font-medium text-white flex-1">Service Matching</span>
+              {currentServiceMatch && (
+                <span className="text-xs text-yellow-400 animate-pulse">Checking...</span>
+              )}
+              <span className="text-xs text-green-400">
+                {Array.from(serviceMatches.values()).filter((m) => m.needsServices).length}{' '}
+                qualified
+              </span>
+              <span className="text-xs text-red-400">{skippedCount} skipped</span>
+              {expandedPanels.has('serviceMatch') ? <FiChevronDown /> : <FiChevronRight />}
+            </button>
+            {expandedPanels.has('serviceMatch') && (
+              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
+                {currentServiceMatch && (
+                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
+                    Checking: {currentServiceMatch}
+                  </div>
+                )}
+                {Array.from(serviceMatches.entries()).map(([url, match]) => (
+                  <div
+                    key={url}
+                    className={`text-xs p-2 rounded ${
+                      match.needsServices ? 'bg-green-500/10' : 'bg-red-500/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {match.needsServices ? (
+                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
+                      ) : (
+                        <FiXCircle className="text-red-400 shrink-0" size={12} />
+                      )}
+                      <span
+                        className={`truncate ${match.needsServices ? 'text-green-400' : 'text-red-400'}`}
+                      >
+                        {match.needsServices ? 'QUALIFIED' : 'SKIPPED'}
+                      </span>
+                    </div>
+                    <div className="text-white/60 truncate mt-1">{url}</div>
+                    {match.reason && (
+                      <div className="text-white/50 mt-1 text-[10px]">{match.reason}</div>
+                    )}
                   </div>
                 ))}
               </div>

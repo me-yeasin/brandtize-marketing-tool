@@ -9,7 +9,8 @@ import {
   getSelectedModel,
   getSelectedGoogleMode,
   getGoogleProjectId,
-  getGoogleLocation
+  getGoogleLocation,
+  getAgencyProfile
 } from '../store'
 
 // Types
@@ -37,6 +38,8 @@ export interface LeadResult {
   decisionMaker: string | null
   verified: boolean
   source: 'direct' | 'hunter_name' | 'hunter_domain'
+  needsServices: boolean
+  serviceMatchReason: string | null
 }
 
 export interface LeadGenerationCallbacks {
@@ -48,6 +51,8 @@ export interface LeadGenerationCallbacks {
   onScrapeError: (url: string, error: string) => void
   onAiAnalysisStart: (url: string) => void
   onAiAnalysisResult: (url: string, email: string | null, decisionMaker: string | null) => void
+  onServiceMatchStart: (url: string) => void
+  onServiceMatchResult: (url: string, needsServices: boolean, reason: string | null) => void
   onHunterStart: (url: string, type: 'name' | 'domain') => void
   onHunterResult: (url: string, email: string | null) => void
   onVerificationStart: (email: string) => void
@@ -285,6 +290,106 @@ ${content.slice(0, 8000)}`
   }
 }
 
+// Service Matching - Check if the business needs our services (saves Hunter.io and Reoon credits)
+interface ServiceMatchResult {
+  needsServices: boolean
+  reason: string | null
+}
+
+async function checkServiceMatch(content: string): Promise<ServiceMatchResult> {
+  const profile = getAgencyProfile()
+  const services = profile.services.filter((s) => s.trim().length > 0)
+
+  if (services.length === 0) {
+    return { needsServices: true, reason: 'No services defined in profile - accepting all leads' }
+  }
+
+  const provider = getSelectedAiProvider()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
+  const selectedModel = getSelectedModel()
+
+  const prompt = `You are a lead qualification expert. Analyze this website content and determine if this business could benefit from these services:
+
+SERVICES WE OFFER:
+${services.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+WEBSITE CONTENT:
+${content.slice(0, 6000)}
+
+Analyze if this business shows ANY of these signs:
+1. Outdated website (old copyright dates like 2019-2022, old design patterns)
+2. Missing features we could provide (no mobile optimization, poor SEO, etc.)
+3. Job postings or "we're hiring" for services we offer
+4. Explicit mentions of needing help with services we provide
+5. Poor quality in areas where we excel
+6. send your resume to
+7. 
+
+Be STRICT - only say YES if there's clear evidence they need our services.
+
+Respond ONLY in this exact JSON format:
+{"needsServices": true/false, "reason": "One sentence explaining WHY they need or don't need our services"}`
+
+  try {
+    let response: string = ''
+
+    if (provider === 'groq' && groqApiKey) {
+      const client = new ChatGroq({
+        apiKey: groqApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'mistral' && mistralApiKey) {
+      const client = new ChatMistralAI({
+        apiKey: mistralApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'google' && googleApiKey) {
+      const googleMode = getSelectedGoogleMode()
+      let client
+      if (googleMode === 'vertexApiKey') {
+        const projectId = getGoogleProjectId()
+        const location = getGoogleLocation()
+        client = new ChatVertexAI({
+          model: selectedModel,
+          temperature: 0,
+          authOptions: { apiKey: googleApiKey },
+          ...(projectId && { projectId }),
+          ...(location && { location })
+        })
+      } else {
+        client = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey,
+          model: selectedModel,
+          temperature: 0
+        })
+      }
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else {
+      return { needsServices: true, reason: 'AI not configured - accepting lead' }
+    }
+
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      return {
+        needsServices: parsed.needsServices === true,
+        reason: parsed.reason || null
+      }
+    }
+    return { needsServices: false, reason: 'Could not analyze - skipping to save credits' }
+  } catch (error) {
+    console.error('Service match error:', error)
+    return { needsServices: false, reason: 'Analysis failed - skipping to save credits' }
+  }
+}
+
 // Reoon API - Email Verification (Power Mode)
 async function verifyEmailWithReoon(email: string): Promise<boolean> {
   const { reoonApiKey } = getApiKeys()
@@ -341,11 +446,21 @@ export async function generateLeads(
         const aiResult = await analyzeContentWithAi(scraped.content)
         callbacks.onAiAnalysisResult(url, aiResult.email, aiResult.decisionMaker)
 
+        // Step 4.5: Service Match - Check if they need our services BEFORE using paid APIs
+        callbacks.onServiceMatchStart(url)
+        const serviceMatch = await checkServiceMatch(scraped.content)
+        callbacks.onServiceMatchResult(url, serviceMatch.needsServices, serviceMatch.reason)
+
+        // Skip if they don't need our services - SAVES Hunter.io and Reoon credits!
+        if (!serviceMatch.needsServices) {
+          continue
+        }
+
         const domain = extractDomain(url)
         let finalEmail: string | null = aiResult.email
         let emailSource: 'direct' | 'hunter_name' | 'hunter_domain' = 'direct'
 
-        // Step 5: If no direct email found, try Hunter.io
+        // Step 5: If no direct email found, try Hunter.io (only for qualified leads)
         if (!finalEmail) {
           if (aiResult.decisionMaker) {
             // Try to find email by name
@@ -382,7 +497,9 @@ export async function generateLeads(
             email: finalEmail,
             decisionMaker: aiResult.decisionMaker,
             verified: true,
-            source: emailSource
+            source: emailSource,
+            needsServices: serviceMatch.needsServices,
+            serviceMatchReason: serviceMatch.reason
           }
           leads.push(lead)
           callbacks.onLeadFound(lead)

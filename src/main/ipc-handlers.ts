@@ -207,6 +207,9 @@ export function setupIpcHandlers(): void {
       onAiAnalysisStart: (url) => window.webContents.send('leads:aiStart', url),
       onAiAnalysisResult: (url, email, decisionMaker) =>
         window.webContents.send('leads:aiResult', { url, email, decisionMaker }),
+      onServiceMatchStart: (url) => window.webContents.send('leads:serviceMatchStart', url),
+      onServiceMatchResult: (url, needsServices, reason) =>
+        window.webContents.send('leads:serviceMatchResult', { url, needsServices, reason }),
       onHunterStart: (url, type) => window.webContents.send('leads:hunterStart', { url, type }),
       onHunterResult: (url, email) => window.webContents.send('leads:hunterResult', { url, email }),
       onVerificationStart: (email) => window.webContents.send('leads:verifyStart', email),

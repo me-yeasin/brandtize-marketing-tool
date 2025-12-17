@@ -129,6 +129,21 @@ const api = {
     ipcRenderer.on('leads:aiResult', handler)
     return () => ipcRenderer.removeListener('leads:aiResult', handler)
   },
+  onLeadsServiceMatchStart: (cb: (url: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+    ipcRenderer.on('leads:serviceMatchStart', handler)
+    return () => ipcRenderer.removeListener('leads:serviceMatchStart', handler)
+  },
+  onLeadsServiceMatchResult: (
+    cb: (data: { url: string; needsServices: boolean; reason: string | null }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { url: string; needsServices: boolean; reason: string | null }
+    ): void => cb(d)
+    ipcRenderer.on('leads:serviceMatchResult', handler)
+    return () => ipcRenderer.removeListener('leads:serviceMatchResult', handler)
+  },
   onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, d: { url: string; type: string }): void => cb(d)
     ipcRenderer.on('leads:hunterStart', handler)

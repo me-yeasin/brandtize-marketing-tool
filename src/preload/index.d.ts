@@ -112,6 +112,10 @@ interface Api {
   onLeadsAiResult: (
     cb: (data: { url: string; email: string | null; decisionMaker: string | null }) => void
   ) => () => void
+  onLeadsServiceMatchStart: (cb: (url: string) => void) => () => void
+  onLeadsServiceMatchResult: (
+    cb: (data: { url: string; needsServices: boolean; reason: string | null }) => void
+  ) => () => void
   onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => () => void
   onLeadsHunterResult: (cb: (data: { url: string; email: string | null }) => void) => () => void
   onLeadsVerifyStart: (cb: (email: string) => void) => () => void
