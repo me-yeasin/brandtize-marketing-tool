@@ -3,9 +3,6 @@ import { FiSearch } from 'react-icons/fi'
 
 interface EmailPromptViewProps {
   activeTabId: string
-  prompt: string
-  onPromptChange: (nextPrompt: string) => void
-  onSubmit: () => void
 }
 
 const SEARCH_FORMULAS = [
@@ -26,17 +23,15 @@ const SEARCH_FORMULAS = [
 function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Element {
   const [niche, setNiche] = useState('')
   const [location, setLocation] = useState('')
-  const [selectedFormulas, setSelectedFormulas] = useState<string[]>([])
+  const [selectedFormula, setSelectedFormula] = useState<string>('')
 
-  const toggleFormula = (id: string): void => {
-    setSelectedFormulas((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    )
+  const selectFormula = (id: string): void => {
+    setSelectedFormula((prev) => (prev === id ? '' : id))
   }
 
   const handleStartProcess = (): void => {
     // For now, do nothing - just design
-    console.log('Start Process clicked', { niche, location, selectedFormulas })
+    console.log('Start Process clicked', { niche, location, selectedFormula })
   }
 
   return (
@@ -83,9 +78,9 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
             {SEARCH_FORMULAS.map((formula) => (
               <div
                 key={formula.id}
-                onClick={() => toggleFormula(formula.id)}
+                onClick={() => selectFormula(formula.id)}
                 className={`p-3 rounded-lg cursor-pointer transition-all ${
-                  selectedFormulas.includes(formula.id)
+                  selectedFormula === formula.id
                     ? 'bg-primary/20 border border-primary'
                     : 'bg-slate-700/50 border border-transparent hover:bg-slate-700'
                 }`}
@@ -93,12 +88,12 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      selectedFormulas.includes(formula.id)
+                      selectedFormula === formula.id
                         ? 'bg-primary border-primary'
                         : 'border-white/40'
                     }`}
                   >
-                    {selectedFormulas.includes(formula.id) && (
+                    {selectedFormula === formula.id && (
                       <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                         <path
                           fillRule="evenodd"
