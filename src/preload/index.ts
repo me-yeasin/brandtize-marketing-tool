@@ -18,6 +18,9 @@ const api = {
   setMistralApiKey: (key: string) => ipcRenderer.invoke('settings:setMistralApiKey', key),
   setGoogleApiKey: (key: string) => ipcRenderer.invoke('settings:setGoogleApiKey', key),
   setSerperApiKey: (key: string) => ipcRenderer.invoke('settings:setSerperApiKey', key),
+  setHunterApiKey: (key: string) => ipcRenderer.invoke('settings:setHunterApiKey', key),
+  setReoonApiKey: (key: string) => ipcRenderer.invoke('settings:setReoonApiKey', key),
+  setJinaApiKey: (key: string) => ipcRenderer.invoke('settings:setJinaApiKey', key),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
   setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),
@@ -74,6 +77,98 @@ const api = {
     ): void => callback(data)
     ipcRenderer.on('chat:modelSwitch', handler)
     return () => ipcRenderer.removeListener('chat:modelSwitch', handler)
+  },
+
+  // Lead Generation
+  generateLeads: (input: { searchQuery: string; niche: string; location: string }) =>
+    ipcRenderer.invoke('leads:generate', input),
+  onLeadsSearchStart: (cb: (query: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, q: string): void => cb(q)
+    ipcRenderer.on('leads:searchStart', handler)
+    return () => ipcRenderer.removeListener('leads:searchStart', handler)
+  },
+  onLeadsSearchComplete: (cb: (results: unknown[]) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, r: unknown[]): void => cb(r)
+    ipcRenderer.on('leads:searchComplete', handler)
+    return () => ipcRenderer.removeListener('leads:searchComplete', handler)
+  },
+  onLeadsCleanupComplete: (cb: (urls: string[]) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, u: string[]): void => cb(u)
+    ipcRenderer.on('leads:cleanupComplete', handler)
+    return () => ipcRenderer.removeListener('leads:cleanupComplete', handler)
+  },
+  onLeadsScrapeStart: (cb: (url: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+    ipcRenderer.on('leads:scrapeStart', handler)
+    return () => ipcRenderer.removeListener('leads:scrapeStart', handler)
+  },
+  onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; content: unknown }): void =>
+      cb(d)
+    ipcRenderer.on('leads:scrapeComplete', handler)
+    return () => ipcRenderer.removeListener('leads:scrapeComplete', handler)
+  },
+  onLeadsScrapeError: (cb: (data: { url: string; error: string }) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; error: string }): void =>
+      cb(d)
+    ipcRenderer.on('leads:scrapeError', handler)
+    return () => ipcRenderer.removeListener('leads:scrapeError', handler)
+  },
+  onLeadsAiStart: (cb: (url: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+    ipcRenderer.on('leads:aiStart', handler)
+    return () => ipcRenderer.removeListener('leads:aiStart', handler)
+  },
+  onLeadsAiResult: (
+    cb: (data: { url: string; email: string | null; decisionMaker: string | null }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { url: string; email: string | null; decisionMaker: string | null }
+    ): void => cb(d)
+    ipcRenderer.on('leads:aiResult', handler)
+    return () => ipcRenderer.removeListener('leads:aiResult', handler)
+  },
+  onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; type: string }): void => cb(d)
+    ipcRenderer.on('leads:hunterStart', handler)
+    return () => ipcRenderer.removeListener('leads:hunterStart', handler)
+  },
+  onLeadsHunterResult: (cb: (data: { url: string; email: string | null }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { url: string; email: string | null }
+    ): void => cb(d)
+    ipcRenderer.on('leads:hunterResult', handler)
+    return () => ipcRenderer.removeListener('leads:hunterResult', handler)
+  },
+  onLeadsVerifyStart: (cb: (email: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
+    ipcRenderer.on('leads:verifyStart', handler)
+    return () => ipcRenderer.removeListener('leads:verifyStart', handler)
+  },
+  onLeadsVerifyResult: (cb: (data: { email: string; verified: boolean }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { email: string; verified: boolean }
+    ): void => cb(d)
+    ipcRenderer.on('leads:verifyResult', handler)
+    return () => ipcRenderer.removeListener('leads:verifyResult', handler)
+  },
+  onLeadFound: (cb: (lead: unknown) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, l: unknown): void => cb(l)
+    ipcRenderer.on('leads:found', handler)
+    return () => ipcRenderer.removeListener('leads:found', handler)
+  },
+  onLeadsComplete: (cb: (leads: unknown[]) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, l: unknown[]): void => cb(l)
+    ipcRenderer.on('leads:complete', handler)
+    return () => ipcRenderer.removeListener('leads:complete', handler)
+  },
+  onLeadsError: (cb: (error: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
+    ipcRenderer.on('leads:error', handler)
+    return () => ipcRenderer.removeListener('leads:error', handler)
   }
 }
 

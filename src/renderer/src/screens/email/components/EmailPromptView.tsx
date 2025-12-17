@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FiSearch } from 'react-icons/fi'
+import { LeadGenerationView } from './LeadGenerationView'
 
 interface EmailPromptViewProps {
   activeTabId: string
@@ -24,14 +25,36 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
   const [niche, setNiche] = useState('')
   const [location, setLocation] = useState('')
   const [selectedFormula, setSelectedFormula] = useState<string>('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const selectFormula = (id: string): void => {
     setSelectedFormula((prev) => (prev === id ? '' : id))
   }
 
+  const isFormValid = niche.trim() && location.trim() && selectedFormula
+
   const handleStartProcess = (): void => {
-    // For now, do nothing - just design
-    console.log('Start Process clicked', { niche, location, selectedFormula })
+    if (!isFormValid) return
+    // Build the search query by replacing placeholders
+    const formula = SEARCH_FORMULAS.find((f) => f.id === selectedFormula)
+    if (!formula) return
+    const query = formula.formula
+      .replace('[Industry]', niche.trim())
+      .replace('[City]', location.trim())
+    setSearchQuery(query)
+    setIsProcessing(true)
+  }
+
+  // Show lead generation view when processing
+  if (isProcessing && searchQuery) {
+    return (
+      <LeadGenerationView
+        searchQuery={searchQuery}
+        niche={niche.trim()}
+        location={location.trim()}
+      />
+    )
   }
 
   return (
@@ -117,7 +140,12 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
         <button
           type="button"
           onClick={handleStartProcess}
-          className="w-full bg-primary hover:bg-primary/80 text-white font-semibold py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2"
+          disabled={!isFormValid}
+          className={`w-full font-semibold py-4 px-6 rounded-xl transition-colors flex items-center justify-center gap-2 ${
+            isFormValid
+              ? 'bg-primary hover:bg-primary/80 text-white'
+              : 'bg-slate-700 text-white/40 cursor-not-allowed'
+          }`}
         >
           <FiSearch size={20} />
           Start Process

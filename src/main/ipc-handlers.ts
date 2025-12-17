@@ -5,6 +5,9 @@ import {
   setMistralApiKey,
   setGoogleApiKey,
   setSerperApiKey,
+  setHunterApiKey,
+  setReoonApiKey,
+  setJinaApiKey,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
@@ -24,6 +27,11 @@ import {
   type GoogleMode
 } from './store'
 import { streamAgentResponse, type ChatMessage } from './services'
+import {
+  generateLeads,
+  type LeadGenerationInput,
+  type LeadGenerationCallbacks
+} from './services/lead-generation'
 
 export function setupIpcHandlers(): void {
   // Settings handlers
@@ -34,10 +42,16 @@ export function setupIpcHandlers(): void {
       mistralApiKey: keys.mistralApiKey ? '••••••••' + keys.mistralApiKey.slice(-4) : '',
       googleApiKey: keys.googleApiKey ? '••••••••' + keys.googleApiKey.slice(-4) : '',
       serperApiKey: keys.serperApiKey ? '••••••••' + keys.serperApiKey.slice(-4) : '',
+      hunterApiKey: keys.hunterApiKey ? '••••••••' + keys.hunterApiKey.slice(-4) : '',
+      reoonApiKey: keys.reoonApiKey ? '••••••••' + keys.reoonApiKey.slice(-4) : '',
+      jinaApiKey: keys.jinaApiKey ? '••••••••' + keys.jinaApiKey.slice(-4) : '',
       hasGroqKey: keys.groqApiKey.length > 0,
       hasMistralKey: keys.mistralApiKey.length > 0,
       hasGoogleKey: keys.googleApiKey.length > 0,
-      hasSerperKey: keys.serperApiKey.length > 0
+      hasSerperKey: keys.serperApiKey.length > 0,
+      hasHunterKey: keys.hunterApiKey.length > 0,
+      hasReoonKey: keys.reoonApiKey.length > 0,
+      hasJinaKey: keys.jinaApiKey.length > 0
     }
   })
 
@@ -58,6 +72,21 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setSerperApiKey', (_event, key: string) => {
     setSerperApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setHunterApiKey', (_event, key: string) => {
+    setHunterApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setReoonApiKey', (_event, key: string) => {
+    setReoonApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setJinaApiKey', (_event, key: string) => {
+    setJinaApiKey(key)
     return { success: true }
   })
 
@@ -153,6 +182,43 @@ export function setupIpcHandlers(): void {
         }
       })
 
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Lead generation handler
+  ipcMain.handle('leads:generate', async (_event, input: LeadGenerationInput) => {
+    const window = BrowserWindow.getFocusedWindow()
+    if (!window) {
+      return { success: false, error: 'No active window' }
+    }
+
+    const callbacks: LeadGenerationCallbacks = {
+      onSearchStart: (query) => window.webContents.send('leads:searchStart', query),
+      onSearchComplete: (results) => window.webContents.send('leads:searchComplete', results),
+      onCleanupComplete: (urls) => window.webContents.send('leads:cleanupComplete', urls),
+      onScrapeStart: (url) => window.webContents.send('leads:scrapeStart', url),
+      onScrapeComplete: (url, content) =>
+        window.webContents.send('leads:scrapeComplete', { url, content }),
+      onScrapeError: (url, error) => window.webContents.send('leads:scrapeError', { url, error }),
+      onAiAnalysisStart: (url) => window.webContents.send('leads:aiStart', url),
+      onAiAnalysisResult: (url, email, decisionMaker) =>
+        window.webContents.send('leads:aiResult', { url, email, decisionMaker }),
+      onHunterStart: (url, type) => window.webContents.send('leads:hunterStart', { url, type }),
+      onHunterResult: (url, email) => window.webContents.send('leads:hunterResult', { url, email }),
+      onVerificationStart: (email) => window.webContents.send('leads:verifyStart', email),
+      onVerificationResult: (email, verified) =>
+        window.webContents.send('leads:verifyResult', { email, verified }),
+      onLeadFound: (lead) => window.webContents.send('leads:found', lead),
+      onComplete: (leads) => window.webContents.send('leads:complete', leads),
+      onError: (error) => window.webContents.send('leads:error', error)
+    }
+
+    try {
+      await generateLeads(input, callbacks)
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

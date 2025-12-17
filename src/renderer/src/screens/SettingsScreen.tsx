@@ -23,6 +23,9 @@ function SettingsScreen(): JSX.Element {
   const [mistralKey, setMistralKey] = useState('')
   const [googleKey, setGoogleKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
+  const [hunterKey, setHunterKey] = useState('')
+  const [reoonKey, setReoonKey] = useState('')
+  const [jinaKey, setJinaKey] = useState('')
   const [selectedModel, setSelectedModel] = useState(GROQ_MODELS[0]?.id ?? '')
   const [selectedMistralModel, setSelectedMistralModel] = useState(MISTRAL_MODELS[0]?.id ?? '')
   const [selectedGoogleModel, setSelectedGoogleModel] = useState(GOOGLE_MODELS[0]?.id ?? '')
@@ -33,6 +36,9 @@ function SettingsScreen(): JSX.Element {
   const [hasMistralKey, setHasMistralKey] = useState(false)
   const [hasGoogleKey, setHasGoogleKey] = useState(false)
   const [hasSerperKey, setHasSerperKey] = useState(false)
+  const [hasHunterKey, setHasHunterKey] = useState(false)
+  const [hasReoonKey, setHasReoonKey] = useState(false)
+  const [hasJinaKey, setHasJinaKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<MessageState>(null)
@@ -45,6 +51,9 @@ function SettingsScreen(): JSX.Element {
       setHasMistralKey(keys.hasMistralKey)
       setHasGoogleKey(keys.hasGoogleKey)
       setHasSerperKey(keys.hasSerperKey)
+      setHasHunterKey(keys.hasHunterKey)
+      setHasReoonKey(keys.hasReoonKey)
+      setHasJinaKey(keys.hasJinaKey)
     })
 
     window.api.getSelectedAiProvider().then((provider: AiProvider) => {
@@ -137,6 +146,48 @@ function SettingsScreen(): JSX.Element {
       scheduleMessage({ type: 'success', text: 'Serper API key saved successfully!' })
     } catch {
       scheduleMessage({ type: 'error', text: 'Failed to save Serper API key' })
+    }
+    setSaving(false)
+  }
+
+  const saveHunterKey = async (): Promise<void> => {
+    if (!hunterKey.trim()) return
+    setSaving(true)
+    try {
+      await window.api.setHunterApiKey(hunterKey.trim())
+      setHasHunterKey(true)
+      setHunterKey('')
+      scheduleMessage({ type: 'success', text: 'Hunter.io API key saved successfully!' })
+    } catch {
+      scheduleMessage({ type: 'error', text: 'Failed to save Hunter.io API key' })
+    }
+    setSaving(false)
+  }
+
+  const saveReoonKey = async (): Promise<void> => {
+    if (!reoonKey.trim()) return
+    setSaving(true)
+    try {
+      await window.api.setReoonApiKey(reoonKey.trim())
+      setHasReoonKey(true)
+      setReoonKey('')
+      scheduleMessage({ type: 'success', text: 'Reoon API key saved successfully!' })
+    } catch {
+      scheduleMessage({ type: 'error', text: 'Failed to save Reoon API key' })
+    }
+    setSaving(false)
+  }
+
+  const saveJinaKey = async (): Promise<void> => {
+    if (!jinaKey.trim()) return
+    setSaving(true)
+    try {
+      await window.api.setJinaApiKey(jinaKey.trim())
+      setHasJinaKey(true)
+      setJinaKey('')
+      scheduleMessage({ type: 'success', text: 'Jina API key saved successfully!' })
+    } catch {
+      scheduleMessage({ type: 'error', text: 'Failed to save Jina API key' })
     }
     setSaving(false)
   }
@@ -310,10 +361,22 @@ function SettingsScreen(): JSX.Element {
           {activeTab === 'search-api' && (
             <SearchApiTab
               serperKey={serperKey}
+              hunterKey={hunterKey}
+              reoonKey={reoonKey}
+              jinaKey={jinaKey}
               hasSerperKey={hasSerperKey}
+              hasHunterKey={hasHunterKey}
+              hasReoonKey={hasReoonKey}
+              hasJinaKey={hasJinaKey}
               saving={saving}
               onSerperKeyChange={setSerperKey}
+              onHunterKeyChange={setHunterKey}
+              onReoonKeyChange={setReoonKey}
+              onJinaKeyChange={setJinaKey}
               onSaveSerperKey={saveSerperKey}
+              onSaveHunterKey={saveHunterKey}
+              onSaveReoonKey={saveReoonKey}
+              onSaveJinaKey={saveJinaKey}
             />
           )}
         </div>

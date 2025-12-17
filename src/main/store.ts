@@ -64,6 +64,9 @@ interface StoreSchema {
   mistralApiKey: string
   googleApiKey: string
   serperApiKey: string
+  hunterApiKey: string
+  reoonApiKey: string
+  jinaApiKey: string
   selectedAiProvider: AiProvider
   selectedGoogleMode: GoogleMode
   selectedGroqModel: string
@@ -80,6 +83,9 @@ const store = new Store<StoreSchema>({
     mistralApiKey: '',
     googleApiKey: '',
     serperApiKey: '',
+    hunterApiKey: '',
+    reoonApiKey: '',
+    jinaApiKey: '',
     selectedAiProvider: 'groq',
     selectedGoogleMode: 'aiStudio',
     selectedGroqModel: 'llama-3.3-70b-versatile',
@@ -97,12 +103,18 @@ export function getApiKeys(): {
   mistralApiKey: string
   googleApiKey: string
   serperApiKey: string
+  hunterApiKey: string
+  reoonApiKey: string
+  jinaApiKey: string
 } {
   return {
     groqApiKey: store.get('groqApiKey', ''),
     mistralApiKey: store.get('mistralApiKey', ''),
     googleApiKey: store.get('googleApiKey', ''),
-    serperApiKey: store.get('serperApiKey', '')
+    serperApiKey: store.get('serperApiKey', ''),
+    hunterApiKey: store.get('hunterApiKey', ''),
+    reoonApiKey: store.get('reoonApiKey', ''),
+    jinaApiKey: store.get('jinaApiKey', '')
   }
 }
 
@@ -112,6 +124,18 @@ export function setGroqApiKey(key: string): void {
 
 export function setSerperApiKey(key: string): void {
   store.set('serperApiKey', key)
+}
+
+export function setHunterApiKey(key: string): void {
+  store.set('hunterApiKey', key)
+}
+
+export function setReoonApiKey(key: string): void {
+  store.set('reoonApiKey', key)
+}
+
+export function setJinaApiKey(key: string): void {
+  store.set('jinaApiKey', key)
 }
 
 export function setMistralApiKey(key: string): void {

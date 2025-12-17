@@ -8,10 +8,16 @@ interface ApiKeys {
   mistralApiKey: string
   googleApiKey: string
   serperApiKey: string
+  hunterApiKey: string
+  reoonApiKey: string
+  jinaApiKey: string
   hasGroqKey: boolean
   hasMistralKey: boolean
   hasGoogleKey: boolean
   hasSerperKey: boolean
+  hasHunterKey: boolean
+  hasReoonKey: boolean
+  hasJinaKey: boolean
 }
 
 interface PortfolioProject {
@@ -62,6 +68,9 @@ interface Api {
   setMistralApiKey: (key: string) => Promise<{ success: boolean }>
   setGoogleApiKey: (key: string) => Promise<{ success: boolean }>
   setSerperApiKey: (key: string) => Promise<{ success: boolean }>
+  setHunterApiKey: (key: string) => Promise<{ success: boolean }>
+  setReoonApiKey: (key: string) => Promise<{ success: boolean }>
+  setJinaApiKey: (key: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>
@@ -86,6 +95,30 @@ interface Api {
   onChatModelSwitch: (
     callback: (data: { fromModel: string; toModel: string }) => void
   ) => () => void
+
+  // Lead Generation
+  generateLeads: (input: {
+    searchQuery: string
+    niche: string
+    location: string
+  }) => Promise<{ success: boolean; error?: string }>
+  onLeadsSearchStart: (cb: (query: string) => void) => () => void
+  onLeadsSearchComplete: (cb: (results: unknown[]) => void) => () => void
+  onLeadsCleanupComplete: (cb: (urls: string[]) => void) => () => void
+  onLeadsScrapeStart: (cb: (url: string) => void) => () => void
+  onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => () => void
+  onLeadsScrapeError: (cb: (data: { url: string; error: string }) => void) => () => void
+  onLeadsAiStart: (cb: (url: string) => void) => () => void
+  onLeadsAiResult: (
+    cb: (data: { url: string; email: string | null; decisionMaker: string | null }) => void
+  ) => () => void
+  onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => () => void
+  onLeadsHunterResult: (cb: (data: { url: string; email: string | null }) => void) => () => void
+  onLeadsVerifyStart: (cb: (email: string) => void) => () => void
+  onLeadsVerifyResult: (cb: (data: { email: string; verified: boolean }) => void) => () => void
+  onLeadFound: (cb: (lead: unknown) => void) => () => void
+  onLeadsComplete: (cb: (leads: unknown[]) => void) => () => void
+  onLeadsError: (cb: (error: string) => void) => () => void
 }
 
 declare global {
