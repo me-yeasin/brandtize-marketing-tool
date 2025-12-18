@@ -127,6 +127,12 @@ const api = {
     ipcRenderer.on('leads:serviceSwitched', handler)
     return () => ipcRenderer.removeListener('leads:serviceSwitched', handler)
   },
+  onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, data: { url: string; reason: string }): void =>
+      cb(data)
+    ipcRenderer.on('leads:protectedUrl', handler)
+    return () => ipcRenderer.removeListener('leads:protectedUrl', handler)
+  },
   onLeadsCleanupComplete: (cb: (urls: string[]) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, u: string[]): void => cb(u)
     ipcRenderer.on('leads:cleanupComplete', handler)

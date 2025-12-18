@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import {
   FiSearch,
   FiFilter,
@@ -75,11 +76,6 @@ function LeadGenerationView({
     status: string
     service?: string
   } | null>(null)
-  const [serviceToast, setServiceToast] = useState<{
-    from: string
-    to: string
-    reason: string
-  } | null>(null)
 
   const togglePanel = (panel: string): void => {
     setExpandedPanels((prev) => {
@@ -112,8 +108,17 @@ function LeadGenerationView({
     })
 
     const unsubServiceSwitched = window.api.onLeadsServiceSwitched((data) => {
-      setServiceToast(data)
-      setTimeout(() => setServiceToast(null), 3000)
+      toast.warning(`Service switched: ${data.from} → ${data.to}`, {
+        description: data.reason,
+        duration: 3000
+      })
+    })
+
+    const unsubProtectedUrl = window.api.onLeadsProtectedUrl((data) => {
+      toast.info('Protected website detected', {
+        description: `${new URL(data.url).hostname} - treating as secure business`,
+        duration: 2000
+      })
     })
 
     const unsubCleanupComplete = window.api.onLeadsCleanupComplete((urls) => {
@@ -191,6 +196,7 @@ function LeadGenerationView({
       unsubSearchComplete()
       unsubCleanupProgress()
       unsubServiceSwitched()
+      unsubProtectedUrl()
       unsubCleanupComplete()
       unsubScrapeStart()
       unsubScrapeComplete()
@@ -245,17 +251,6 @@ function LeadGenerationView({
             </div>
           )}
         </div>
-
-        {/* Service Switch Toast */}
-        {serviceToast && (
-          <div className="fixed top-4 right-4 z-50 bg-orange-500/90 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse max-w-md">
-            <div className="font-medium">Service Switched</div>
-            <div className="text-sm opacity-90">
-              {serviceToast.from} → {serviceToast.to}
-            </div>
-            <div className="text-xs opacity-75 mt-1">{serviceToast.reason}</div>
-          </div>
-        )}
 
         {/* Cleanup Panel - Show during cleanup or after completion */}
         {(cleanupProgress || cleanedUrls.length > 0) && (

@@ -125,6 +125,7 @@ interface Api {
   onLeadsServiceSwitched: (
     cb: (data: { from: string; to: string; reason: string }) => void
   ) => () => void
+  onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => () => void
   onLeadsCleanupComplete: (cb: (urls: string[]) => void) => () => void
   onLeadsScrapeStart: (cb: (url: string) => void) => () => void
   onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => () => void

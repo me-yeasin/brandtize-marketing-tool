@@ -285,8 +285,16 @@ async function cleanupUrls(
         category = linkPreviewResult.category
         usedService = 'LinkPreview'
       } else {
-        // Both services failed - throw error
-        throw new Error(`URL cleanup failed for ${url}. LinkPreview: ${linkPreviewResult.error}`)
+        // Both services failed - treat as secure website (likely has bot protection)
+        category = 'secure-website'
+        usedService = 'Assumed'
+        console.log(`${url} has protection, treating as secure-website`)
+
+        // Notify UI about protected URL
+        mainWindow?.webContents.send('leads:protectedUrl', {
+          url: url,
+          reason: linkPreviewResult.error || 'Bot protection detected'
+        })
       }
     }
 
