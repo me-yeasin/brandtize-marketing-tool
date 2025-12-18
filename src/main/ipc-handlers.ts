@@ -8,6 +8,8 @@ import {
   setHunterApiKey,
   setReoonApiKey,
   setJinaApiKey,
+  setNeutrinoApiKey,
+  setNeutrinoUserId,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
@@ -45,13 +47,16 @@ export function setupIpcHandlers(): void {
       hunterApiKey: keys.hunterApiKey ? '••••••••' + keys.hunterApiKey.slice(-4) : '',
       reoonApiKey: keys.reoonApiKey ? '••••••••' + keys.reoonApiKey.slice(-4) : '',
       jinaApiKey: keys.jinaApiKey ? '••••••••' + keys.jinaApiKey.slice(-4) : '',
+      neutrinoApiKey: keys.neutrinoApiKey ? '••••••••' + keys.neutrinoApiKey.slice(-4) : '',
+      neutrinoUserId: keys.neutrinoUserId || '',
       hasGroqKey: keys.groqApiKey.length > 0,
       hasMistralKey: keys.mistralApiKey.length > 0,
       hasGoogleKey: keys.googleApiKey.length > 0,
       hasSerperKey: keys.serperApiKey.length > 0,
       hasHunterKey: keys.hunterApiKey.length > 0,
       hasReoonKey: keys.reoonApiKey.length > 0,
-      hasJinaKey: keys.jinaApiKey.length > 0
+      hasJinaKey: keys.jinaApiKey.length > 0,
+      hasNeutrinoKey: keys.neutrinoApiKey.length > 0 && keys.neutrinoUserId.length > 0
     }
   })
 
@@ -82,6 +87,16 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setReoonApiKey', (_event, key: string) => {
     setReoonApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setNeutrinoApiKey', (_event, key: string) => {
+    setNeutrinoApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setNeutrinoUserId', (_event, userId: string) => {
+    setNeutrinoUserId(userId)
     return { success: true }
   })
 

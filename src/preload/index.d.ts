@@ -11,6 +11,8 @@ interface ApiKeys {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
+  neutrinoApiKey: string
+  neutrinoUserId: string
   hasGroqKey: boolean
   hasMistralKey: boolean
   hasGoogleKey: boolean
@@ -18,6 +20,7 @@ interface ApiKeys {
   hasHunterKey: boolean
   hasReoonKey: boolean
   hasJinaKey: boolean
+  hasNeutrinoKey: boolean
 }
 
 interface PortfolioProject {
@@ -71,6 +74,8 @@ interface Api {
   setHunterApiKey: (key: string) => Promise<{ success: boolean }>
   setReoonApiKey: (key: string) => Promise<{ success: boolean }>
   setJinaApiKey: (key: string) => Promise<{ success: boolean }>
+  setNeutrinoApiKey: (key: string) => Promise<{ success: boolean }>
+  setNeutrinoUserId: (userId: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>

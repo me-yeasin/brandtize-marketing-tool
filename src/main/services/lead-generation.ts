@@ -62,30 +62,65 @@ export interface LeadGenerationCallbacks {
   onError: (error: string) => void
 }
 
-// URLs to filter out (not useful for lead generation)
-const BLOCKED_DOMAINS = [
-  'yelp.com',
-  'yellowpages.com',
-  'facebook.com',
-  'twitter.com',
-  'instagram.com',
-  'linkedin.com',
-  'tripadvisor.com',
-  'indeed.com',
-  'glassdoor.com',
-  'craigslist.org',
-  'pinterest.com',
-  'youtube.com',
-  'tiktok.com',
-  'reddit.com',
-  'wikipedia.org',
-  'bing.com',
-  'google.com',
-  'amazon.com',
-  'ebay.com'
-]
+// Neutrino API - Smart URL categorization
+async function categorizeUrlWithNeutrino(
+  url: string
+): Promise<{ category: string | null; error: string | null }> {
+  const { neutrinoApiKey, neutrinoUserId } = getApiKeys()
+  if (!neutrinoApiKey || !neutrinoUserId) {
+    return {
+      category: null,
+      error: 'Neutrino API credentials not configured. Please add User ID and API Key in Settings.'
+    }
+  }
 
-// Serper API - Web Search
+  try {
+    const response = await fetch('https://neutrinoapi.net/url-info', {
+      method: 'POST',
+      headers: {
+        'User-ID': neutrinoUserId,
+        'API-Key': neutrinoApiKey,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `url=${encodeURIComponent(url)}&fetch-content=false`
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMsg = errorData['api-error-msg'] || `HTTP ${response.status}`
+      return { category: null, error: `Neutrino API error: ${errorMsg}` }
+    }
+
+    const data = await response.json()
+    console.log(`Neutrino categorized ${url} as: ${data['content-type'] || 'unknown'}`)
+    return {
+      category: data['content-type'] || null,
+      error: null
+    }
+  } catch (error) {
+    return { category: null, error: `Neutrino API connection error: ${error}` }
+  }
+}
+
+// Check if URL should be blocked based on category
+function shouldBlockCategory(category: string | null): boolean {
+  if (!category) return false
+
+  const blockedCategories = [
+    'job-board',
+    'job',
+    'employment',
+    'social-media',
+    'social',
+    'classifieds',
+    'dating',
+    'gambling',
+    'porn',
+    'adult'
+  ]
+
+  return blockedCategories.some((blocked) => category.toLowerCase().includes(blocked))
+}
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
   const { serperApiKey } = getApiKeys()
   if (!serperApiKey) throw new Error('Serper API key not configured')
@@ -114,14 +149,29 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
   }))
 }
 
-// URL Cleanup - Filter out unwanted domains
-function cleanupUrls(results: SearchResult[]): string[] {
-  return results
-    .map((r) => r.link)
-    .filter((url) => {
-      const urlLower = url.toLowerCase()
-      return !BLOCKED_DOMAINS.some((domain) => urlLower.includes(domain))
-    })
+// URL Cleanup - Use Neutrino API for smart categorization (no fallback)
+async function cleanupUrls(results: SearchResult[]): Promise<string[]> {
+  const cleanedUrls: string[] = []
+
+  for (const result of results) {
+    const url = result.link
+
+    // Use Neutrino API - throw error if it fails
+    const { category, error } = await categorizeUrlWithNeutrino(url)
+
+    if (error) {
+      throw new Error(error)
+    }
+
+    const shouldBlock = shouldBlockCategory(category)
+    console.log(`Neutrino: ${url} -> ${category} - ${shouldBlock ? 'BLOCKED' : 'ALLOWED'}`)
+
+    if (!shouldBlock) {
+      cleanedUrls.push(url)
+    }
+  }
+
+  return cleanedUrls
 }
 
 // Jina Reader API - Content Scraping
@@ -424,7 +474,7 @@ export async function generateLeads(
     callbacks.onSearchComplete(searchResults)
 
     // Step 2: URL Cleanup
-    const cleanedUrls = cleanupUrls(searchResults)
+    const cleanedUrls = await cleanupUrls(searchResults)
     callbacks.onCleanupComplete(cleanedUrls)
 
     if (cleanedUrls.length === 0) {

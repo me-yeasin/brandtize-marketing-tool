@@ -27,6 +27,8 @@ function SettingsScreen(): JSX.Element {
   const [hunterKey, setHunterKey] = useState('')
   const [reoonKey, setReoonKey] = useState('')
   const [jinaKey, setJinaKey] = useState('')
+  const [neutrinoKey, setNeutrinoKey] = useState('')
+  const [neutrinoUserId, setNeutrinoUserId] = useState('')
   const [selectedModel, setSelectedModel] = useState(GROQ_MODELS[0]?.id ?? '')
   const [selectedMistralModel, setSelectedMistralModel] = useState(MISTRAL_MODELS[0]?.id ?? '')
   const [selectedGoogleModel, setSelectedGoogleModel] = useState(GOOGLE_MODELS[0]?.id ?? '')
@@ -40,6 +42,7 @@ function SettingsScreen(): JSX.Element {
   const [hasHunterKey, setHasHunterKey] = useState(false)
   const [hasReoonKey, setHasReoonKey] = useState(false)
   const [hasJinaKey, setHasJinaKey] = useState(false)
+  const [hasNeutrinoKey, setHasNeutrinoKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<MessageState>(null)
@@ -48,6 +51,15 @@ function SettingsScreen(): JSX.Element {
 
   useEffect(() => {
     window.api.getApiKeys().then((keys) => {
+      setGroqKey(keys.groqApiKey)
+      setMistralKey(keys.mistralApiKey)
+      setGoogleKey(keys.googleApiKey)
+      setSerperKey(keys.serperApiKey)
+      setHunterKey(keys.hunterApiKey)
+      setReoonKey(keys.reoonApiKey)
+      setJinaKey(keys.jinaApiKey)
+      setNeutrinoKey(keys.neutrinoApiKey)
+      setNeutrinoUserId(keys.neutrinoUserId)
       setHasGroqKey(keys.hasGroqKey)
       setHasMistralKey(keys.hasMistralKey)
       setHasGoogleKey(keys.hasGoogleKey)
@@ -55,6 +67,7 @@ function SettingsScreen(): JSX.Element {
       setHasHunterKey(keys.hasHunterKey)
       setHasReoonKey(keys.hasReoonKey)
       setHasJinaKey(keys.hasJinaKey)
+      setHasNeutrinoKey(keys.hasNeutrinoKey)
     })
 
     window.api.getSelectedAiProvider().then((provider: AiProvider) => {
@@ -180,17 +193,33 @@ function SettingsScreen(): JSX.Element {
   }
 
   const saveJinaKey = async (): Promise<void> => {
-    if (!jinaKey.trim()) return
     setSaving(true)
     try {
-      await window.api.setJinaApiKey(jinaKey.trim())
-      setHasJinaKey(true)
-      setJinaKey('')
-      scheduleMessage({ type: 'success', text: 'Jina API key saved successfully!' })
-    } catch {
-      scheduleMessage({ type: 'error', text: 'Failed to save Jina API key' })
+      await window.api.setJinaApiKey(jinaKey)
+      const keys = await window.api.getApiKeys()
+      setJinaKey(keys.jinaApiKey)
+      setHasJinaKey(keys.hasJinaKey)
+    } catch (error) {
+      console.error('Failed to save Jina API key:', error)
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
+  }
+
+  const saveNeutrinoKey = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.setNeutrinoApiKey(neutrinoKey)
+      await window.api.setNeutrinoUserId(neutrinoUserId)
+      const keys = await window.api.getApiKeys()
+      setNeutrinoKey(keys.neutrinoApiKey)
+      setNeutrinoUserId(keys.neutrinoUserId)
+      setHasNeutrinoKey(keys.hasNeutrinoKey)
+    } catch (error) {
+      console.error('Failed to save Neutrino credentials:', error)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const switchProvider = async (provider: AiProvider): Promise<void> => {
@@ -298,7 +327,7 @@ function SettingsScreen(): JSX.Element {
             statuses={{
               profile: hasProfile,
               aiProvider: hasGroqKey || hasMistralKey || hasGoogleKey,
-              searchApi: hasSerperKey,
+              searchApi: hasSerperKey || hasJinaKey || hasNeutrinoKey,
               email: hasHunterKey || hasReoonKey
             }}
           />
@@ -365,13 +394,19 @@ function SettingsScreen(): JSX.Element {
             <SearchApiTab
               serperKey={serperKey}
               jinaKey={jinaKey}
+              neutrinoKey={neutrinoKey}
+              neutrinoUserId={neutrinoUserId}
               hasSerperKey={hasSerperKey}
               hasJinaKey={hasJinaKey}
+              hasNeutrinoKey={hasNeutrinoKey}
               saving={saving}
               onSerperKeyChange={setSerperKey}
               onJinaKeyChange={setJinaKey}
+              onNeutrinoKeyChange={setNeutrinoKey}
+              onNeutrinoUserIdChange={setNeutrinoUserId}
               onSaveSerperKey={saveSerperKey}
               onSaveJinaKey={saveJinaKey}
+              onSaveNeutrinoKey={saveNeutrinoKey}
             />
           )}
           {activeTab === 'email' && (

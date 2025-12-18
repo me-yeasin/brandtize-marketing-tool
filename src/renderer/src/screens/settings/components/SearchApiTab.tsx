@@ -1,32 +1,44 @@
 import React from 'react'
-import { FiSearch, FiFileText } from 'react-icons/fi'
+import { FiSearch, FiFileText, FiFilter } from 'react-icons/fi'
 
 import { Button, Input } from '../../../components/ui'
 
 interface SearchApiTabProps {
   serperKey: string
   jinaKey: string
+  neutrinoKey: string
+  neutrinoUserId: string
   hasSerperKey: boolean
   hasJinaKey: boolean
+  hasNeutrinoKey: boolean
   saving: boolean
   onSerperKeyChange: (value: string) => void
   onJinaKeyChange: (value: string) => void
+  onNeutrinoKeyChange: (value: string) => void
+  onNeutrinoUserIdChange: (value: string) => void
   onSaveSerperKey: () => Promise<void>
   onSaveJinaKey: () => Promise<void>
+  onSaveNeutrinoKey: () => Promise<void>
 }
 
 function SearchApiTab({
   serperKey,
   jinaKey,
+  neutrinoKey,
+  neutrinoUserId,
   hasSerperKey,
   hasJinaKey,
+  hasNeutrinoKey,
   saving,
   onSerperKeyChange,
   onJinaKeyChange,
+  onNeutrinoKeyChange,
+  onNeutrinoUserIdChange,
   onSaveSerperKey,
-  onSaveJinaKey
+  onSaveJinaKey,
+  onSaveNeutrinoKey
 }: SearchApiTabProps): React.JSX.Element {
-  const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping'>('board')
+  const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping' | 'cleanup'>('board')
   return (
     <div className="max-w-xl space-y-6">
       <div>
@@ -59,7 +71,18 @@ function SearchApiTab({
                 : 'border-transparent text-text-muted hover:text-text-main'
             ].join(' ')}
           >
-            Scraping Services
+            Scoping Services
+          </button>
+          <button
+            onClick={() => setActiveSubTab('cleanup')}
+            className={[
+              'py-2 px-1 border-b-2 font-medium text-sm transition-colors',
+              activeSubTab === 'cleanup'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-muted hover:text-text-main'
+            ].join(' ')}
+          >
+            URL Cleanup
           </button>
         </nav>
       </div>
@@ -165,6 +188,67 @@ function SearchApiTab({
                 className="text-primary hover:underline"
               >
                 jina.ai/reader
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* URL Cleanup Subtab */}
+      {activeSubTab === 'cleanup' && (
+        <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/20">
+                <FiFilter className="text-xl text-red-400" size={20} />
+              </div>
+              <div>
+                <h3 className="font-medium text-text-main">Neutrino API</h3>
+                <p className="text-xs text-text-muted">Smart URL categorization and filtering</p>
+              </div>
+            </div>
+            {hasNeutrinoKey && (
+              <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                Connected
+              </span>
+            )}
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="block text-sm text-text-muted">User ID</label>
+              <Input
+                type="text"
+                placeholder="Enter your Neutrino User ID"
+                value={neutrinoUserId}
+                onChange={(e) => onNeutrinoUserIdChange(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm text-text-muted">API Key</label>
+              <Input
+                type="password"
+                placeholder={hasNeutrinoKey ? '••••••••••••••••' : 'Enter your Neutrino API key'}
+                value={neutrinoKey}
+                onChange={(e) => onNeutrinoKeyChange(e.target.value)}
+              />
+            </div>
+            <Button
+              variant="primary"
+              onClick={onSaveNeutrinoKey}
+              disabled={saving || !neutrinoKey.trim() || !neutrinoUserId.trim()}
+              className="w-full"
+            >
+              {saving ? 'Saving...' : 'Save Neutrino Credentials'}
+            </Button>
+            <p className="text-xs text-text-muted">
+              Get your User ID and API key from{' '}
+              <a
+                href="https://www.neutrinoapi.com/signup"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                neutrinoapi.com
               </a>
             </p>
           </div>

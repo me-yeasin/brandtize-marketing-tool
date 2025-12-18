@@ -106,6 +106,8 @@ export function getApiKeys(): {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
+  neutrinoApiKey: string
+  neutrinoUserId: string
 } {
   return {
     groqApiKey: store.get('groqApiKey', ''),
@@ -114,7 +116,9 @@ export function getApiKeys(): {
     serperApiKey: store.get('serperApiKey', ''),
     hunterApiKey: store.get('hunterApiKey', ''),
     reoonApiKey: store.get('reoonApiKey', ''),
-    jinaApiKey: store.get('jinaApiKey', '')
+    jinaApiKey: store.get('jinaApiKey', ''),
+    neutrinoApiKey: store.get('neutrinoApiKey', ''),
+    neutrinoUserId: store.get('neutrinoUserId', '')
   }
 }
 
@@ -132,6 +136,14 @@ export function setHunterApiKey(key: string): void {
 
 export function setReoonApiKey(key: string): void {
   store.set('reoonApiKey', key)
+}
+
+export function setNeutrinoApiKey(key: string): void {
+  store.set('neutrinoApiKey', key)
+}
+
+export function setNeutrinoUserId(userId: string): void {
+  store.set('neutrinoUserId', userId)
 }
 
 export function setJinaApiKey(key: string): void {
