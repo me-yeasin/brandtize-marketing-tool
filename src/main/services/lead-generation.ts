@@ -337,6 +337,8 @@ function shouldBlockCategory(category: string | null): boolean {
   const blockedCategories = [
     'job-board',
     'job',
+    'recruitment',
+    'careers',
     'employment',
     'social-media',
     'social',
@@ -349,6 +351,113 @@ function shouldBlockCategory(category: string | null): boolean {
 
   return blockedCategories.some((blocked) => category.toLowerCase().includes(blocked))
 }
+
+// AI-powered URL validation - Second opinion for blocked/uncertain URLs
+async function validateUrlWithAI(
+  url: string,
+  title: string,
+  snippet: string,
+  category: string,
+  niche: string
+): Promise<{ isValidLead: boolean; reason: string }> {
+  const provider = getSelectedAiProvider()
+  const selectedModel = getSelectedModel()
+  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
+
+  const prompt = `You are a lead qualification expert. Analyze this URL to determine if it could be a potential business client.
+
+URL: ${url}
+Title: ${title}
+Snippet: ${snippet}
+Category detected: ${category}
+Target niche: ${niche}
+
+The URL was initially categorized as "${category}" which would normally be blocked.
+
+Your task: Determine if this is actually a legitimate business that could be a potential client, or if it truly is a job board/social media/irrelevant site.
+
+Consider:
+1. Is this a real business website that happens to have a careers page?
+2. Could this business benefit from services in the "${niche}" niche?
+3. Is this a company's main website vs a pure job listing site?
+
+Respond in JSON format only:
+{
+  "isValidLead": true/false,
+  "reason": "Brief explanation"
+}
+
+Examples:
+- "acme-corp.com/careers" → isValidLead: true (company website with careers section)
+- "indeed.com" → isValidLead: false (pure job board)
+- "linkedin.com/company/acme" → isValidLead: false (social media platform)
+- "acme-restaurant.com" → isValidLead: true (business website)`
+
+  try {
+    let response = ''
+
+    if (provider === 'groq' && groqApiKey) {
+      const client = new ChatGroq({
+        apiKey: groqApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'mistral' && mistralApiKey) {
+      const client = new ChatMistralAI({
+        apiKey: mistralApiKey,
+        model: selectedModel,
+        temperature: 0
+      })
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else if (provider === 'google' && googleApiKey) {
+      const googleMode = getSelectedGoogleMode()
+      let client
+      if (googleMode === 'vertexApiKey') {
+        const projectId = getGoogleProjectId()
+        const location = getGoogleLocation()
+        client = new ChatVertexAI({
+          model: selectedModel,
+          temperature: 0,
+          authOptions: { apiKey: googleApiKey },
+          ...(projectId && { projectId }),
+          ...(location && { location })
+        })
+      } else {
+        client = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey,
+          model: selectedModel,
+          temperature: 0
+        })
+      }
+      const result = await client.invoke([new HumanMessage(prompt)])
+      response = result.content as string
+    } else {
+      // No AI configured - default to allowing the URL (don't lose potential leads)
+      return { isValidLead: true, reason: 'AI not configured - allowing URL' }
+    }
+
+    // Parse JSON response
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      return {
+        isValidLead: Boolean(parsed.isValidLead),
+        reason: parsed.reason || 'AI analysis'
+      }
+    }
+
+    // Couldn't parse - default to allowing
+    return { isValidLead: true, reason: 'Could not parse AI response - allowing URL' }
+  } catch (error) {
+    console.error('AI URL validation error:', error)
+    // On error, allow the URL (don't lose potential leads)
+    return { isValidLead: true, reason: `AI error - allowing URL: ${error}` }
+  }
+}
+
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
   const { serperApiKey } = getApiKeys()
   if (!serperApiKey) throw new Error('Serper API key not configured')
@@ -387,10 +496,11 @@ function resetCleanupSessionState(): void {
   neutrinoLastError = ''
 }
 
-// URL Cleanup - Use Neutrino API with LinkPreview fallback
+// URL Cleanup - Use Neutrino API with LinkPreview fallback + AI validation
 async function cleanupUrls(
   results: SearchResult[],
-  mainWindow: Electron.BrowserWindow | null
+  mainWindow: Electron.BrowserWindow | null,
+  niche: string
 ): Promise<string[]> {
   const cleanedUrls: string[] = []
   const MAX_RETRIES = 3
@@ -468,17 +578,52 @@ async function cleanupUrls(
       }
     }
 
-    const shouldBlock = shouldBlockCategory(category)
-    console.log(`${usedService}: ${url} -> ${category} - ${shouldBlock ? 'BLOCKED' : 'ALLOWED'}`)
+    let shouldBlock = shouldBlockCategory(category)
+    let aiOverride = false
+    let aiReason = ''
+
+    // If URL would be blocked, use AI for second opinion
+    if (shouldBlock && category) {
+      mainWindow?.webContents.send('leads:cleanupProgress', {
+        current: i + 1,
+        total: results.length,
+        url: url,
+        status: 'ai-validating'
+      })
+
+      const aiResult = await validateUrlWithAI(url, result.title, result.snippet, category, niche)
+
+      if (aiResult.isValidLead) {
+        shouldBlock = false
+        aiOverride = true
+        aiReason = aiResult.reason
+        console.log(`AI OVERRIDE: ${url} - ${aiResult.reason}`)
+
+        mainWindow?.webContents.send('leads:aiOverride', {
+          url: url,
+          originalCategory: category,
+          reason: aiResult.reason
+        })
+      } else {
+        console.log(`AI CONFIRMED BLOCK: ${url} - ${aiResult.reason}`)
+      }
+    }
+
+    const finalStatus = shouldBlock ? 'blocked' : aiOverride ? 'ai-allowed' : 'allowed'
+    console.log(
+      `${usedService}: ${url} -> ${category} - ${finalStatus}${aiOverride ? ` (AI: ${aiReason})` : ''}`
+    )
 
     // Send progress update with result
     mainWindow?.webContents.send('leads:cleanupProgress', {
       current: i + 1,
       total: results.length,
       url: url,
-      status: shouldBlock ? 'blocked' : 'allowed',
+      status: finalStatus,
       service: usedService,
-      category: category
+      category: category,
+      aiOverride: aiOverride,
+      aiReason: aiReason
     })
 
     if (!shouldBlock) {
@@ -795,8 +940,8 @@ export async function generateLeads(
     const searchResults = await searchWithSerper(input.searchQuery)
     callbacks.onSearchComplete(searchResults)
 
-    // Step 2: URL Cleanup
-    const cleanedUrls = await cleanupUrls(searchResults, mainWindow)
+    // Step 2: URL Cleanup with AI validation
+    const cleanedUrls = await cleanupUrls(searchResults, mainWindow, input.niche)
     callbacks.onCleanupComplete(cleanedUrls)
 
     if (cleanedUrls.length === 0) {
