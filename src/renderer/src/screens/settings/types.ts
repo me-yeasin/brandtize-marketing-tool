@@ -1,4 +1,4 @@
-export type SettingsTab = 'profile' | 'ai-provider' | 'search-api'
+export type SettingsTab = 'profile' | 'ai-provider' | 'search-api' | 'email'
 
 export type AiProvider = 'groq' | 'mistral' | 'google'
 export type GoogleMode = 'aiStudio' | 'vertexApiKey'

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import { FiCpu, FiSearch, FiUser } from 'react-icons/fi'
+import { FiCpu, FiSearch, FiUser, FiMail } from 'react-icons/fi'
 
 import { SettingsTabs } from './settings/components/SettingsTabs'
 import { AiProviderTab } from './settings/components/AiProviderTab'
 import { ProfileTab } from './settings/components/ProfileTab'
 import { SearchApiTab } from './settings/components/SearchApiTab'
+import { EmailTab } from './settings/components/EmailTab'
 import { DEFAULT_PROFILE, GROQ_MODELS, MISTRAL_MODELS, GOOGLE_MODELS } from './settings/constants'
 import { isProfileComplete } from './settings/utils'
 import type {
@@ -275,7 +276,8 @@ function SettingsScreen(): JSX.Element {
     () => [
       { id: 'profile' as const, label: 'Agency Profile', icon: <FiUser size={16} /> },
       { id: 'ai-provider' as const, label: 'AI Provider', icon: <FiCpu size={16} /> },
-      { id: 'search-api' as const, label: 'Web Search', icon: <FiSearch size={16} /> }
+      { id: 'search-api' as const, label: 'Web Search', icon: <FiSearch size={16} /> },
+      { id: 'email' as const, label: 'Email', icon: <FiMail size={16} /> }
     ],
     []
   )
@@ -296,7 +298,8 @@ function SettingsScreen(): JSX.Element {
             statuses={{
               profile: hasProfile,
               aiProvider: hasGroqKey || hasMistralKey || hasGoogleKey,
-              searchApi: hasSerperKey
+              searchApi: hasSerperKey,
+              email: hasHunterKey || hasReoonKey
             }}
           />
         </div>
@@ -361,22 +364,27 @@ function SettingsScreen(): JSX.Element {
           {activeTab === 'search-api' && (
             <SearchApiTab
               serperKey={serperKey}
-              hunterKey={hunterKey}
-              reoonKey={reoonKey}
               jinaKey={jinaKey}
               hasSerperKey={hasSerperKey}
-              hasHunterKey={hasHunterKey}
-              hasReoonKey={hasReoonKey}
               hasJinaKey={hasJinaKey}
               saving={saving}
               onSerperKeyChange={setSerperKey}
-              onHunterKeyChange={setHunterKey}
-              onReoonKeyChange={setReoonKey}
               onJinaKeyChange={setJinaKey}
               onSaveSerperKey={saveSerperKey}
+              onSaveJinaKey={saveJinaKey}
+            />
+          )}
+          {activeTab === 'email' && (
+            <EmailTab
+              hunterKey={hunterKey}
+              reoonKey={reoonKey}
+              hasHunterKey={hasHunterKey}
+              hasReoonKey={hasReoonKey}
+              saving={saving}
+              onHunterKeyChange={setHunterKey}
+              onReoonKeyChange={setReoonKey}
               onSaveHunterKey={saveHunterKey}
               onSaveReoonKey={saveReoonKey}
-              onSaveJinaKey={saveJinaKey}
             />
           )}
         </div>

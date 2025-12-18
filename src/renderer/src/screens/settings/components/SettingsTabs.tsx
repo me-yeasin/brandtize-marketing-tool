@@ -7,6 +7,7 @@ interface SettingsTabsProps {
     profile: boolean
     aiProvider: boolean
     searchApi: boolean
+    email: boolean
   }
   items: { id: SettingsTab; label: string; icon: React.ReactNode }[]
 }
