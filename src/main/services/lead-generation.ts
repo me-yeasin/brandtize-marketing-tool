@@ -4,6 +4,7 @@ import {
   getNeutrinoApiKeys,
   getLinkPreviewApiKeys,
   getSerperApiKeys,
+  getJinaApiKeys,
   type ApiKeyEntry
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
@@ -625,29 +626,117 @@ async function cleanupUrls(
   return cleanedUrls
 }
 
-// Jina Reader API - Content Scraping
+// Jina Reader API - Content Scraping with key rotation on rate limit
 async function scrapeWithJina(url: string): Promise<ScrapedContent> {
+  const multiKeys = getJinaApiKeys()
+
+  // Helper to make the actual Jina request
+  const makeJinaRequest = async (apiKey: string): Promise<Response> => {
+    return fetch(`https://r.jina.ai/${url}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'text/plain'
+      }
+    })
+  }
+
+  // Helper to parse successful response
+  const parseResponse = async (response: Response): Promise<ScrapedContent> => {
+    const content = await response.text()
+    return {
+      url,
+      content: content.slice(0, 15000),
+      title: url
+    }
+  }
+
+  // Try multi-keys with rotation on rate limit (429)
+  if (multiKeys.length > 0) {
+    let currentKeyIndex = keyRotationState.jina.currentIndex % multiKeys.length
+
+    // Try each key until one works or all exhausted
+    for (let keyAttempt = 0; keyAttempt < multiKeys.length; keyAttempt++) {
+      const keyEntry = multiKeys[currentKeyIndex]
+      if (!keyEntry || !keyEntry.key) {
+        currentKeyIndex = (currentKeyIndex + 1) % multiKeys.length
+        continue
+      }
+
+      console.log(`Jina[${currentKeyIndex + 1}/${multiKeys.length}] scraping ${url}`)
+
+      const response = await makeJinaRequest(keyEntry.key)
+
+      if (response.ok) {
+        return parseResponse(response)
+      }
+
+      // Non-rate-limit error: stop immediately with human-readable message
+      if (response.status !== 429) {
+        throw new Error(
+          `Jina API error (${response.status}): Unable to scrape content. Please check your API key or try again later.`
+        )
+      }
+
+      // Rate limit (429): wait 60 seconds and retry same key
+      console.log(
+        `Jina[${currentKeyIndex + 1}/${multiKeys.length}] rate limited. Waiting 60 seconds...`
+      )
+      await new Promise((resolve) => setTimeout(resolve, 60000))
+
+      // Retry same key after waiting
+      const retryResponse = await makeJinaRequest(keyEntry.key)
+
+      if (retryResponse.ok) {
+        return parseResponse(retryResponse)
+      }
+
+      // Still failing after wait: switch to next key
+      console.log(
+        `Jina[${currentKeyIndex + 1}/${multiKeys.length}] still failing after wait. Switching to next key...`
+      )
+      markKeyExhausted('jina', currentKeyIndex, `Rate limit persisted`)
+      currentKeyIndex = (currentKeyIndex + 1) % multiKeys.length
+      keyRotationState.jina.currentIndex = currentKeyIndex
+    }
+
+    // All keys exhausted
+    throw new Error(
+      'All Jina API keys exhausted due to rate limits. Please wait and try again later.'
+    )
+  }
+
+  // Fallback to single key
   const { jinaApiKey } = getApiKeys()
   if (!jinaApiKey) throw new Error('Jina API key not configured')
 
-  const response = await fetch(`https://r.jina.ai/${url}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${jinaApiKey}`,
-      Accept: 'text/plain'
-    }
-  })
+  const response = await makeJinaRequest(jinaApiKey)
 
-  if (!response.ok) {
-    throw new Error(`Jina API error: ${response.status}`)
+  if (response.ok) {
+    return parseResponse(response)
   }
 
-  const content = await response.text()
-  return {
-    url,
-    content: content.slice(0, 15000), // Limit content size for AI processing
-    title: url
+  // Non-rate-limit error: stop with human-readable message
+  if (response.status !== 429) {
+    throw new Error(
+      `Jina API error (${response.status}): Unable to scrape content. Please check your API key or try again later.`
+    )
   }
+
+  // Rate limit on single key: wait 60 seconds and retry once
+  console.log('Jina rate limited. Waiting 60 seconds before retry...')
+  await new Promise((resolve) => setTimeout(resolve, 60000))
+
+  const retryResponse = await makeJinaRequest(jinaApiKey)
+
+  if (retryResponse.ok) {
+    return parseResponse(retryResponse)
+  }
+
+  // Still failing after wait with single key: stop with error
+  throw new Error(
+    `Jina API still rate limited after waiting. Please try again later or add more API keys in Settings.`
+  )
 }
 
 // Extract domain from URL
