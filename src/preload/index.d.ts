@@ -35,6 +35,8 @@ interface ApiKeys {
   neutrinoApiKey: string
   neutrinoUserId: string
   linkPreviewApiKey: string
+  snovClientId: string
+  snovClientSecret: string
   hasGroqKey: boolean
   hasMistralKey: boolean
   hasGoogleKey: boolean
@@ -44,6 +46,7 @@ interface ApiKeys {
   hasJinaKey: boolean
   hasNeutrinoKey: boolean
   hasLinkPreviewKey: boolean
+  hasSnovKey: boolean
 }
 
 interface PortfolioProject {
@@ -100,6 +103,8 @@ interface Api {
   setNeutrinoApiKey: (key: string) => Promise<{ success: boolean }>
   setNeutrinoUserId: (userId: string) => Promise<{ success: boolean }>
   setLinkPreviewApiKey: (key: string) => Promise<{ success: boolean }>
+  setSnovClientId: (clientId: string) => Promise<{ success: boolean }>
+  setSnovClientSecret: (clientSecret: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>

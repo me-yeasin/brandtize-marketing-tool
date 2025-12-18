@@ -798,6 +798,205 @@ async function findEmailByName(
   }
 }
 
+// Snov.io API - Token cache
+let snovAccessToken: string | null = null
+let snovTokenExpiry: number = 0
+
+// Snov.io API - Get access token
+async function getSnovAccessToken(): Promise<string | null> {
+  const { snovClientId, snovClientSecret } = getApiKeys()
+  if (!snovClientId || !snovClientSecret) return null
+
+  // Return cached token if still valid (with 5 min buffer)
+  if (snovAccessToken && Date.now() < snovTokenExpiry - 300000) {
+    return snovAccessToken
+  }
+
+  try {
+    const response = await fetch('https://api.snov.io/v1/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: snovClientId,
+        client_secret: snovClientSecret
+      })
+    })
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    if (data.access_token) {
+      snovAccessToken = data.access_token
+      snovTokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
+      return snovAccessToken
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Snov.io API - Find emails by domain (async flow)
+async function findEmailByDomainSnov(domain: string): Promise<string | null> {
+  const token = await getSnovAccessToken()
+  if (!token) return null
+
+  try {
+    // Step 1: Start domain search
+    const startResponse = await fetch('https://api.snov.io/v2/domain-search/domain-emails/start', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({ domain })
+    })
+
+    if (!startResponse.ok) return null
+
+    const startData = await startResponse.json()
+    const taskHash = startData.meta?.task_hash || startData.data?.task_hash
+
+    if (!taskHash) return null
+
+    // Step 2: Poll for results (max 10 attempts, 1 second apart)
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      const resultResponse = await fetch(
+        `https://api.snov.io/v2/domain-search/domain-emails/result/${taskHash}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+
+      if (!resultResponse.ok) continue
+
+      const resultData = await resultResponse.json()
+
+      if (resultData.status === 'completed' && resultData.data?.length > 0) {
+        // Return first valid email
+        const validEmail = resultData.data.find(
+          (e: { email: string; smtp_status?: string }) =>
+            e.email && (e.smtp_status === 'valid' || !e.smtp_status)
+        )
+        if (validEmail) return validEmail.email
+        // Fallback to first email if none marked valid
+        return resultData.data[0].email
+      }
+
+      if (resultData.status === 'completed') break
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Snov.io API - Find email by name and domain
+async function findEmailByNameSnov(
+  firstName: string,
+  lastName: string,
+  domain: string
+): Promise<string | null> {
+  const token = await getSnovAccessToken()
+  if (!token) return null
+
+  try {
+    // Step 1: Start email search
+    const startResponse = await fetch('https://api.snov.io/v2/emails-by-domain-by-name/start', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        rows: [{ first_name: firstName, last_name: lastName, domain }]
+      })
+    })
+
+    if (!startResponse.ok) return null
+
+    const startData = await startResponse.json()
+    const taskHash = startData.data?.task_hash
+
+    if (!taskHash) return null
+
+    // Step 2: Poll for results (max 10 attempts, 1 second apart)
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      const resultResponse = await fetch(
+        `https://api.snov.io/v2/emails-by-domain-by-name/result?task_hash=${taskHash}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+
+      if (!resultResponse.ok) continue
+
+      const resultData = await resultResponse.json()
+
+      if (resultData.status === 'completed' && resultData.data?.length > 0) {
+        const personResult = resultData.data[0]
+        if (personResult.result?.length > 0) {
+          // Find valid email
+          const validEmail = personResult.result.find(
+            (e: { email: string; smtp_status?: string }) =>
+              e.email && (e.smtp_status === 'valid' || e.smtp_status === 'unknown')
+          )
+          if (validEmail) return validEmail.email
+          return personResult.result[0].email
+        }
+      }
+
+      if (resultData.status === 'completed') break
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Combined email finder with Hunter.io primary and Snov.io fallback
+async function findEmailWithFallback(
+  domain: string,
+  firstName?: string,
+  lastName?: string
+): Promise<{ email: string | null; source: string }> {
+  // Try Hunter.io first
+  let email: string | null = null
+
+  if (firstName && lastName) {
+    email = await findEmailByName(firstName, lastName, domain)
+    if (email) return { email, source: 'hunter_name' }
+  }
+
+  email = await findEmailByDomain(domain)
+  if (email) return { email, source: 'hunter_domain' }
+
+  // Fallback to Snov.io
+  const { snovClientId, snovClientSecret } = getApiKeys()
+  if (!snovClientId || !snovClientSecret) {
+    return { email: null, source: 'none' }
+  }
+
+  console.log('[Lead Generation] Hunter.io returned no result, trying Snov.io fallback...')
+
+  if (firstName && lastName) {
+    email = await findEmailByNameSnov(firstName, lastName, domain)
+    if (email) return { email, source: 'snov_name' }
+  }
+
+  email = await findEmailByDomainSnov(domain)
+  if (email) return { email, source: 'snov_domain' }
+
+  return { email: null, source: 'none' }
+}
+
 // AI Analysis - Extract email and decision maker from content
 interface AiAnalysisResult {
   email: string | null
@@ -978,28 +1177,28 @@ export async function generateLeads(
 
         const domain = extractDomain(url)
         let finalEmail: string | null = aiResult.email
-        let emailSource: 'direct' | 'hunter_name' | 'hunter_domain' = 'direct'
+        let emailSource: 'direct' | 'hunter_name' | 'hunter_domain' | 'snov_name' | 'snov_domain' =
+          'direct'
 
-        // Step 5: If no direct email found, try Hunter.io (only for qualified leads)
+        // Step 5: If no direct email found, try Hunter.io with Snov.io fallback (only for qualified leads)
         if (!finalEmail) {
+          let firstName: string | undefined
+          let lastName: string | undefined
+
           if (aiResult.decisionMaker) {
-            // Try to find email by name
-            callbacks.onHunterStart(url, 'name')
             const nameParts = aiResult.decisionMaker.split(' ')
             if (nameParts.length >= 2) {
-              finalEmail = await findEmailByName(nameParts[0], nameParts.slice(1).join(' '), domain)
-              emailSource = 'hunter_name'
+              firstName = nameParts[0]
+              lastName = nameParts.slice(1).join(' ')
             }
-            callbacks.onHunterResult(url, finalEmail)
           }
 
-          if (!finalEmail) {
-            // Try to find email by domain
-            callbacks.onHunterStart(url, 'domain')
-            finalEmail = await findEmailByDomain(domain)
-            emailSource = 'hunter_domain'
-            callbacks.onHunterResult(url, finalEmail)
-          }
+          // Use combined finder with fallback
+          callbacks.onHunterStart(url, firstName && lastName ? 'name' : 'domain')
+          const result = await findEmailWithFallback(domain, firstName, lastName)
+          finalEmail = result.email
+          emailSource = result.source as typeof emailSource
+          callbacks.onHunterResult(url, finalEmail)
         }
 
         // Step 6: Verify email with Reoon

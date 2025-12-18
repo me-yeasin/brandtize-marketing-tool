@@ -11,6 +11,8 @@ import {
   setNeutrinoApiKey,
   setNeutrinoUserId,
   setLinkPreviewApiKey,
+  setSnovClientId,
+  setSnovClientSecret,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
@@ -69,6 +71,8 @@ export function setupIpcHandlers(): void {
       linkPreviewApiKey: keys.linkPreviewApiKey
         ? '••••••••' + keys.linkPreviewApiKey.slice(-4)
         : '',
+      snovClientId: keys.snovClientId ? '••••••••' + keys.snovClientId.slice(-4) : '',
+      snovClientSecret: keys.snovClientSecret ? '••••••••' + keys.snovClientSecret.slice(-4) : '',
       hasGroqKey: keys.groqApiKey.length > 0,
       hasMistralKey: keys.mistralApiKey.length > 0,
       hasGoogleKey: keys.googleApiKey.length > 0,
@@ -77,7 +81,8 @@ export function setupIpcHandlers(): void {
       hasReoonKey: keys.reoonApiKey.length > 0,
       hasJinaKey: keys.jinaApiKey.length > 0,
       hasNeutrinoKey: keys.neutrinoApiKey.length > 0 && keys.neutrinoUserId.length > 0,
-      hasLinkPreviewKey: keys.linkPreviewApiKey.length > 0
+      hasLinkPreviewKey: keys.linkPreviewApiKey.length > 0,
+      hasSnovKey: keys.snovClientId.length > 0 && keys.snovClientSecret.length > 0
     }
   })
 
@@ -128,6 +133,16 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setJinaApiKey', (_event, key: string) => {
     setJinaApiKey(key)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setSnovClientId', (_event, clientId: string) => {
+    setSnovClientId(clientId)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setSnovClientSecret', (_event, clientSecret: string) => {
+    setSnovClientSecret(clientSecret)
     return { success: true }
   })
 

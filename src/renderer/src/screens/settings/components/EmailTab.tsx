@@ -6,25 +6,37 @@ import { Button, Input } from '../../../components/ui'
 interface EmailTabProps {
   hunterKey: string
   reoonKey: string
+  snovClientId: string
+  snovClientSecret: string
   hasHunterKey: boolean
   hasReoonKey: boolean
+  hasSnovKey: boolean
   saving: boolean
   onHunterKeyChange: (value: string) => void
   onReoonKeyChange: (value: string) => void
+  onSnovClientIdChange: (value: string) => void
+  onSnovClientSecretChange: (value: string) => void
   onSaveHunterKey: () => Promise<void>
   onSaveReoonKey: () => Promise<void>
+  onSaveSnovKey: () => Promise<void>
 }
 
 function EmailTab({
   hunterKey,
   reoonKey,
+  snovClientId,
+  snovClientSecret,
   hasHunterKey,
   hasReoonKey,
+  hasSnovKey,
   saving,
   onHunterKeyChange,
   onReoonKeyChange,
+  onSnovClientIdChange,
+  onSnovClientSecretChange,
   onSaveHunterKey,
-  onSaveReoonKey
+  onSaveReoonKey,
+  onSaveSnovKey
 }: EmailTabProps): React.JSX.Element {
   const [activeSubTab, setActiveSubTab] = React.useState<'finder' | 'verifier'>('finder')
 
@@ -67,55 +79,118 @@ function EmailTab({
 
       {/* Email Finder Subtab */}
       {activeSubTab === 'finder' && (
-        <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
-                <FiMail className="text-xl text-orange-400" size={20} />
+        <>
+          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
+                  <FiMail className="text-xl text-orange-400" size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-text-main">Hunter.io API</h3>
+                  <p className="text-xs text-text-muted">Email finder by domain or name</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-text-main">Hunter.io API</h3>
-                <p className="text-xs text-text-muted">Email finder by domain or name</p>
-              </div>
+              {hasHunterKey && (
+                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                  Connected
+                </span>
+              )}
             </div>
-            {hasHunterKey && (
-              <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                Connected
-              </span>
-            )}
-          </div>
-          <div className="space-y-3">
-            <label className="block text-sm text-text-muted">API Key</label>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Input
-                  type="password"
-                  placeholder={hasHunterKey ? '••••••••••••••••' : 'Enter your Hunter.io API key'}
-                  value={hunterKey}
-                  onChange={(e) => onHunterKeyChange(e.target.value)}
-                />
+            <div className="space-y-3">
+              <label className="block text-sm text-text-muted">API Key</label>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Input
+                    type="password"
+                    placeholder={hasHunterKey ? '••••••••••••••••' : 'Enter your Hunter.io API key'}
+                    value={hunterKey}
+                    onChange={(e) => onHunterKeyChange(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={onSaveHunterKey}
+                  disabled={saving || !hunterKey.trim()}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
               </div>
-              <Button
-                variant="primary"
-                onClick={onSaveHunterKey}
-                disabled={saving || !hunterKey.trim()}
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
+              <p className="text-xs text-text-muted">
+                Get your API key from{' '}
+                <a
+                  href="https://hunter.io/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  hunter.io
+                </a>
+              </p>
             </div>
-            <p className="text-xs text-text-muted">
-              Get your API key from{' '}
-              <a
-                href="https://hunter.io/api"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                hunter.io
-              </a>
-            </p>
           </div>
-        </div>
+
+          {/* Snov.io - Fallback Email Finder */}
+          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
+                  <FiMail className="text-xl text-blue-400" size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-text-main">Snov.io API</h3>
+                  <p className="text-xs text-text-muted">Fallback email finder (domain or name)</p>
+                </div>
+              </div>
+              {hasSnovKey && (
+                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                  Connected
+                </span>
+              )}
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm text-text-muted">Client ID</label>
+              <Input
+                type="password"
+                placeholder={hasSnovKey ? '••••••••••••••••' : 'Enter your Snov.io Client ID'}
+                value={snovClientId}
+                onChange={(e) => onSnovClientIdChange(e.target.value)}
+              />
+              <label className="block text-sm text-text-muted">Client Secret</label>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Input
+                    type="password"
+                    placeholder={
+                      hasSnovKey ? '••••••••••••••••' : 'Enter your Snov.io Client Secret'
+                    }
+                    value={snovClientSecret}
+                    onChange={(e) => onSnovClientSecretChange(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={onSaveSnovKey}
+                  disabled={saving || !snovClientId.trim() || !snovClientSecret.trim()}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+              <p className="text-xs text-text-muted">
+                Get your API credentials from{' '}
+                <a
+                  href="https://app.snov.io/account/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  snov.io
+                </a>{' '}
+                • Used as fallback when Hunter.io fails
+              </p>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Email Verifier Subtab */}

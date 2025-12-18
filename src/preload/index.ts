@@ -24,6 +24,9 @@ const api = {
   setNeutrinoApiKey: (key: string) => ipcRenderer.invoke('settings:setNeutrinoApiKey', key),
   setNeutrinoUserId: (userId: string) => ipcRenderer.invoke('settings:setNeutrinoUserId', userId),
   setLinkPreviewApiKey: (key: string) => ipcRenderer.invoke('settings:setLinkPreviewApiKey', key),
+  setSnovClientId: (clientId: string) => ipcRenderer.invoke('settings:setSnovClientId', clientId),
+  setSnovClientSecret: (clientSecret: string) =>
+    ipcRenderer.invoke('settings:setSnovClientSecret', clientSecret),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
   setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),

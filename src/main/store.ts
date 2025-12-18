@@ -77,6 +77,8 @@ interface StoreSchema {
   neutrinoApiKey: string
   neutrinoUserId: string
   linkPreviewApiKey: string
+  snovClientId: string
+  snovClientSecret: string
   // Multi-key arrays for rotation
   serperApiKeys: ApiKeyEntry[]
   jinaApiKeys: ApiKeyEntry[]
@@ -110,6 +112,8 @@ const store = new Store<StoreSchema>({
     neutrinoApiKey: '',
     neutrinoUserId: '',
     linkPreviewApiKey: '',
+    snovClientId: '',
+    snovClientSecret: '',
     // Multi-key arrays (empty by default)
     serperApiKeys: [],
     jinaApiKeys: [],
@@ -144,6 +148,8 @@ export function getApiKeys(): {
   neutrinoApiKey: string
   neutrinoUserId: string
   linkPreviewApiKey: string
+  snovClientId: string
+  snovClientSecret: string
 } {
   return {
     groqApiKey: store.get('groqApiKey', ''),
@@ -155,7 +161,9 @@ export function getApiKeys(): {
     jinaApiKey: store.get('jinaApiKey', ''),
     neutrinoApiKey: store.get('neutrinoApiKey', ''),
     neutrinoUserId: store.get('neutrinoUserId', ''),
-    linkPreviewApiKey: store.get('linkPreviewApiKey', '')
+    linkPreviewApiKey: store.get('linkPreviewApiKey', ''),
+    snovClientId: store.get('snovClientId', ''),
+    snovClientSecret: store.get('snovClientSecret', '')
   }
 }
 
@@ -185,6 +193,14 @@ export function setNeutrinoUserId(userId: string): void {
 
 export function setLinkPreviewApiKey(key: string): void {
   store.set('linkPreviewApiKey', key)
+}
+
+export function setSnovClientId(clientId: string): void {
+  store.set('snovClientId', clientId)
+}
+
+export function setSnovClientSecret(clientSecret: string): void {
+  store.set('snovClientSecret', clientSecret)
 }
 
 export function setJinaApiKey(key: string): void {
