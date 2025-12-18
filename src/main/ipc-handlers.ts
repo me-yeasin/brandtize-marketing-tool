@@ -226,22 +226,25 @@ export function setupIpcHandlers(): void {
   })
 
   // Set AI provider multi-keys
-  ipcMain.handle('settings:setAiProviderMultiKeys', (_event, provider: string, keys: ApiKeyEntry[]) => {
-    switch (provider) {
-      case 'groq':
-        setGroqApiKeys(keys)
-        break
-      case 'mistral':
-        setMistralApiKeys(keys)
-        break
-      case 'google':
-        setGoogleApiKeys(keys)
-        break
-      default:
-        return { success: false, error: 'Unknown AI provider' }
+  ipcMain.handle(
+    'settings:setAiProviderMultiKeys',
+    (_event, provider: string, keys: ApiKeyEntry[]) => {
+      switch (provider) {
+        case 'groq':
+          setGroqApiKeys(keys)
+          break
+        case 'mistral':
+          setMistralApiKeys(keys)
+          break
+        case 'google':
+          setGoogleApiKeys(keys)
+          break
+        default:
+          return { success: false, error: 'Unknown AI provider' }
+      }
+      return { success: true }
     }
-    return { success: true }
-  })
+  )
 
   ipcMain.handle('settings:setMultiKeys', (_event, service: string, keys: ApiKeyEntry[]) => {
     switch (service) {

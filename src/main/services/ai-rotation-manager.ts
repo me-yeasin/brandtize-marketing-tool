@@ -29,9 +29,27 @@ interface AiRotationState {
 }
 
 const aiRotationState: Record<AiProvider, AiRotationState> = {
-  groq: { currentKeyIndex: 0, currentModelIndex: 0, startingKeyIndex: 0, startingModelIndex: 0, totalKeyCycles: 0 },
-  mistral: { currentKeyIndex: 0, currentModelIndex: 0, startingKeyIndex: 0, startingModelIndex: 0, totalKeyCycles: 0 },
-  google: { currentKeyIndex: 0, currentModelIndex: 0, startingKeyIndex: 0, startingModelIndex: 0, totalKeyCycles: 0 }
+  groq: {
+    currentKeyIndex: 0,
+    currentModelIndex: 0,
+    startingKeyIndex: 0,
+    startingModelIndex: 0,
+    totalKeyCycles: 0
+  },
+  mistral: {
+    currentKeyIndex: 0,
+    currentModelIndex: 0,
+    startingKeyIndex: 0,
+    startingModelIndex: 0,
+    totalKeyCycles: 0
+  },
+  google: {
+    currentKeyIndex: 0,
+    currentModelIndex: 0,
+    startingKeyIndex: 0,
+    startingModelIndex: 0,
+    totalKeyCycles: 0
+  }
 }
 
 // Reset rotation state for a new session
@@ -227,7 +245,10 @@ export async function executeWithAiRotation<T>(
         const response = await invokeAi(provider, currentApiKey, currentModel, prompt)
         return parseResponse(response)
       } catch (error) {
-        console.log(`[AI Rotation] Error with ${provider}/${currentModel} (attempt ${retry + 1}/${maxRetries}):`, error)
+        console.log(
+          `[AI Rotation] Error with ${provider}/${currentModel} (attempt ${retry + 1}/${maxRetries}):`,
+          error
+        )
 
         if (retry === maxRetries - 1) {
           // All retries exhausted for this model, try next model
@@ -249,7 +270,9 @@ export async function executeWithAiRotation<T>(
 
               if (keyResult.switched) {
                 callbacks?.onKeySwitch?.(state.currentKeyIndex + 1, totalKeys)
-                console.log(`[AI Rotation] Switched to API key ${state.currentKeyIndex + 1}/${totalKeys}`)
+                console.log(
+                  `[AI Rotation] Switched to API key ${state.currentKeyIndex + 1}/${totalKeys}`
+                )
               }
 
               if (keyResult.loopedBack) {

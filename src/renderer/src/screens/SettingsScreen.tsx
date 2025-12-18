@@ -299,7 +299,10 @@ function SettingsScreen(): JSX.Element {
       await window.api.setAiProviderMultiKeys(provider, keys)
       const updatedKeys = await window.api.getAiProviderMultiKeys()
       setAiProviderMultiKeys(updatedKeys)
-      scheduleMessage({ type: 'success', text: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API keys saved!` })
+      scheduleMessage({
+        type: 'success',
+        text: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API keys saved!`
+      })
     } catch (error) {
       console.error(`Failed to save ${provider} multi-keys:`, error)
       scheduleMessage({ type: 'error', text: `Failed to save ${provider} API keys` })

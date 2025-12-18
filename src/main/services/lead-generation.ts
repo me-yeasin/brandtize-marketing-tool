@@ -3,6 +3,7 @@ import {
   getAgencyProfile,
   getNeutrinoApiKeys,
   getLinkPreviewApiKeys,
+  getSerperApiKeys,
   type ApiKeyEntry
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
@@ -404,6 +405,51 @@ Examples:
 }
 
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
+  // Try multi-keys first with rotation on rate limit (429)
+  const multiKeys = getSerperApiKeys()
+  if (multiKeys.length > 0) {
+    const { key, index, allExhausted } = getNextKey('serper', multiKeys)
+
+    if (key && key.key) {
+      const response = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': key.key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          q: query,
+          num: 10
+        })
+      })
+
+      if (!response.ok) {
+        // Only rotate on rate limit errors (429)
+        if (response.status === 429) {
+          markKeyExhausted('serper', index, `Rate limit (429)`)
+          console.log(
+            `Serper key ${index + 1}/${multiKeys.length} rate limited, switching to next...`
+          )
+
+          // Try next key recursively if not all exhausted
+          if (!allExhausted) {
+            return searchWithSerper(query)
+          }
+        }
+        throw new Error(`Serper API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log(`Serper[${index + 1}/${multiKeys.length}] search successful`)
+      return (data.organic || []).map((item: { title: string; link: string; snippet: string }) => ({
+        title: item.title,
+        link: item.link,
+        snippet: item.snippet || ''
+      }))
+    }
+  }
+
+  // Fallback to single key
   const { serperApiKey } = getApiKeys()
   if (!serperApiKey) throw new Error('Serper API key not configured')
 
@@ -739,7 +785,10 @@ Be STRICT - only say YES if there's clear evidence they need our services.
 Respond ONLY in this exact JSON format:
 {"needsServices": true/false, "reason": "One sentence explaining WHY they need or don't need our services"}`
 
-  const defaultValue: ServiceMatchResult = { needsServices: true, reason: 'AI not configured - accepting lead' }
+  const defaultValue: ServiceMatchResult = {
+    needsServices: true,
+    reason: 'AI not configured - accepting lead'
+  }
 
   return executeWithAiRotation(
     prompt,
