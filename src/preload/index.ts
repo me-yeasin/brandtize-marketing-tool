@@ -50,6 +50,13 @@ const api = {
   setMultiKeys: (service: string, keys: { key: string; userId?: string; label?: string }[]) =>
     ipcRenderer.invoke('settings:setMultiKeys', service, keys),
 
+  // AI Provider multi-key management
+  getAiProviderMultiKeys: () => ipcRenderer.invoke('settings:getAiProviderMultiKeys'),
+  setAiProviderMultiKeys: (
+    provider: string,
+    keys: { key: string; userId?: string; label?: string }[]
+  ) => ipcRenderer.invoke('settings:setAiProviderMultiKeys', provider, keys),
+
   // Chat streaming
   streamChat: (messages: ChatMessage[]) => ipcRenderer.invoke('chat:stream', messages),
   onChatToken: (callback: (token: string) => void) => {

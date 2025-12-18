@@ -18,6 +18,12 @@ interface MultiKeys {
   reoon: ApiKeyEntry[]
 }
 
+interface AiProviderMultiKeys {
+  groq: ApiKeyEntry[]
+  mistral: ApiKeyEntry[]
+  google: ApiKeyEntry[]
+}
+
 interface ApiKeys {
   groqApiKey: string
   mistralApiKey: string
@@ -112,6 +118,12 @@ interface Api {
   getMultiKeys: () => Promise<MultiKeys>
   setMultiKeys: (
     service: string,
+    keys: ApiKeyEntry[]
+  ) => Promise<{ success: boolean; error?: string }>
+  // AI Provider multi-key methods
+  getAiProviderMultiKeys: () => Promise<AiProviderMultiKeys>
+  setAiProviderMultiKeys: (
+    provider: string,
     keys: ApiKeyEntry[]
   ) => Promise<{ success: boolean; error?: string }>
   streamChat: (messages: ChatMessage[]) => Promise<{ success: boolean; error?: string }>

@@ -65,6 +65,15 @@ function SettingsScreen(): JSX.Element {
     hunter: [],
     reoon: []
   })
+  const [aiProviderMultiKeys, setAiProviderMultiKeys] = useState<{
+    groq: { key: string; label?: string }[]
+    mistral: { key: string; label?: string }[]
+    google: { key: string; label?: string }[]
+  }>({
+    groq: [],
+    mistral: [],
+    google: []
+  })
 
   useEffect(() => {
     window.api.getApiKeys().then((keys) => {
@@ -92,6 +101,11 @@ function SettingsScreen(): JSX.Element {
     // Fetch multi-keys
     window.api.getMultiKeys().then((keys) => {
       setMultiKeys(keys)
+    })
+
+    // Fetch AI provider multi-keys
+    window.api.getAiProviderMultiKeys().then((keys) => {
+      setAiProviderMultiKeys(keys)
     })
 
     window.api.getSelectedAiProvider().then((provider: AiProvider) => {
@@ -276,6 +290,24 @@ function SettingsScreen(): JSX.Element {
     }
   }
 
+  const saveAiProviderMultiKeys = async (
+    provider: string,
+    keys: { key: string; label?: string }[]
+  ): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.setAiProviderMultiKeys(provider, keys)
+      const updatedKeys = await window.api.getAiProviderMultiKeys()
+      setAiProviderMultiKeys(updatedKeys)
+      scheduleMessage({ type: 'success', text: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API keys saved!` })
+    } catch (error) {
+      console.error(`Failed to save ${provider} multi-keys:`, error)
+      scheduleMessage({ type: 'error', text: `Failed to save ${provider} API keys` })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const switchProvider = async (provider: AiProvider): Promise<void> => {
     setSelectedProvider(provider)
     await window.api.setSelectedAiProvider(provider)
@@ -441,6 +473,8 @@ function SettingsScreen(): JSX.Element {
               onGoogleProjectIdChange={setGoogleProjectId}
               onGoogleLocationChange={setGoogleLocation}
               onSaveVertexConfig={saveVertexConfig}
+              aiProviderMultiKeys={aiProviderMultiKeys}
+              onSaveAiProviderMultiKeys={saveAiProviderMultiKeys}
             />
           )}
 

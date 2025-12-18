@@ -6,6 +6,12 @@ import { Button, Input } from '../../../components/ui'
 import type { AiProvider, GoogleMode } from '../types'
 import { GROQ_MODELS, MISTRAL_MODELS } from '../constants'
 import { GoogleProviderCard } from './GoogleProviderCard'
+import AiMultiKeyInput from './AiMultiKeyInput'
+
+interface ApiKeyEntry {
+  key: string
+  label?: string
+}
 
 interface AiProviderTabProps {
   selectedProvider: AiProvider
@@ -36,6 +42,12 @@ interface AiProviderTabProps {
   onGoogleProjectIdChange: (value: string) => void
   onGoogleLocationChange: (value: string) => void
   onSaveVertexConfig: () => Promise<void>
+  aiProviderMultiKeys: {
+    groq: ApiKeyEntry[]
+    mistral: ApiKeyEntry[]
+    google: ApiKeyEntry[]
+  }
+  onSaveAiProviderMultiKeys: (provider: string, keys: ApiKeyEntry[]) => Promise<void>
 }
 
 function AiProviderTab({
@@ -66,7 +78,9 @@ function AiProviderTab({
   onSelectGoogleMode,
   onGoogleProjectIdChange,
   onGoogleLocationChange,
-  onSaveVertexConfig
+  onSaveVertexConfig,
+  aiProviderMultiKeys,
+  onSaveAiProviderMultiKeys
 }: AiProviderTabProps): React.JSX.Element {
   return (
     <div className="max-w-full space-y-6">
@@ -212,6 +226,14 @@ function AiProviderTab({
               Selected model will be used for all agent operations
             </p>
           </div>
+
+          <AiMultiKeyInput
+            provider="groq"
+            existingKeys={aiProviderMultiKeys.groq}
+            onSave={(keys) => onSaveAiProviderMultiKeys('groq', keys)}
+            getKeyUrl="https://console.groq.com/keys"
+            saving={saving}
+          />
         </div>
 
         <div
@@ -297,6 +319,14 @@ function AiProviderTab({
               Selected model will be used for all agent operations
             </p>
           </div>
+
+          <AiMultiKeyInput
+            provider="mistral"
+            existingKeys={aiProviderMultiKeys.mistral}
+            onSave={(keys) => onSaveAiProviderMultiKeys('mistral', keys)}
+            getKeyUrl="https://console.mistral.ai/api-keys"
+            saving={saving}
+          />
         </div>
 
         <GoogleProviderCard
@@ -315,6 +345,8 @@ function AiProviderTab({
           onGoogleProjectIdChange={onGoogleProjectIdChange}
           onGoogleLocationChange={onGoogleLocationChange}
           onSaveVertexConfig={onSaveVertexConfig}
+          googleMultiKeys={aiProviderMultiKeys.google}
+          onSaveGoogleMultiKeys={(keys) => onSaveAiProviderMultiKeys('google', keys)}
         />
       </div>
     </div>

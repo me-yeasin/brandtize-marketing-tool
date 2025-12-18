@@ -33,6 +33,13 @@ import {
   setLinkPreviewApiKeys,
   setHunterApiKeys,
   setReoonApiKeys,
+  // AI Provider multi-key functions
+  getGroqApiKeys,
+  setGroqApiKeys,
+  getMistralApiKeys,
+  setMistralApiKeys,
+  getGoogleApiKeys,
+  setGoogleApiKeys,
   type AgencyProfile,
   type AiProvider,
   type GoogleMode,
@@ -203,6 +210,37 @@ export function setupIpcHandlers(): void {
       hunter: multiKeys.hunter.map(maskKey),
       reoon: multiKeys.reoon.map(maskKey)
     }
+  })
+
+  // Get AI provider multi-keys
+  ipcMain.handle('settings:getAiProviderMultiKeys', () => {
+    const maskKey = (entry: ApiKeyEntry): ApiKeyEntry => ({
+      ...entry,
+      key: entry.key ? '••••••••' + entry.key.slice(-4) : ''
+    })
+    return {
+      groq: getGroqApiKeys().map(maskKey),
+      mistral: getMistralApiKeys().map(maskKey),
+      google: getGoogleApiKeys().map(maskKey)
+    }
+  })
+
+  // Set AI provider multi-keys
+  ipcMain.handle('settings:setAiProviderMultiKeys', (_event, provider: string, keys: ApiKeyEntry[]) => {
+    switch (provider) {
+      case 'groq':
+        setGroqApiKeys(keys)
+        break
+      case 'mistral':
+        setMistralApiKeys(keys)
+        break
+      case 'google':
+        setGoogleApiKeys(keys)
+        break
+      default:
+        return { success: false, error: 'Unknown AI provider' }
+    }
+    return { success: true }
   })
 
   ipcMain.handle('settings:setMultiKeys', (_event, service: string, keys: ApiKeyEntry[]) => {

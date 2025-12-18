@@ -84,6 +84,10 @@ interface StoreSchema {
   linkPreviewApiKeys: ApiKeyEntry[]
   hunterApiKeys: ApiKeyEntry[]
   reoonApiKeys: ApiKeyEntry[]
+  // AI Provider multi-key arrays for rotation
+  groqApiKeys: ApiKeyEntry[]
+  mistralApiKeys: ApiKeyEntry[]
+  googleApiKeys: ApiKeyEntry[]
   selectedAiProvider: AiProvider
   selectedGoogleMode: GoogleMode
   selectedGroqModel: string
@@ -113,6 +117,10 @@ const store = new Store<StoreSchema>({
     linkPreviewApiKeys: [],
     hunterApiKeys: [],
     reoonApiKeys: [],
+    // AI Provider multi-key arrays
+    groqApiKeys: [],
+    mistralApiKeys: [],
+    googleApiKeys: [],
     selectedAiProvider: 'groq',
     selectedGoogleMode: 'aiStudio',
     selectedGroqModel: 'llama-3.3-70b-versatile',
@@ -334,6 +342,31 @@ export function getReoonApiKeys(): ApiKeyEntry[] {
 
 export function setReoonApiKeys(keys: ApiKeyEntry[]): void {
   store.set('reoonApiKeys', keys)
+}
+
+// AI Provider multi-key getters and setters
+export function getGroqApiKeys(): ApiKeyEntry[] {
+  return store.get('groqApiKeys', [])
+}
+
+export function setGroqApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('groqApiKeys', keys)
+}
+
+export function getMistralApiKeys(): ApiKeyEntry[] {
+  return store.get('mistralApiKeys', [])
+}
+
+export function setMistralApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('mistralApiKeys', keys)
+}
+
+export function getGoogleApiKeys(): ApiKeyEntry[] {
+  return store.get('googleApiKeys', [])
+}
+
+export function setGoogleApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('googleApiKeys', keys)
 }
 
 // Get all multi-keys for a specific service category

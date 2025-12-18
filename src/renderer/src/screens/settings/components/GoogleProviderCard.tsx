@@ -5,6 +5,12 @@ import { SiGoogle } from 'react-icons/si'
 import { Button, Input } from '../../../components/ui'
 import type { GoogleMode } from '../types'
 import { GOOGLE_MODELS } from '../constants'
+import AiMultiKeyInput from './AiMultiKeyInput'
+
+interface ApiKeyEntry {
+  key: string
+  label?: string
+}
 
 interface GoogleProviderCardProps {
   isActive: boolean
@@ -22,6 +28,8 @@ interface GoogleProviderCardProps {
   onGoogleProjectIdChange: (value: string) => void
   onGoogleLocationChange: (value: string) => void
   onSaveVertexConfig: () => Promise<void>
+  googleMultiKeys: ApiKeyEntry[]
+  onSaveGoogleMultiKeys: (keys: ApiKeyEntry[]) => Promise<void>
 }
 
 function GoogleProviderCard({
@@ -39,7 +47,9 @@ function GoogleProviderCard({
   onSelectGoogleMode,
   onGoogleProjectIdChange,
   onGoogleLocationChange,
-  onSaveVertexConfig
+  onSaveVertexConfig,
+  googleMultiKeys,
+  onSaveGoogleMultiKeys
 }: GoogleProviderCardProps): React.JSX.Element {
   return (
     <div
@@ -212,6 +222,14 @@ function GoogleProviderCard({
           Selected model will be used for all agent operations
         </p>
       </div>
+
+      <AiMultiKeyInput
+        provider="google"
+        existingKeys={googleMultiKeys}
+        onSave={onSaveGoogleMultiKeys}
+        getKeyUrl="https://aistudio.google.com/app/apikey"
+        saving={saving}
+      />
     </div>
   )
 }

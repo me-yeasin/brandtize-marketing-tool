@@ -1,20 +1,11 @@
-import { ChatGroq } from '@langchain/groq'
-import { ChatMistralAI } from '@langchain/mistralai'
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
-import { ChatVertexAI } from '@langchain/google-vertexai'
-import { HumanMessage } from '@langchain/core/messages'
 import {
   getApiKeys,
-  getSelectedAiProvider,
-  getSelectedModel,
-  getSelectedGoogleMode,
-  getGoogleProjectId,
-  getGoogleLocation,
   getAgencyProfile,
   getNeutrinoApiKeys,
   getLinkPreviewApiKeys,
   type ApiKeyEntry
 } from '../store'
+import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
 
 // Key Rotation State Manager
 interface KeyRotationState {
@@ -360,10 +351,6 @@ async function validateUrlWithAI(
   category: string,
   niche: string
 ): Promise<{ isValidLead: boolean; reason: string }> {
-  const provider = getSelectedAiProvider()
-  const selectedModel = getSelectedModel()
-  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
-
   const prompt = `You are a lead qualification expert. Analyze this URL to determine if it could be a potential business client.
 
 URL: ${url}
@@ -393,69 +380,27 @@ Examples:
 - "linkedin.com/company/acme" → isValidLead: false (social media platform)
 - "acme-restaurant.com" → isValidLead: true (business website)`
 
-  try {
-    let response = ''
+  const defaultValue = { isValidLead: true, reason: 'AI not configured - allowing URL' }
 
-    if (provider === 'groq' && groqApiKey) {
-      const client = new ChatGroq({
-        apiKey: groqApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'mistral' && mistralApiKey) {
-      const client = new ChatMistralAI({
-        apiKey: mistralApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'google' && googleApiKey) {
-      const googleMode = getSelectedGoogleMode()
-      let client
-      if (googleMode === 'vertexApiKey') {
-        const projectId = getGoogleProjectId()
-        const location = getGoogleLocation()
-        client = new ChatVertexAI({
-          model: selectedModel,
-          temperature: 0,
-          authOptions: { apiKey: googleApiKey },
-          ...(projectId && { projectId }),
-          ...(location && { location })
-        })
-      } else {
-        client = new ChatGoogleGenerativeAI({
-          apiKey: googleApiKey,
-          model: selectedModel,
-          temperature: 0
-        })
+  return executeWithAiRotation(
+    prompt,
+    (response: string) => {
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          isValidLead: Boolean(parsed.isValidLead),
+          reason: parsed.reason || 'AI analysis'
+        }
       }
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else {
-      // No AI configured - default to allowing the URL (don't lose potential leads)
-      return { isValidLead: true, reason: 'AI not configured - allowing URL' }
+      return { isValidLead: true, reason: 'Could not parse AI response - allowing URL' }
+    },
+    defaultValue,
+    {
+      onModelSwitch: (from, to) => console.log(`[URL Validation] Model switch: ${from} -> ${to}`),
+      onKeySwitch: (idx, total) => console.log(`[URL Validation] Key switch: ${idx}/${total}`)
     }
-
-    // Parse JSON response
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
-      return {
-        isValidLead: Boolean(parsed.isValidLead),
-        reason: parsed.reason || 'AI analysis'
-      }
-    }
-
-    // Couldn't parse - default to allowing
-    return { isValidLead: true, reason: 'Could not parse AI response - allowing URL' }
-  } catch (error) {
-    console.error('AI URL validation error:', error)
-    // On error, allow the URL (don't lose potential leads)
-    return { isValidLead: true, reason: `AI error - allowing URL: ${error}` }
-  }
+  )
 }
 
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
@@ -725,10 +670,6 @@ interface AiAnalysisResult {
 }
 
 async function analyzeContentWithAi(content: string): Promise<AiAnalysisResult> {
-  const provider = getSelectedAiProvider()
-  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
-  const selectedModel = getSelectedModel()
-
   const prompt = `Analyze the following website content and extract:
 1. Any email addresses you find (look for patterns like name@domain.com)
 2. The name of the business owner, CEO, founder, or main decision maker
@@ -739,65 +680,27 @@ Respond ONLY in this exact JSON format, nothing else:
 Website content:
 ${content.slice(0, 8000)}`
 
-  try {
-    let response: string = ''
+  const defaultValue: AiAnalysisResult = { email: null, decisionMaker: null }
 
-    if (provider === 'groq' && groqApiKey) {
-      const client = new ChatGroq({
-        apiKey: groqApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'mistral' && mistralApiKey) {
-      const client = new ChatMistralAI({
-        apiKey: mistralApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'google' && googleApiKey) {
-      const googleMode = getSelectedGoogleMode()
-      let client
-      if (googleMode === 'vertexApiKey') {
-        const projectId = getGoogleProjectId()
-        const location = getGoogleLocation()
-        client = new ChatVertexAI({
-          model: selectedModel,
-          temperature: 0,
-          authOptions: { apiKey: googleApiKey },
-          ...(projectId && { projectId }),
-          ...(location && { location })
-        })
-      } else {
-        client = new ChatGoogleGenerativeAI({
-          apiKey: googleApiKey,
-          model: selectedModel,
-          temperature: 0
-        })
+  return executeWithAiRotation(
+    prompt,
+    (response: string) => {
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          email: parsed.email === 'null' ? null : parsed.email || null,
+          decisionMaker: parsed.decisionMaker === 'null' ? null : parsed.decisionMaker || null
+        }
       }
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else {
       return { email: null, decisionMaker: null }
+    },
+    defaultValue,
+    {
+      onModelSwitch: (from, to) => console.log(`[AI Analysis] Model switch: ${from} -> ${to}`),
+      onKeySwitch: (idx, total) => console.log(`[AI Analysis] Key switch: ${idx}/${total}`)
     }
-
-    // Parse JSON response
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
-      return {
-        email: parsed.email === 'null' ? null : parsed.email || null,
-        decisionMaker: parsed.decisionMaker === 'null' ? null : parsed.decisionMaker || null
-      }
-    }
-    return { email: null, decisionMaker: null }
-  } catch (error) {
-    console.error('AI analysis error:', error)
-    return { email: null, decisionMaker: null }
-  }
+  )
 }
 
 // Service Matching - Check if the business needs our services (saves Hunter.io and Reoon credits)
@@ -813,10 +716,6 @@ async function checkServiceMatch(content: string): Promise<ServiceMatchResult> {
   if (services.length === 0) {
     return { needsServices: true, reason: 'No services defined in profile - accepting all leads' }
   }
-
-  const provider = getSelectedAiProvider()
-  const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
-  const selectedModel = getSelectedModel()
 
   const prompt = `You are a lead qualification expert. Analyze this website content and determine if this business could benefit from these services:
 
@@ -840,64 +739,27 @@ Be STRICT - only say YES if there's clear evidence they need our services.
 Respond ONLY in this exact JSON format:
 {"needsServices": true/false, "reason": "One sentence explaining WHY they need or don't need our services"}`
 
-  try {
-    let response: string = ''
+  const defaultValue: ServiceMatchResult = { needsServices: true, reason: 'AI not configured - accepting lead' }
 
-    if (provider === 'groq' && groqApiKey) {
-      const client = new ChatGroq({
-        apiKey: groqApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'mistral' && mistralApiKey) {
-      const client = new ChatMistralAI({
-        apiKey: mistralApiKey,
-        model: selectedModel,
-        temperature: 0
-      })
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else if (provider === 'google' && googleApiKey) {
-      const googleMode = getSelectedGoogleMode()
-      let client
-      if (googleMode === 'vertexApiKey') {
-        const projectId = getGoogleProjectId()
-        const location = getGoogleLocation()
-        client = new ChatVertexAI({
-          model: selectedModel,
-          temperature: 0,
-          authOptions: { apiKey: googleApiKey },
-          ...(projectId && { projectId }),
-          ...(location && { location })
-        })
-      } else {
-        client = new ChatGoogleGenerativeAI({
-          apiKey: googleApiKey,
-          model: selectedModel,
-          temperature: 0
-        })
+  return executeWithAiRotation(
+    prompt,
+    (response: string) => {
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          needsServices: parsed.needsServices === true,
+          reason: parsed.reason || null
+        }
       }
-      const result = await client.invoke([new HumanMessage(prompt)])
-      response = result.content as string
-    } else {
-      return { needsServices: true, reason: 'AI not configured - accepting lead' }
+      return { needsServices: false, reason: 'Could not analyze - skipping to save credits' }
+    },
+    defaultValue,
+    {
+      onModelSwitch: (from, to) => console.log(`[Service Match] Model switch: ${from} -> ${to}`),
+      onKeySwitch: (idx, total) => console.log(`[Service Match] Key switch: ${idx}/${total}`)
     }
-
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
-      return {
-        needsServices: parsed.needsServices === true,
-        reason: parsed.reason || null
-      }
-    }
-    return { needsServices: false, reason: 'Could not analyze - skipping to save credits' }
-  } catch (error) {
-    console.error('Service match error:', error)
-    return { needsServices: false, reason: 'Analysis failed - skipping to save credits' }
-  }
+  )
 }
 
 // Reoon API - Email Verification (Power Mode)
@@ -930,6 +792,9 @@ export async function generateLeads(
 
   // Reset key rotation state for new lead generation
   resetKeyRotation()
+
+  // Reset AI rotation state for new lead generation
+  resetAiRotationState()
 
   // Reset cleanup session state for new lead generation
   resetCleanupSessionState()
