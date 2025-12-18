@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiSearch } from 'react-icons/fi'
+import { FiSearch, FiEdit2 } from 'react-icons/fi'
 import { LeadGenerationView } from './LeadGenerationView'
 
 interface EmailPromptViewProps {
@@ -17,7 +17,7 @@ const SEARCH_FORMULAS = [
     id: 'outdated_websites',
     label: 'Outdated Websites',
     formula:
-      '"copyright 2019..2021" AND [Industry] AND [City] -site:yelp.com -site:yellowpages.com -site:facebook.com -site:tripadvisor.com -site:linkedin.com'
+      '"copyright" AND [Industry] AND [City] -site:yelp.com -site:yellowpages.com -site:facebook.com -site:tripadvisor.com -site:linkedin.com'
   }
 ]
 
@@ -27,22 +27,57 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
   const [selectedFormula, setSelectedFormula] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [editableQuery, setEditableQuery] = useState('')
 
   const selectFormula = (id: string): void => {
-    setSelectedFormula((prev) => (prev === id ? '' : id))
+    const newId = selectedFormula === id ? '' : id
+    setSelectedFormula(newId)
+    // Auto-generate query when selecting a formula
+    if (newId && niche.trim() && location.trim()) {
+      const formula = SEARCH_FORMULAS.find((f) => f.id === newId)
+      if (formula) {
+        const query = formula.formula
+          .replace('[Industry]', niche.trim())
+          .replace('[City]', location.trim())
+        setEditableQuery(query)
+      }
+    } else {
+      setEditableQuery('')
+    }
+  }
+
+  // Generate query when niche or location changes (if formula is selected)
+  const handleNicheChange = (value: string): void => {
+    setNiche(value)
+    if (selectedFormula && value.trim() && location.trim()) {
+      const formula = SEARCH_FORMULAS.find((f) => f.id === selectedFormula)
+      if (formula) {
+        const query = formula.formula
+          .replace('[Industry]', value.trim())
+          .replace('[City]', location.trim())
+        setEditableQuery(query)
+      }
+    }
+  }
+
+  const handleLocationChange = (value: string): void => {
+    setLocation(value)
+    if (selectedFormula && niche.trim() && value.trim()) {
+      const formula = SEARCH_FORMULAS.find((f) => f.id === selectedFormula)
+      if (formula) {
+        const query = formula.formula
+          .replace('[Industry]', niche.trim())
+          .replace('[City]', value.trim())
+        setEditableQuery(query)
+      }
+    }
   }
 
   const isFormValid = niche.trim() && location.trim() && selectedFormula
 
   const handleStartProcess = (): void => {
-    if (!isFormValid) return
-    // Build the search query by replacing placeholders
-    const formula = SEARCH_FORMULAS.find((f) => f.id === selectedFormula)
-    if (!formula) return
-    const query = formula.formula
-      .replace('[Industry]', niche.trim())
-      .replace('[City]', location.trim())
-    setSearchQuery(query)
+    if (!isFormValid || !editableQuery.trim()) return
+    setSearchQuery(editableQuery.trim())
     setIsProcessing(true)
   }
 
@@ -73,7 +108,7 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
             type="text"
             id={`niche-${activeTabId}`}
             value={niche}
-            onChange={(e) => setNiche(e.target.value)}
+            onChange={(e) => handleNicheChange(e.target.value)}
             className="bg-transparent text-white placeholder-white/40 text-lg focus:outline-none w-full"
             placeholder="e.g. Gym, Dental Clinic, Restaurant"
           />
@@ -88,7 +123,7 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
             type="text"
             id={`location-${activeTabId}`}
             value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            onChange={(e) => handleLocationChange(e.target.value)}
             className="bg-transparent text-white placeholder-white/40 text-lg focus:outline-none w-full"
             placeholder="e.g. Los Angeles, USA"
           />
@@ -135,6 +170,26 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
             ))}
           </div>
         </div>
+
+        {/* Editable Search Query */}
+        {selectedFormula && niche.trim() && location.trim() && (
+          <div className="bg-slate-800 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <FiEdit2 className="text-primary" size={16} />
+              <label className="text-white/60 text-sm">Edit Search Query</label>
+            </div>
+            <textarea
+              value={editableQuery}
+              onChange={(e) => setEditableQuery(e.target.value)}
+              className="w-full bg-slate-700/50 text-white text-sm p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+              rows={4}
+              placeholder="Your search query will appear here..."
+            />
+            <p className="text-white/40 text-xs mt-2">
+              You can edit the query above before starting the process
+            </p>
+          </div>
+        )}
 
         {/* Start Process Button */}
         <button
