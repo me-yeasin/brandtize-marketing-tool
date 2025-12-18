@@ -23,6 +23,7 @@ const api = {
   setJinaApiKey: (key: string) => ipcRenderer.invoke('settings:setJinaApiKey', key),
   setNeutrinoApiKey: (key: string) => ipcRenderer.invoke('settings:setNeutrinoApiKey', key),
   setNeutrinoUserId: (userId: string) => ipcRenderer.invoke('settings:setNeutrinoUserId', userId),
+  setLinkPreviewApiKey: (key: string) => ipcRenderer.invoke('settings:setLinkPreviewApiKey', key),
   hasRequiredKeys: () => ipcRenderer.invoke('settings:hasRequiredKeys'),
   getSelectedModel: () => ipcRenderer.invoke('settings:getSelectedModel'),
   setSelectedModel: (model: string) => ipcRenderer.invoke('settings:setSelectedModel', model),
@@ -93,6 +94,38 @@ const api = {
     const handler = (_e: Electron.IpcRendererEvent, r: unknown[]): void => cb(r)
     ipcRenderer.on('leads:searchComplete', handler)
     return () => ipcRenderer.removeListener('leads:searchComplete', handler)
+  },
+  onLeadsCleanupProgress: (
+    cb: (data: {
+      current: number
+      total: number
+      url: string
+      status: 'processing' | 'blocked' | 'allowed'
+      service?: string
+      category?: string
+    }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: {
+        current: number
+        total: number
+        url: string
+        status: 'processing' | 'blocked' | 'allowed'
+        service?: string
+        category?: string
+      }
+    ): void => cb(data)
+    ipcRenderer.on('leads:cleanupProgress', handler)
+    return () => ipcRenderer.removeListener('leads:cleanupProgress', handler)
+  },
+  onLeadsServiceSwitched: (cb: (data: { from: string; to: string; reason: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: { from: string; to: string; reason: string }
+    ): void => cb(data)
+    ipcRenderer.on('leads:serviceSwitched', handler)
+    return () => ipcRenderer.removeListener('leads:serviceSwitched', handler)
   },
   onLeadsCleanupComplete: (cb: (urls: string[]) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, u: string[]): void => cb(u)

@@ -13,6 +13,7 @@ interface ApiKeys {
   jinaApiKey: string
   neutrinoApiKey: string
   neutrinoUserId: string
+  linkPreviewApiKey: string
   hasGroqKey: boolean
   hasMistralKey: boolean
   hasGoogleKey: boolean
@@ -21,6 +22,7 @@ interface ApiKeys {
   hasReoonKey: boolean
   hasJinaKey: boolean
   hasNeutrinoKey: boolean
+  hasLinkPreviewKey: boolean
 }
 
 interface PortfolioProject {
@@ -76,6 +78,7 @@ interface Api {
   setJinaApiKey: (key: string) => Promise<{ success: boolean }>
   setNeutrinoApiKey: (key: string) => Promise<{ success: boolean }>
   setNeutrinoUserId: (userId: string) => Promise<{ success: boolean }>
+  setLinkPreviewApiKey: (key: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
   getSelectedModel: () => Promise<string>
   setSelectedModel: (model: string) => Promise<{ success: boolean }>
@@ -109,6 +112,19 @@ interface Api {
   }) => Promise<{ success: boolean; error?: string }>
   onLeadsSearchStart: (cb: (query: string) => void) => () => void
   onLeadsSearchComplete: (cb: (results: unknown[]) => void) => () => void
+  onLeadsCleanupProgress: (
+    cb: (data: {
+      current: number
+      total: number
+      url: string
+      status: 'processing' | 'blocked' | 'allowed'
+      service?: string
+      category?: string
+    }) => void
+  ) => () => void
+  onLeadsServiceSwitched: (
+    cb: (data: { from: string; to: string; reason: string }) => void
+  ) => () => void
   onLeadsCleanupComplete: (cb: (urls: string[]) => void) => () => void
   onLeadsScrapeStart: (cb: (url: string) => void) => () => void
   onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => () => void

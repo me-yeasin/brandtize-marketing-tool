@@ -8,17 +8,21 @@ interface SearchApiTabProps {
   jinaKey: string
   neutrinoKey: string
   neutrinoUserId: string
+  linkPreviewKey: string
   hasSerperKey: boolean
   hasJinaKey: boolean
   hasNeutrinoKey: boolean
+  hasLinkPreviewKey: boolean
   saving: boolean
   onSerperKeyChange: (value: string) => void
   onJinaKeyChange: (value: string) => void
   onNeutrinoKeyChange: (value: string) => void
   onNeutrinoUserIdChange: (value: string) => void
+  onLinkPreviewKeyChange: (value: string) => void
   onSaveSerperKey: () => Promise<void>
   onSaveJinaKey: () => Promise<void>
   onSaveNeutrinoKey: () => Promise<void>
+  onSaveLinkPreviewKey: () => Promise<void>
 }
 
 function SearchApiTab({
@@ -26,17 +30,21 @@ function SearchApiTab({
   jinaKey,
   neutrinoKey,
   neutrinoUserId,
+  linkPreviewKey,
   hasSerperKey,
   hasJinaKey,
   hasNeutrinoKey,
+  hasLinkPreviewKey,
   saving,
   onSerperKeyChange,
   onJinaKeyChange,
   onNeutrinoKeyChange,
   onNeutrinoUserIdChange,
+  onLinkPreviewKeyChange,
   onSaveSerperKey,
   onSaveJinaKey,
-  onSaveNeutrinoKey
+  onSaveNeutrinoKey,
+  onSaveLinkPreviewKey
 }: SearchApiTabProps): React.JSX.Element {
   const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping' | 'cleanup'>('board')
   return (
@@ -196,61 +204,117 @@ function SearchApiTab({
 
       {/* URL Cleanup Subtab */}
       {activeSubTab === 'cleanup' && (
-        <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/20">
-                <FiFilter className="text-xl text-red-400" size={20} />
+        <div className="space-y-4">
+          {/* Neutrino API Card - Primary */}
+          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/20">
+                  <FiFilter className="text-xl text-red-400" size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-text-main">Neutrino API</h3>
+                  <p className="text-xs text-text-muted">Primary - Smart URL categorization</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-text-main">Neutrino API</h3>
-                <p className="text-xs text-text-muted">Smart URL categorization and filtering</p>
+              {hasNeutrinoKey && (
+                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                  Connected
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm text-text-muted">User ID</label>
+                <Input
+                  type="text"
+                  placeholder="Enter your Neutrino User ID"
+                  value={neutrinoUserId}
+                  onChange={(e) => onNeutrinoUserIdChange(e.target.value)}
+                />
               </div>
-            </div>
-            {hasNeutrinoKey && (
-              <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                Connected
-              </span>
-            )}
-          </div>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-sm text-text-muted">User ID</label>
-              <Input
-                type="text"
-                placeholder="Enter your Neutrino User ID"
-                value={neutrinoUserId}
-                onChange={(e) => onNeutrinoUserIdChange(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm text-text-muted">API Key</label>
-              <Input
-                type="password"
-                placeholder={hasNeutrinoKey ? '••••••••••••••••' : 'Enter your Neutrino API key'}
-                value={neutrinoKey}
-                onChange={(e) => onNeutrinoKeyChange(e.target.value)}
-              />
-            </div>
-            <Button
-              variant="primary"
-              onClick={onSaveNeutrinoKey}
-              disabled={saving || !neutrinoKey.trim() || !neutrinoUserId.trim()}
-              className="w-full"
-            >
-              {saving ? 'Saving...' : 'Save Neutrino Credentials'}
-            </Button>
-            <p className="text-xs text-text-muted">
-              Get your User ID and API key from{' '}
-              <a
-                href="https://www.neutrinoapi.com/signup"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
+              <div className="space-y-2">
+                <label className="block text-sm text-text-muted">API Key</label>
+                <Input
+                  type="password"
+                  placeholder={hasNeutrinoKey ? '••••••••••••••••' : 'Enter your Neutrino API key'}
+                  value={neutrinoKey}
+                  onChange={(e) => onNeutrinoKeyChange(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="primary"
+                onClick={onSaveNeutrinoKey}
+                disabled={saving || !neutrinoKey.trim() || !neutrinoUserId.trim()}
+                className="w-full"
               >
-                neutrinoapi.com
-              </a>
-            </p>
+                {saving ? 'Saving...' : 'Save Neutrino Credentials'}
+              </Button>
+              <p className="text-xs text-text-muted">
+                Get your User ID and API key from{' '}
+                <a
+                  href="https://www.neutrinoapi.com/signup"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  neutrinoapi.com
+                </a>
+              </p>
+            </div>
+          </div>
+
+          {/* LinkPreview API Card - Fallback */}
+          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
+                  <FiFilter className="text-xl text-orange-400" size={20} />
+                </div>
+                <div>
+                  <h3 className="font-medium text-text-main">LinkPreview API</h3>
+                  <p className="text-xs text-text-muted">Fallback - URL metadata extraction</p>
+                </div>
+              </div>
+              {hasLinkPreviewKey && (
+                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
+                  Connected
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm text-text-muted">API Key</label>
+                <Input
+                  type="password"
+                  placeholder={
+                    hasLinkPreviewKey ? '••••••••••••••••' : 'Enter your LinkPreview API key'
+                  }
+                  value={linkPreviewKey}
+                  onChange={(e) => onLinkPreviewKeyChange(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="primary"
+                onClick={onSaveLinkPreviewKey}
+                disabled={saving || !linkPreviewKey.trim()}
+                className="w-full"
+              >
+                {saving ? 'Saving...' : 'Save LinkPreview Key'}
+              </Button>
+              <p className="text-xs text-text-muted">
+                Get your API key from{' '}
+                <a
+                  href="https://my.linkpreview.net"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  linkpreview.net
+                </a>{' '}
+                - Used as fallback when Neutrino API limit is reached
+              </p>
+            </div>
           </div>
         </div>
       )}

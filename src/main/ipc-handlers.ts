@@ -10,6 +10,7 @@ import {
   setJinaApiKey,
   setNeutrinoApiKey,
   setNeutrinoUserId,
+  setLinkPreviewApiKey,
   hasRequiredApiKeys,
   getSelectedModel,
   setSelectedModel,
@@ -49,6 +50,9 @@ export function setupIpcHandlers(): void {
       jinaApiKey: keys.jinaApiKey ? '••••••••' + keys.jinaApiKey.slice(-4) : '',
       neutrinoApiKey: keys.neutrinoApiKey ? '••••••••' + keys.neutrinoApiKey.slice(-4) : '',
       neutrinoUserId: keys.neutrinoUserId || '',
+      linkPreviewApiKey: keys.linkPreviewApiKey
+        ? '••••••••' + keys.linkPreviewApiKey.slice(-4)
+        : '',
       hasGroqKey: keys.groqApiKey.length > 0,
       hasMistralKey: keys.mistralApiKey.length > 0,
       hasGoogleKey: keys.googleApiKey.length > 0,
@@ -56,7 +60,8 @@ export function setupIpcHandlers(): void {
       hasHunterKey: keys.hunterApiKey.length > 0,
       hasReoonKey: keys.reoonApiKey.length > 0,
       hasJinaKey: keys.jinaApiKey.length > 0,
-      hasNeutrinoKey: keys.neutrinoApiKey.length > 0 && keys.neutrinoUserId.length > 0
+      hasNeutrinoKey: keys.neutrinoApiKey.length > 0 && keys.neutrinoUserId.length > 0,
+      hasLinkPreviewKey: keys.linkPreviewApiKey.length > 0
     }
   })
 
@@ -97,6 +102,11 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setNeutrinoUserId', (_event, userId: string) => {
     setNeutrinoUserId(userId)
+    return { success: true }
+  })
+
+  ipcMain.handle('settings:setLinkPreviewApiKey', (_event, key: string) => {
+    setLinkPreviewApiKey(key)
     return { success: true }
   })
 
@@ -236,7 +246,7 @@ export function setupIpcHandlers(): void {
     }
 
     try {
-      await generateLeads(input, callbacks)
+      await generateLeads(input, callbacks, window)
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'

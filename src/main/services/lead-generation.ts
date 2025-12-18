@@ -102,6 +102,64 @@ async function categorizeUrlWithNeutrino(
   }
 }
 
+// LinkPreview API - Fallback URL categorization
+async function categorizeUrlWithLinkPreview(
+  url: string
+): Promise<{ category: string | null; error: string | null }> {
+  const { linkPreviewApiKey } = getApiKeys()
+  if (!linkPreviewApiKey) {
+    return {
+      category: null,
+      error: 'LinkPreview API key not configured. Please add API Key in Settings.'
+    }
+  }
+
+  try {
+    const response = await fetch(`https://api.linkpreview.net/?q=${encodeURIComponent(url)}`, {
+      method: 'GET',
+      headers: {
+        'X-Linkpreview-Api-Key': linkPreviewApiKey
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        category: null,
+        error: `LinkPreview API error: ${errorData.error || response.status}`
+      }
+    }
+
+    const data = await response.json()
+    // LinkPreview returns title/description - analyze for keywords
+    const content =
+      `${data.title || ''} ${data.description || ''} ${data.site_name || ''}`.toLowerCase()
+
+    // Determine category from content keywords
+    let category = 'unknown'
+    if (content.includes('job') || content.includes('career') || content.includes('hiring')) {
+      category = 'job-board'
+    } else if (
+      content.includes('facebook') ||
+      content.includes('instagram') ||
+      content.includes('twitter') ||
+      content.includes('linkedin') ||
+      content.includes('tiktok')
+    ) {
+      category = 'social-media'
+    } else if (content.includes('classified') || content.includes('craigslist')) {
+      category = 'classifieds'
+    } else {
+      category = 'website'
+    }
+
+    console.log(`LinkPreview categorized ${url} as: ${category}`)
+    return { category, error: null }
+  } catch (error) {
+    return { category: null, error: `LinkPreview API connection error: ${error}` }
+  }
+}
+
 // Check if URL should be blocked based on category
 function shouldBlockCategory(category: string | null): boolean {
   if (!category) return false
@@ -149,22 +207,101 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
   }))
 }
 
-// URL Cleanup - Use Neutrino API for smart categorization (no fallback)
-async function cleanupUrls(results: SearchResult[]): Promise<string[]> {
+// Session state for Neutrino API
+let neutrinoDisabledForSession = false
+let neutrinoLastError = ''
+
+// Reset session state (call when starting new lead generation)
+function resetCleanupSessionState(): void {
+  neutrinoDisabledForSession = false
+  neutrinoLastError = ''
+}
+
+// URL Cleanup - Use Neutrino API with LinkPreview fallback
+async function cleanupUrls(
+  results: SearchResult[],
+  mainWindow: Electron.BrowserWindow | null
+): Promise<string[]> {
   const cleanedUrls: string[] = []
+  const MAX_RETRIES = 3
 
-  for (const result of results) {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
     const url = result.link
+    let category: string | null = null
+    let usedService = ''
 
-    // Use Neutrino API - throw error if it fails
-    const { category, error } = await categorizeUrlWithNeutrino(url)
+    // Send progress update to UI
+    mainWindow?.webContents.send('leads:cleanupProgress', {
+      current: i + 1,
+      total: results.length,
+      url: url,
+      status: 'processing'
+    })
 
-    if (error) {
-      throw new Error(error)
+    // Try Neutrino API first (if not disabled for session)
+    if (!neutrinoDisabledForSession) {
+      let neutrinoSuccess = false
+
+      for (let retry = 0; retry < MAX_RETRIES; retry++) {
+        const neutrinoResult = await categorizeUrlWithNeutrino(url)
+
+        if (!neutrinoResult.error && neutrinoResult.category) {
+          category = neutrinoResult.category
+          usedService = 'Neutrino'
+          neutrinoSuccess = true
+          break
+        }
+
+        neutrinoLastError = neutrinoResult.error || 'Unknown error'
+
+        if (retry < MAX_RETRIES - 1) {
+          console.log(`Neutrino retry ${retry + 1}/${MAX_RETRIES} for ${url}...`)
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+      }
+
+      // If all retries failed, disable Neutrino for this session
+      if (!neutrinoSuccess) {
+        neutrinoDisabledForSession = true
+        console.log(
+          `Neutrino disabled for session after ${MAX_RETRIES} retries. Reason: ${neutrinoLastError}`
+        )
+
+        // Notify UI about service switch
+        mainWindow?.webContents.send('leads:serviceSwitched', {
+          from: 'Neutrino',
+          to: 'LinkPreview',
+          reason: neutrinoLastError
+        })
+      }
+    }
+
+    // Use LinkPreview if Neutrino didn't work
+    if (!category) {
+      const linkPreviewResult = await categorizeUrlWithLinkPreview(url)
+
+      if (!linkPreviewResult.error && linkPreviewResult.category) {
+        category = linkPreviewResult.category
+        usedService = 'LinkPreview'
+      } else {
+        // Both services failed - throw error
+        throw new Error(`URL cleanup failed for ${url}. LinkPreview: ${linkPreviewResult.error}`)
+      }
     }
 
     const shouldBlock = shouldBlockCategory(category)
-    console.log(`Neutrino: ${url} -> ${category} - ${shouldBlock ? 'BLOCKED' : 'ALLOWED'}`)
+    console.log(`${usedService}: ${url} -> ${category} - ${shouldBlock ? 'BLOCKED' : 'ALLOWED'}`)
+
+    // Send progress update with result
+    mainWindow?.webContents.send('leads:cleanupProgress', {
+      current: i + 1,
+      total: results.length,
+      url: url,
+      status: shouldBlock ? 'blocked' : 'allowed',
+      service: usedService,
+      category: category
+    })
 
     if (!shouldBlock) {
       cleanedUrls.push(url)
@@ -463,9 +600,13 @@ async function verifyEmailWithReoon(email: string): Promise<boolean> {
 // Export the main lead generation function
 export async function generateLeads(
   input: LeadGenerationInput,
-  callbacks: LeadGenerationCallbacks
+  callbacks: LeadGenerationCallbacks,
+  mainWindow: Electron.BrowserWindow | null = null
 ): Promise<void> {
   const leads: LeadResult[] = []
+
+  // Reset cleanup session state for new lead generation
+  resetCleanupSessionState()
 
   try {
     // Step 1: Web Search with Serper
@@ -474,7 +615,7 @@ export async function generateLeads(
     callbacks.onSearchComplete(searchResults)
 
     // Step 2: URL Cleanup
-    const cleanedUrls = await cleanupUrls(searchResults)
+    const cleanedUrls = await cleanupUrls(searchResults, mainWindow)
     callbacks.onCleanupComplete(cleanedUrls)
 
     if (cleanedUrls.length === 0) {

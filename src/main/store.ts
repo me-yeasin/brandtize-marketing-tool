@@ -67,6 +67,9 @@ interface StoreSchema {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
+  neutrinoApiKey: string
+  neutrinoUserId: string
+  linkPreviewApiKey: string
   selectedAiProvider: AiProvider
   selectedGoogleMode: GoogleMode
   selectedGroqModel: string
@@ -86,6 +89,9 @@ const store = new Store<StoreSchema>({
     hunterApiKey: '',
     reoonApiKey: '',
     jinaApiKey: '',
+    neutrinoApiKey: '',
+    neutrinoUserId: '',
+    linkPreviewApiKey: '',
     selectedAiProvider: 'groq',
     selectedGoogleMode: 'aiStudio',
     selectedGroqModel: 'llama-3.3-70b-versatile',
@@ -108,6 +114,7 @@ export function getApiKeys(): {
   jinaApiKey: string
   neutrinoApiKey: string
   neutrinoUserId: string
+  linkPreviewApiKey: string
 } {
   return {
     groqApiKey: store.get('groqApiKey', ''),
@@ -118,7 +125,8 @@ export function getApiKeys(): {
     reoonApiKey: store.get('reoonApiKey', ''),
     jinaApiKey: store.get('jinaApiKey', ''),
     neutrinoApiKey: store.get('neutrinoApiKey', ''),
-    neutrinoUserId: store.get('neutrinoUserId', '')
+    neutrinoUserId: store.get('neutrinoUserId', ''),
+    linkPreviewApiKey: store.get('linkPreviewApiKey', '')
   }
 }
 
@@ -144,6 +152,10 @@ export function setNeutrinoApiKey(key: string): void {
 
 export function setNeutrinoUserId(userId: string): void {
   store.set('neutrinoUserId', userId)
+}
+
+export function setLinkPreviewApiKey(key: string): void {
+  store.set('linkPreviewApiKey', key)
 }
 
 export function setJinaApiKey(key: string): void {

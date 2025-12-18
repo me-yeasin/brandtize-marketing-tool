@@ -29,6 +29,7 @@ function SettingsScreen(): JSX.Element {
   const [jinaKey, setJinaKey] = useState('')
   const [neutrinoKey, setNeutrinoKey] = useState('')
   const [neutrinoUserId, setNeutrinoUserId] = useState('')
+  const [linkPreviewKey, setLinkPreviewKey] = useState('')
   const [selectedModel, setSelectedModel] = useState(GROQ_MODELS[0]?.id ?? '')
   const [selectedMistralModel, setSelectedMistralModel] = useState(MISTRAL_MODELS[0]?.id ?? '')
   const [selectedGoogleModel, setSelectedGoogleModel] = useState(GOOGLE_MODELS[0]?.id ?? '')
@@ -43,6 +44,7 @@ function SettingsScreen(): JSX.Element {
   const [hasReoonKey, setHasReoonKey] = useState(false)
   const [hasJinaKey, setHasJinaKey] = useState(false)
   const [hasNeutrinoKey, setHasNeutrinoKey] = useState(false)
+  const [hasLinkPreviewKey, setHasLinkPreviewKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<MessageState>(null)
@@ -60,6 +62,7 @@ function SettingsScreen(): JSX.Element {
       setJinaKey(keys.jinaApiKey)
       setNeutrinoKey(keys.neutrinoApiKey)
       setNeutrinoUserId(keys.neutrinoUserId)
+      setLinkPreviewKey(keys.linkPreviewApiKey)
       setHasGroqKey(keys.hasGroqKey)
       setHasMistralKey(keys.hasMistralKey)
       setHasGoogleKey(keys.hasGoogleKey)
@@ -68,6 +71,7 @@ function SettingsScreen(): JSX.Element {
       setHasReoonKey(keys.hasReoonKey)
       setHasJinaKey(keys.hasJinaKey)
       setHasNeutrinoKey(keys.hasNeutrinoKey)
+      setHasLinkPreviewKey(keys.hasLinkPreviewKey)
     })
 
     window.api.getSelectedAiProvider().then((provider: AiProvider) => {
@@ -217,6 +221,20 @@ function SettingsScreen(): JSX.Element {
       setHasNeutrinoKey(keys.hasNeutrinoKey)
     } catch (error) {
       console.error('Failed to save Neutrino credentials:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveLinkPreviewKey = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.setLinkPreviewApiKey(linkPreviewKey)
+      const keys = await window.api.getApiKeys()
+      setLinkPreviewKey(keys.linkPreviewApiKey)
+      setHasLinkPreviewKey(keys.hasLinkPreviewKey)
+    } catch (error) {
+      console.error('Failed to save LinkPreview API key:', error)
     } finally {
       setSaving(false)
     }
@@ -396,17 +414,21 @@ function SettingsScreen(): JSX.Element {
               jinaKey={jinaKey}
               neutrinoKey={neutrinoKey}
               neutrinoUserId={neutrinoUserId}
+              linkPreviewKey={linkPreviewKey}
               hasSerperKey={hasSerperKey}
               hasJinaKey={hasJinaKey}
               hasNeutrinoKey={hasNeutrinoKey}
+              hasLinkPreviewKey={hasLinkPreviewKey}
               saving={saving}
               onSerperKeyChange={setSerperKey}
               onJinaKeyChange={setJinaKey}
               onNeutrinoKeyChange={setNeutrinoKey}
               onNeutrinoUserIdChange={setNeutrinoUserId}
+              onLinkPreviewKeyChange={setLinkPreviewKey}
               onSaveSerperKey={saveSerperKey}
               onSaveJinaKey={saveJinaKey}
               onSaveNeutrinoKey={saveNeutrinoKey}
+              onSaveLinkPreviewKey={saveLinkPreviewKey}
             />
           )}
           {activeTab === 'email' && (

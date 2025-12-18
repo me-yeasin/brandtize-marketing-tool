@@ -68,6 +68,18 @@ function LeadGenerationView({
   )
   const [error, setError] = useState<string>('')
   const [skippedCount, setSkippedCount] = useState(0)
+  const [cleanupProgress, setCleanupProgress] = useState<{
+    current: number
+    total: number
+    url: string
+    status: string
+    service?: string
+  } | null>(null)
+  const [serviceToast, setServiceToast] = useState<{
+    from: string
+    to: string
+    reason: string
+  } | null>(null)
 
   const togglePanel = (panel: string): void => {
     setExpandedPanels((prev) => {
@@ -95,7 +107,17 @@ function LeadGenerationView({
       setStage('cleanup')
     })
 
+    const unsubCleanupProgress = window.api.onLeadsCleanupProgress((data) => {
+      setCleanupProgress(data)
+    })
+
+    const unsubServiceSwitched = window.api.onLeadsServiceSwitched((data) => {
+      setServiceToast(data)
+      setTimeout(() => setServiceToast(null), 3000)
+    })
+
     const unsubCleanupComplete = window.api.onLeadsCleanupComplete((urls) => {
+      setCleanupProgress(null)
       setCleanedUrls(urls)
       setStage('scraping')
     })
@@ -167,6 +189,8 @@ function LeadGenerationView({
     return () => {
       unsubSearchStart()
       unsubSearchComplete()
+      unsubCleanupProgress()
+      unsubServiceSwitched()
       unsubCleanupComplete()
       unsubScrapeStart()
       unsubScrapeComplete()
@@ -222,28 +246,64 @@ function LeadGenerationView({
           )}
         </div>
 
-        {/* Cleanup Panel */}
-        {cleanedUrls.length > 0 && (
+        {/* Service Switch Toast */}
+        {serviceToast && (
+          <div className="fixed top-4 right-4 z-50 bg-orange-500/90 text-white px-4 py-3 rounded-lg shadow-lg animate-pulse max-w-md">
+            <div className="font-medium">Service Switched</div>
+            <div className="text-sm opacity-90">
+              {serviceToast.from} → {serviceToast.to}
+            </div>
+            <div className="text-xs opacity-75 mt-1">{serviceToast.reason}</div>
+          </div>
+        )}
+
+        {/* Cleanup Panel - Show during cleanup or after completion */}
+        {(cleanupProgress || cleanedUrls.length > 0) && (
           <div className="bg-slate-800 rounded-xl overflow-hidden">
             <button
               onClick={() => togglePanel('cleanup')}
               className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
             >
               <FiFilter className="text-purple-400" size={20} />
-              <span className="font-medium text-white flex-1">Cleaned URLs</span>
-              <span className="text-xs text-green-400">{cleanedUrls.length} URLs</span>
+              <span className="font-medium text-white flex-1">URL Cleanup</span>
+              {cleanupProgress && (
+                <span className="text-xs text-yellow-400 animate-pulse">
+                  {cleanupProgress.current}/{cleanupProgress.total} -{' '}
+                  {cleanupProgress.service || 'Processing'}
+                </span>
+              )}
+              {!cleanupProgress && cleanedUrls.length > 0 && (
+                <span className="text-xs text-green-400">{cleanedUrls.length} URLs passed</span>
+              )}
               {expandedPanels.has('cleanup') ? <FiChevronDown /> : <FiChevronRight />}
             </button>
             {expandedPanels.has('cleanup') && (
-              <div className="px-4 pb-4 space-y-1 max-h-40 overflow-y-auto">
-                {cleanedUrls.map((url, i) => (
-                  <div
-                    key={i}
-                    className="text-xs text-white/80 p-2 bg-slate-700/30 rounded truncate"
-                  >
-                    {url}
+              <div className="px-4 pb-4 space-y-2">
+                {/* Current URL being processed */}
+                {cleanupProgress && (
+                  <div className="text-xs p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                    <div className="text-yellow-400 font-medium mb-1">
+                      Processing ({cleanupProgress.current}/{cleanupProgress.total})
+                    </div>
+                    <div className="text-white/70 truncate">{cleanupProgress.url}</div>
+                    {cleanupProgress.service && (
+                      <div className="text-white/50 mt-1">Using: {cleanupProgress.service}</div>
+                    )}
                   </div>
-                ))}
+                )}
+                {/* Cleaned URLs list */}
+                {cleanedUrls.length > 0 && (
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {cleanedUrls.map((url, i) => (
+                      <div
+                        key={i}
+                        className="text-xs text-white/80 p-2 bg-slate-700/30 rounded truncate"
+                      >
+                        {url}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
