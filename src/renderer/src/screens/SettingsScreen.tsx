@@ -50,6 +50,21 @@ function SettingsScreen(): JSX.Element {
   const [message, setMessage] = useState<MessageState>(null)
   const [profile, setProfile] = useState<AgencyProfile>(DEFAULT_PROFILE)
   const [hasProfile, setHasProfile] = useState(false)
+  const [multiKeys, setMultiKeys] = useState<{
+    serper: { key: string; userId?: string; label?: string }[]
+    jina: { key: string; userId?: string; label?: string }[]
+    neutrino: { key: string; userId?: string; label?: string }[]
+    linkPreview: { key: string; userId?: string; label?: string }[]
+    hunter: { key: string; userId?: string; label?: string }[]
+    reoon: { key: string; userId?: string; label?: string }[]
+  }>({
+    serper: [],
+    jina: [],
+    neutrino: [],
+    linkPreview: [],
+    hunter: [],
+    reoon: []
+  })
 
   useEffect(() => {
     window.api.getApiKeys().then((keys) => {
@@ -72,6 +87,11 @@ function SettingsScreen(): JSX.Element {
       setHasJinaKey(keys.hasJinaKey)
       setHasNeutrinoKey(keys.hasNeutrinoKey)
       setHasLinkPreviewKey(keys.hasLinkPreviewKey)
+    })
+
+    // Fetch multi-keys
+    window.api.getMultiKeys().then((keys) => {
+      setMultiKeys(keys)
     })
 
     window.api.getSelectedAiProvider().then((provider: AiProvider) => {
@@ -235,6 +255,22 @@ function SettingsScreen(): JSX.Element {
       setHasLinkPreviewKey(keys.hasLinkPreviewKey)
     } catch (error) {
       console.error('Failed to save LinkPreview API key:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveMultiKeys = async (
+    service: string,
+    keys: { key: string; userId?: string; label?: string }[]
+  ): Promise<void> => {
+    setSaving(true)
+    try {
+      await window.api.setMultiKeys(service, keys)
+      const updatedKeys = await window.api.getMultiKeys()
+      setMultiKeys(updatedKeys)
+    } catch (error) {
+      console.error(`Failed to save ${service} multi-keys:`, error)
     } finally {
       setSaving(false)
     }
@@ -429,6 +465,8 @@ function SettingsScreen(): JSX.Element {
               onSaveJinaKey={saveJinaKey}
               onSaveNeutrinoKey={saveNeutrinoKey}
               onSaveLinkPreviewKey={saveLinkPreviewKey}
+              multiKeys={multiKeys}
+              onSaveMultiKeys={saveMultiKeys}
             />
           )}
           {activeTab === 'email' && (

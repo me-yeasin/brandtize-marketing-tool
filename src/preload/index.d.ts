@@ -3,6 +3,21 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 type AiProvider = 'groq' | 'mistral' | 'google'
 type GoogleMode = 'aiStudio' | 'vertexApiKey'
 
+interface ApiKeyEntry {
+  key: string
+  userId?: string
+  label?: string
+}
+
+interface MultiKeys {
+  serper: ApiKeyEntry[]
+  jina: ApiKeyEntry[]
+  neutrino: ApiKeyEntry[]
+  linkPreview: ApiKeyEntry[]
+  hunter: ApiKeyEntry[]
+  reoon: ApiKeyEntry[]
+}
+
 interface ApiKeys {
   groqApiKey: string
   mistralApiKey: string
@@ -93,6 +108,12 @@ interface Api {
   getProfile: () => Promise<AgencyProfile>
   setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
   hasProfile: () => Promise<boolean>
+  // Multi-key API methods
+  getMultiKeys: () => Promise<MultiKeys>
+  setMultiKeys: (
+    service: string,
+    keys: ApiKeyEntry[]
+  ) => Promise<{ success: boolean; error?: string }>
   streamChat: (messages: ChatMessage[]) => Promise<{ success: boolean; error?: string }>
   onChatToken: (callback: (token: string) => void) => () => void
   onChatComplete: (callback: (fullText: string) => void) => () => void

@@ -45,6 +45,11 @@ const api = {
   setProfile: (profile: unknown) => ipcRenderer.invoke('profile:set', profile),
   hasProfile: () => ipcRenderer.invoke('profile:hasProfile'),
 
+  // Multi-key API management
+  getMultiKeys: () => ipcRenderer.invoke('settings:getMultiKeys'),
+  setMultiKeys: (service: string, keys: { key: string; userId?: string; label?: string }[]) =>
+    ipcRenderer.invoke('settings:setMultiKeys', service, keys),
+
   // Chat streaming
   streamChat: (messages: ChatMessage[]) => ipcRenderer.invoke('chat:stream', messages),
   onChatToken: (callback: (token: string) => void) => {

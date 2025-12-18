@@ -25,9 +25,18 @@ import {
   getAgencyProfile,
   setAgencyProfile,
   hasAgencyProfile,
+  // Multi-key functions
+  getAllMultiKeys,
+  setSerperApiKeys,
+  setJinaApiKeys,
+  setNeutrinoApiKeys,
+  setLinkPreviewApiKeys,
+  setHunterApiKeys,
+  setReoonApiKeys,
   type AgencyProfile,
   type AiProvider,
-  type GoogleMode
+  type GoogleMode,
+  type ApiKeyEntry
 } from './store'
 import { streamAgentResponse, type ChatMessage } from './services'
 import {
@@ -176,6 +185,50 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('profile:hasProfile', () => {
     return hasAgencyProfile()
+  })
+
+  // Multi-key API handlers
+  ipcMain.handle('settings:getMultiKeys', () => {
+    const multiKeys = getAllMultiKeys()
+    // Mask keys for display
+    const maskKey = (entry: ApiKeyEntry): ApiKeyEntry => ({
+      ...entry,
+      key: entry.key ? '••••••••' + entry.key.slice(-4) : ''
+    })
+    return {
+      serper: multiKeys.serper.map(maskKey),
+      jina: multiKeys.jina.map(maskKey),
+      neutrino: multiKeys.neutrino.map(maskKey),
+      linkPreview: multiKeys.linkPreview.map(maskKey),
+      hunter: multiKeys.hunter.map(maskKey),
+      reoon: multiKeys.reoon.map(maskKey)
+    }
+  })
+
+  ipcMain.handle('settings:setMultiKeys', (_event, service: string, keys: ApiKeyEntry[]) => {
+    switch (service) {
+      case 'serper':
+        setSerperApiKeys(keys)
+        break
+      case 'jina':
+        setJinaApiKeys(keys)
+        break
+      case 'neutrino':
+        setNeutrinoApiKeys(keys)
+        break
+      case 'linkPreview':
+        setLinkPreviewApiKeys(keys)
+        break
+      case 'hunter':
+        setHunterApiKeys(keys)
+        break
+      case 'reoon':
+        setReoonApiKeys(keys)
+        break
+      default:
+        return { success: false, error: 'Unknown service' }
+    }
+    return { success: true }
   })
 
   // Chat streaming handler with fallback support

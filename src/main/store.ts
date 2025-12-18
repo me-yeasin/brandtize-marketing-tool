@@ -59,6 +59,13 @@ const DEFAULT_PROFILE: AgencyProfile = {
 export type AiProvider = 'groq' | 'mistral' | 'google'
 export type GoogleMode = 'aiStudio' | 'vertexApiKey'
 
+// Multi-key support for API rotation
+export interface ApiKeyEntry {
+  key: string
+  userId?: string // For services like Neutrino that need userId
+  label?: string // Optional label for identification
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -70,6 +77,13 @@ interface StoreSchema {
   neutrinoApiKey: string
   neutrinoUserId: string
   linkPreviewApiKey: string
+  // Multi-key arrays for rotation
+  serperApiKeys: ApiKeyEntry[]
+  jinaApiKeys: ApiKeyEntry[]
+  neutrinoApiKeys: ApiKeyEntry[] // Each entry has key + userId
+  linkPreviewApiKeys: ApiKeyEntry[]
+  hunterApiKeys: ApiKeyEntry[]
+  reoonApiKeys: ApiKeyEntry[]
   selectedAiProvider: AiProvider
   selectedGoogleMode: GoogleMode
   selectedGroqModel: string
@@ -92,6 +106,13 @@ const store = new Store<StoreSchema>({
     neutrinoApiKey: '',
     neutrinoUserId: '',
     linkPreviewApiKey: '',
+    // Multi-key arrays (empty by default)
+    serperApiKeys: [],
+    jinaApiKeys: [],
+    neutrinoApiKeys: [],
+    linkPreviewApiKeys: [],
+    hunterApiKeys: [],
+    reoonApiKeys: [],
     selectedAiProvider: 'groq',
     selectedGoogleMode: 'aiStudio',
     selectedGroqModel: 'llama-3.3-70b-versatile',
@@ -264,6 +285,74 @@ export function hasAgencyProfile(): boolean {
   const nameOk = profile.name.trim().length > 0
   const servicesOk = profile.services.some((s) => s.trim().length > 0)
   return typeOk && nameOk && servicesOk
+}
+
+// Multi-key getters and setters
+export function getSerperApiKeys(): ApiKeyEntry[] {
+  return store.get('serperApiKeys', [])
+}
+
+export function setSerperApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('serperApiKeys', keys)
+}
+
+export function getJinaApiKeys(): ApiKeyEntry[] {
+  return store.get('jinaApiKeys', [])
+}
+
+export function setJinaApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('jinaApiKeys', keys)
+}
+
+export function getNeutrinoApiKeys(): ApiKeyEntry[] {
+  return store.get('neutrinoApiKeys', [])
+}
+
+export function setNeutrinoApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('neutrinoApiKeys', keys)
+}
+
+export function getLinkPreviewApiKeys(): ApiKeyEntry[] {
+  return store.get('linkPreviewApiKeys', [])
+}
+
+export function setLinkPreviewApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('linkPreviewApiKeys', keys)
+}
+
+export function getHunterApiKeys(): ApiKeyEntry[] {
+  return store.get('hunterApiKeys', [])
+}
+
+export function setHunterApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('hunterApiKeys', keys)
+}
+
+export function getReoonApiKeys(): ApiKeyEntry[] {
+  return store.get('reoonApiKeys', [])
+}
+
+export function setReoonApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('reoonApiKeys', keys)
+}
+
+// Get all multi-keys for a specific service category
+export function getAllMultiKeys(): {
+  serper: ApiKeyEntry[]
+  jina: ApiKeyEntry[]
+  neutrino: ApiKeyEntry[]
+  linkPreview: ApiKeyEntry[]
+  hunter: ApiKeyEntry[]
+  reoon: ApiKeyEntry[]
+} {
+  return {
+    serper: getSerperApiKeys(),
+    jina: getJinaApiKeys(),
+    neutrino: getNeutrinoApiKeys(),
+    linkPreview: getLinkPreviewApiKeys(),
+    hunter: getHunterApiKeys(),
+    reoon: getReoonApiKeys()
+  }
 }
 
 export { store }

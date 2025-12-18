@@ -10,8 +10,62 @@ import {
   getSelectedGoogleMode,
   getGoogleProjectId,
   getGoogleLocation,
-  getAgencyProfile
+  getAgencyProfile,
+  getNeutrinoApiKeys,
+  getLinkPreviewApiKeys,
+  type ApiKeyEntry
 } from '../store'
+
+// Key Rotation State Manager
+interface KeyRotationState {
+  currentIndex: number
+  exhaustedKeys: Set<number>
+  lastError: string
+}
+
+const keyRotationState: Record<string, KeyRotationState> = {
+  serper: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  jina: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  neutrino: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  linkPreview: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
+}
+
+function resetKeyRotation(): void {
+  Object.keys(keyRotationState).forEach((key) => {
+    keyRotationState[key] = { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
+  })
+}
+
+function getNextKey(
+  service: string,
+  keys: ApiKeyEntry[]
+): { key: ApiKeyEntry | null; index: number; allExhausted: boolean } {
+  const state = keyRotationState[service]
+  if (!state || keys.length === 0) {
+    return { key: null, index: -1, allExhausted: true }
+  }
+
+  // Find next available key
+  for (let i = 0; i < keys.length; i++) {
+    const index = (state.currentIndex + i) % keys.length
+    if (!state.exhaustedKeys.has(index)) {
+      return { key: keys[index], index, allExhausted: false }
+    }
+  }
+
+  // All keys exhausted - reset and try first key (maybe it's reset)
+  state.exhaustedKeys.clear()
+  return { key: keys[0], index: 0, allExhausted: true }
+}
+
+function markKeyExhausted(service: string, index: number, error: string): void {
+  const state = keyRotationState[service]
+  if (state) {
+    state.exhaustedKeys.add(index)
+    state.lastError = error
+    state.currentIndex = (index + 1) % 100 // Move to next
+  }
+}
 
 // Types
 export interface LeadGenerationInput {
@@ -62,10 +116,63 @@ export interface LeadGenerationCallbacks {
   onError: (error: string) => void
 }
 
-// Neutrino API - Smart URL categorization
+// Neutrino API - Smart URL categorization with multi-key rotation
 async function categorizeUrlWithNeutrino(
-  url: string
-): Promise<{ category: string | null; error: string | null }> {
+  url: string,
+  mainWindow: Electron.BrowserWindow | null
+): Promise<{ category: string | null; error: string | null; keyIndex?: number }> {
+  // Try multi-keys first
+  const multiKeys = getNeutrinoApiKeys()
+  if (multiKeys.length > 0) {
+    const { key, index, allExhausted } = getNextKey('neutrino', multiKeys)
+
+    if (key && key.key && key.userId) {
+      try {
+        const response = await fetch('https://neutrinoapi.net/url-info', {
+          method: 'POST',
+          headers: {
+            'User-ID': key.userId,
+            'API-Key': key.key,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: `url=${encodeURIComponent(url)}&fetch-content=false`
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          const errorMsg = errorData['api-error-msg'] || `HTTP ${response.status}`
+
+          // Check if rate limited
+          if (errorMsg.includes('LIMIT') || response.status === 429) {
+            markKeyExhausted('neutrino', index, errorMsg)
+            mainWindow?.webContents.send('leads:keyRotation', {
+              service: 'Neutrino',
+              keyIndex: index + 1,
+              totalKeys: multiKeys.length,
+              reason: errorMsg
+            })
+
+            // Try next key recursively
+            if (!allExhausted) {
+              return categorizeUrlWithNeutrino(url, mainWindow)
+            }
+          }
+
+          return { category: null, error: `Neutrino API error: ${errorMsg}`, keyIndex: index }
+        }
+
+        const data = await response.json()
+        console.log(
+          `Neutrino[${index + 1}/${multiKeys.length}] categorized ${url} as: ${data['content-type'] || 'unknown'}`
+        )
+        return { category: data['content-type'] || null, error: null, keyIndex: index }
+      } catch (error) {
+        return { category: null, error: `Neutrino API connection error: ${error}`, keyIndex: index }
+      }
+    }
+  }
+
+  // Fallback to single key
   const { neutrinoApiKey, neutrinoUserId } = getApiKeys()
   if (!neutrinoApiKey || !neutrinoUserId) {
     return {
@@ -93,19 +200,82 @@ async function categorizeUrlWithNeutrino(
 
     const data = await response.json()
     console.log(`Neutrino categorized ${url} as: ${data['content-type'] || 'unknown'}`)
-    return {
-      category: data['content-type'] || null,
-      error: null
-    }
+    return { category: data['content-type'] || null, error: null }
   } catch (error) {
     return { category: null, error: `Neutrino API connection error: ${error}` }
   }
 }
 
-// LinkPreview API - Fallback URL categorization
+// LinkPreview API - Fallback URL categorization with multi-key rotation
 async function categorizeUrlWithLinkPreview(
-  url: string
+  url: string,
+  mainWindow: Electron.BrowserWindow | null
 ): Promise<{ category: string | null; error: string | null }> {
+  // Try multi-keys first
+  const multiKeys = getLinkPreviewApiKeys()
+  if (multiKeys.length > 0) {
+    const { key, index, allExhausted } = getNextKey('linkPreview', multiKeys)
+
+    if (key && key.key) {
+      try {
+        const response = await fetch(`https://api.linkpreview.net/?q=${encodeURIComponent(url)}`, {
+          method: 'GET',
+          headers: {
+            'X-Linkpreview-Api-Key': key.key
+          }
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          const errorMsg = errorData.error || `HTTP ${response.status}`
+
+          // Check if rate limited (425 or 429)
+          if (response.status === 425 || response.status === 429 || errorMsg.includes('limit')) {
+            markKeyExhausted('linkPreview', index, errorMsg)
+            mainWindow?.webContents.send('leads:keyRotation', {
+              service: 'LinkPreview',
+              keyIndex: index + 1,
+              totalKeys: multiKeys.length,
+              reason: errorMsg
+            })
+
+            // Try next key recursively
+            if (!allExhausted) {
+              return categorizeUrlWithLinkPreview(url, mainWindow)
+            }
+          }
+
+          return { category: null, error: `LinkPreview API error: ${errorMsg}` }
+        }
+
+        const data = await response.json()
+        const content =
+          `${data.title || ''} ${data.description || ''} ${data.site_name || ''}`.toLowerCase()
+
+        let category = 'website'
+        if (content.includes('job') || content.includes('career') || content.includes('hiring')) {
+          category = 'job-board'
+        } else if (
+          content.includes('facebook') ||
+          content.includes('instagram') ||
+          content.includes('twitter') ||
+          content.includes('linkedin') ||
+          content.includes('tiktok')
+        ) {
+          category = 'social-media'
+        }
+
+        console.log(
+          `LinkPreview[${index + 1}/${multiKeys.length}] categorized ${url} as: ${category}`
+        )
+        return { category, error: null }
+      } catch (error) {
+        return { category: null, error: `LinkPreview API connection error: ${error}` }
+      }
+    }
+  }
+
+  // Fallback to single key
   const { linkPreviewApiKey } = getApiKeys()
   if (!linkPreviewApiKey) {
     return {
@@ -244,7 +414,7 @@ async function cleanupUrls(
       let neutrinoSuccess = false
 
       for (let retry = 0; retry < MAX_RETRIES; retry++) {
-        const neutrinoResult = await categorizeUrlWithNeutrino(url)
+        const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
 
         if (!neutrinoResult.error && neutrinoResult.category) {
           category = neutrinoResult.category
@@ -279,7 +449,7 @@ async function cleanupUrls(
 
     // Use LinkPreview if Neutrino didn't work
     if (!category) {
-      const linkPreviewResult = await categorizeUrlWithLinkPreview(url)
+      const linkPreviewResult = await categorizeUrlWithLinkPreview(url, mainWindow)
 
       if (!linkPreviewResult.error && linkPreviewResult.category) {
         category = linkPreviewResult.category
@@ -612,6 +782,9 @@ export async function generateLeads(
   mainWindow: Electron.BrowserWindow | null = null
 ): Promise<void> {
   const leads: LeadResult[] = []
+
+  // Reset key rotation state for new lead generation
+  resetKeyRotation()
 
   // Reset cleanup session state for new lead generation
   resetCleanupSessionState()

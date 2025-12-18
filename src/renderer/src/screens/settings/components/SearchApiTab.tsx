@@ -1,7 +1,23 @@
 import React from 'react'
-import { FiSearch, FiFileText, FiFilter } from 'react-icons/fi'
+import { FiSearch, FiFileText, FiFilter, FiChevronDown, FiChevronRight } from 'react-icons/fi'
 
 import { Button, Input } from '../../../components/ui'
+import MultiKeyInput from './MultiKeyInput'
+
+interface ApiKeyEntry {
+  key: string
+  userId?: string
+  label?: string
+}
+
+interface MultiKeys {
+  serper: ApiKeyEntry[]
+  jina: ApiKeyEntry[]
+  neutrino: ApiKeyEntry[]
+  linkPreview: ApiKeyEntry[]
+  hunter: ApiKeyEntry[]
+  reoon: ApiKeyEntry[]
+}
 
 interface SearchApiTabProps {
   serperKey: string
@@ -23,6 +39,9 @@ interface SearchApiTabProps {
   onSaveJinaKey: () => Promise<void>
   onSaveNeutrinoKey: () => Promise<void>
   onSaveLinkPreviewKey: () => Promise<void>
+  // Multi-key props
+  multiKeys: MultiKeys
+  onSaveMultiKeys: (service: string, keys: ApiKeyEntry[]) => Promise<void>
 }
 
 function SearchApiTab({
@@ -44,9 +63,16 @@ function SearchApiTab({
   onSaveSerperKey,
   onSaveJinaKey,
   onSaveNeutrinoKey,
-  onSaveLinkPreviewKey
+  onSaveLinkPreviewKey,
+  multiKeys,
+  onSaveMultiKeys
 }: SearchApiTabProps): React.JSX.Element {
   const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping' | 'cleanup'>('board')
+  const [expandedMultiKey, setExpandedMultiKey] = React.useState<string | null>(null)
+
+  const toggleMultiKey = (service: string): void => {
+    setExpandedMultiKey(expandedMultiKey === service ? null : service)
+  }
   return (
     <div className="max-w-xl space-y-6">
       <div>
@@ -145,6 +171,27 @@ function SearchApiTab({
               </a>
             </p>
           </div>
+
+          {/* Multi-key expandable section */}
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => toggleMultiKey('serper')}
+              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              {expandedMultiKey === 'serper' ? <FiChevronDown /> : <FiChevronRight />}
+              Advanced: Multiple API Keys for Rotation
+            </button>
+            {expandedMultiKey === 'serper' && (
+              <div className="mt-3">
+                <MultiKeyInput
+                  existingKeys={multiKeys.serper}
+                  onSave={(keys) => onSaveMultiKeys('serper', keys)}
+                  getKeyUrl="https://serper.dev"
+                  saving={saving}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -198,6 +245,27 @@ function SearchApiTab({
                 jina.ai/reader
               </a>
             </p>
+          </div>
+
+          {/* Multi-key expandable section */}
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => toggleMultiKey('jina')}
+              className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              {expandedMultiKey === 'jina' ? <FiChevronDown /> : <FiChevronRight />}
+              Advanced: Multiple API Keys for Rotation
+            </button>
+            {expandedMultiKey === 'jina' && (
+              <div className="mt-3">
+                <MultiKeyInput
+                  existingKeys={multiKeys.jina}
+                  onSave={(keys) => onSaveMultiKeys('jina', keys)}
+                  getKeyUrl="https://jina.ai/reader"
+                  saving={saving}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -261,6 +329,28 @@ function SearchApiTab({
                   neutrinoapi.com
                 </a>
               </p>
+
+              {/* Multi-key expandable section */}
+              <div className="border-t border-border pt-4 mt-4">
+                <button
+                  onClick={() => toggleMultiKey('neutrino')}
+                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  {expandedMultiKey === 'neutrino' ? <FiChevronDown /> : <FiChevronRight />}
+                  Advanced: Multiple API Keys for Rotation
+                </button>
+                {expandedMultiKey === 'neutrino' && (
+                  <div className="mt-3">
+                    <MultiKeyInput
+                      needsUserId={true}
+                      existingKeys={multiKeys.neutrino}
+                      onSave={(keys) => onSaveMultiKeys('neutrino', keys)}
+                      getKeyUrl="https://www.neutrinoapi.com/signup"
+                      saving={saving}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -314,6 +404,27 @@ function SearchApiTab({
                 </a>{' '}
                 - Used as fallback when Neutrino API limit is reached
               </p>
+
+              {/* Multi-key expandable section */}
+              <div className="border-t border-border pt-4 mt-4">
+                <button
+                  onClick={() => toggleMultiKey('linkPreview')}
+                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                >
+                  {expandedMultiKey === 'linkPreview' ? <FiChevronDown /> : <FiChevronRight />}
+                  Advanced: Multiple API Keys for Rotation
+                </button>
+                {expandedMultiKey === 'linkPreview' && (
+                  <div className="mt-3">
+                    <MultiKeyInput
+                      existingKeys={multiKeys.linkPreview}
+                      onSave={(keys) => onSaveMultiKeys('linkPreview', keys)}
+                      getKeyUrl="https://my.linkpreview.net"
+                      saving={saving}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
