@@ -440,7 +440,11 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
 
   // Try each key with rotation
   for (let attempt = 0; attempt < allKeys.length; attempt++) {
-    const { key: keyEntry, index, allExhausted } = getNextKey(
+    const {
+      key: keyEntry,
+      index,
+      allExhausted
+    } = getNextKey(
       'serper',
       allKeys.map((k) => ({ key: k.key }))
     )
@@ -462,7 +466,9 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
 
     // Rate limit (429) or unauthorized - mark exhausted and try next
     if (response.status === 429 || response.status === 401) {
-      console.log(`Serper[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`)
+      console.log(
+        `Serper[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
+      )
       markKeyExhausted('serper', index, `HTTP ${response.status}`)
 
       // If all keys exhausted, try first key again to check if reset
@@ -476,11 +482,13 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
           keyRotationState.serper.exhaustedKeys.clear()
           keyRotationState.serper.currentIndex = 0
           const data = await firstKeyResponse.json()
-          return (data.organic || []).map((item: { title: string; link: string; snippet: string }) => ({
-            title: item.title,
-            link: item.link,
-            snippet: item.snippet || ''
-          }))
+          return (data.organic || []).map(
+            (item: { title: string; link: string; snippet: string }) => ({
+              title: item.title,
+              link: item.link,
+              snippet: item.snippet || ''
+            })
+          )
         }
 
         // First key still rate limited - STOP
@@ -577,7 +585,9 @@ async function cleanupUrls(
 
     // STEP 3: Both services exhausted - check if Neutrino first key has reset
     if (!category && neutrinoDisabledForSession && linkPreviewDisabledForSession) {
-      console.log('[URL Cleanup] Both services exhausted, checking if Neutrino first key has reset...')
+      console.log(
+        '[URL Cleanup] Both services exhausted, checking if Neutrino first key has reset...'
+      )
 
       // Clear Neutrino state and try first key
       keyRotationState.neutrino.exhaustedKeys.clear()
@@ -709,7 +719,11 @@ async function scrapeWithJina(url: string): Promise<ScrapedContent> {
 
   // Try each key with rotation
   for (let attempt = 0; attempt < allKeys.length; attempt++) {
-    const { key: keyEntry, index, allExhausted } = getNextKey(
+    const {
+      key: keyEntry,
+      index,
+      allExhausted
+    } = getNextKey(
       'jina',
       allKeys.map((k) => ({ key: k.key }))
     )
