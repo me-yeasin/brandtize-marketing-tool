@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   FiSearch,
-  FiFilter,
   FiFileText,
   FiCpu,
   FiMail,
@@ -56,7 +55,6 @@ function LeadGenerationView({
 }: LeadGenerationViewProps): React.JSX.Element {
   const [stage, setStage] = useState<string>('searching')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [cleanedUrls, setCleanedUrls] = useState<string[]>([])
   const [scrapedContents, setScrapedContents] = useState<Map<string, ScrapedContent>>(new Map())
   const [currentScraping, setCurrentScraping] = useState<string>('')
   const [currentAiUrl, setCurrentAiUrl] = useState<string>('')
@@ -67,7 +65,7 @@ function LeadGenerationView({
   const [currentServiceMatch, setCurrentServiceMatch] = useState<string>('')
   const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([])
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
-    new Set(['search', 'cleanup', 'scrape', 'serviceMatch', 'emailFinding', 'verification'])
+    new Set(['search', 'scrape', 'serviceMatch', 'emailFinding', 'verification'])
   )
   const [error, setError] = useState<string>('')
   const [skippedCount, setSkippedCount] = useState(0)
@@ -82,13 +80,6 @@ function LeadGenerationView({
   const [verificationResults, setVerificationResults] = useState<
     Map<string, { verified: boolean }>
   >(new Map())
-  const [cleanupProgress, setCleanupProgress] = useState<{
-    current: number
-    total: number
-    url: string
-    status: string
-    service?: string
-  } | null>(null)
 
   const togglePanel = (panel: string): void => {
     setExpandedPanels((prev) => {
@@ -113,11 +104,7 @@ function LeadGenerationView({
 
     const unsubSearchComplete = window.api.onLeadsSearchComplete((results) => {
       setSearchResults(results as SearchResult[])
-      setStage('cleanup')
-    })
-
-    const unsubCleanupProgress = window.api.onLeadsCleanupProgress((data) => {
-      setCleanupProgress(data)
+      setStage('scraping')
     })
 
     const unsubServiceSwitched = window.api.onLeadsServiceSwitched((data) => {
@@ -142,10 +129,8 @@ function LeadGenerationView({
       })
     })
 
-    const unsubCleanupComplete = window.api.onLeadsCleanupComplete((urls) => {
-      setCleanupProgress(null)
-      setCleanedUrls(urls)
-      setStage('scraping')
+    const unsubCleanupComplete = window.api.onLeadsCleanupComplete(() => {
+      // No-op: cleanup stage removed, going directly to scraping
     })
 
     const unsubScrapeStart = window.api.onLeadsScrapeStart((url) => {
@@ -248,7 +233,6 @@ function LeadGenerationView({
     return () => {
       unsubSearchStart()
       unsubSearchComplete()
-      unsubCleanupProgress()
       unsubServiceSwitched()
       unsubProtectedUrl()
       unsubKeyRotation()
@@ -310,58 +294,6 @@ function LeadGenerationView({
             </div>
           )}
         </div>
-
-        {/* Cleanup Panel - Show during cleanup or after completion */}
-        {(cleanupProgress || cleanedUrls.length > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('cleanup')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiFilter className="text-purple-400" size={20} />
-              <span className="font-medium text-white flex-1">URL Cleanup</span>
-              {cleanupProgress && (
-                <span className="text-xs text-yellow-400 animate-pulse">
-                  {cleanupProgress.current}/{cleanupProgress.total} -{' '}
-                  {cleanupProgress.service || 'Processing'}
-                </span>
-              )}
-              {!cleanupProgress && cleanedUrls.length > 0 && (
-                <span className="text-xs text-green-400">{cleanedUrls.length} URLs passed</span>
-              )}
-              {expandedPanels.has('cleanup') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('cleanup') && (
-              <div className="px-4 pb-4 space-y-2">
-                {/* Current URL being processed */}
-                {cleanupProgress && (
-                  <div className="text-xs p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
-                    <div className="text-yellow-400 font-medium mb-1">
-                      Processing ({cleanupProgress.current}/{cleanupProgress.total})
-                    </div>
-                    <div className="text-white/70 truncate">{cleanupProgress.url}</div>
-                    {cleanupProgress.service && (
-                      <div className="text-white/50 mt-1">Using: {cleanupProgress.service}</div>
-                    )}
-                  </div>
-                )}
-                {/* Cleaned URLs list */}
-                {cleanedUrls.length > 0 && (
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {cleanedUrls.map((url, i) => (
-                      <div
-                        key={i}
-                        className="text-xs text-white/80 p-2 bg-slate-700/30 rounded truncate"
-                      >
-                        {url}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Scraping Panel */}
         {(currentScraping || scrapedContents.size > 0) && (
