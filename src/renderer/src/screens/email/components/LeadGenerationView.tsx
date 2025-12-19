@@ -80,6 +80,11 @@ function LeadGenerationView({
   const [verificationResults, setVerificationResults] = useState<
     Map<string, { verified: boolean }>
   >(new Map())
+  // Track current service names for dynamic panel titles
+  const [currentEmailService, setCurrentEmailService] = useState<string>('Hunter.io')
+  const [currentVerificationService, setCurrentVerificationService] = useState<string>('Reoon')
+  const [currentScrapingService] = useState<string>('Jina')
+  const [currentSearchService] = useState<string>('Serper')
 
   const togglePanel = (panel: string): void => {
     setExpandedPanels((prev) => {
@@ -112,6 +117,12 @@ function LeadGenerationView({
         description: data.reason,
         duration: 3000
       })
+      // Update current service based on what switched
+      if (data.to.toLowerCase().includes('snov')) {
+        setCurrentEmailService('Snov.io')
+      } else if (data.to.toLowerCase().includes('hunter')) {
+        setCurrentEmailService('Hunter.io')
+      }
     })
 
     const unsubProtectedUrl = window.api.onLeadsProtectedUrl((data) => {
@@ -127,6 +138,14 @@ function LeadGenerationView({
         description: `Using key ${data.keyIndex}/${data.totalKeys} - ${data.reason}`,
         duration: 3000
       })
+      // Update current service name based on key rotation
+      if (data.service.toLowerCase().includes('hunter')) {
+        setCurrentEmailService('Hunter.io')
+      } else if (data.service.toLowerCase().includes('snov')) {
+        setCurrentEmailService('Snov.io')
+      } else if (data.service.toLowerCase().includes('reoon')) {
+        setCurrentVerificationService('Reoon')
+      }
     })
 
     const unsubCleanupComplete = window.api.onLeadsCleanupComplete(() => {
@@ -189,6 +208,8 @@ function LeadGenerationView({
       const { url, type } = data as { url: string; type: string }
       setCurrentEmailFinding({ url, type })
       setStage('emailFinding')
+      // Reset to Hunter.io when starting new email finding (it tries Hunter first)
+      setCurrentEmailService('Hunter.io')
     })
 
     const unsubHunterResult = window.api.onLeadsHunterResult((data) => {
@@ -206,6 +227,7 @@ function LeadGenerationView({
     const unsubVerifyStart = window.api.onLeadsVerifyStart((email) => {
       setCurrentVerification(email)
       setStage('verification')
+      setCurrentVerificationService('Reoon')
     })
 
     const unsubVerifyResult = window.api.onLeadsVerifyResult((data) => {
@@ -265,7 +287,9 @@ function LeadGenerationView({
             className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
           >
             <FiSearch className="text-blue-400" size={20} />
-            <span className="font-medium text-white flex-1">Web Search</span>
+            <span className="font-medium text-white flex-1">
+              Web Search ({currentSearchService})
+            </span>
             {stage === 'searching' && (
               <span className="text-xs text-yellow-400 animate-pulse">Searching...</span>
             )}
@@ -303,7 +327,9 @@ function LeadGenerationView({
               className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
             >
               <FiFileText className="text-orange-400" size={20} />
-              <span className="font-medium text-white flex-1">Content Scraping (Jina)</span>
+              <span className="font-medium text-white flex-1">
+                Content Scraping ({currentScrapingService})
+              </span>
               {currentScraping && (
                 <span className="text-xs text-yellow-400 animate-pulse">Scraping...</span>
               )}
@@ -432,7 +458,9 @@ function LeadGenerationView({
               className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
             >
               <FiUserCheck className="text-indigo-400" size={20} />
-              <span className="font-medium text-white flex-1">Email Finding (Hunter/Snov)</span>
+              <span className="font-medium text-white flex-1">
+                Email Finding ({currentEmailService})
+              </span>
               {currentEmailFinding && (
                 <span className="text-xs text-yellow-400 animate-pulse">
                   Finding via {currentEmailFinding.type}...
@@ -485,7 +513,9 @@ function LeadGenerationView({
               className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
             >
               <FiShield className="text-emerald-400" size={20} />
-              <span className="font-medium text-white flex-1">Email Verification (Reoon)</span>
+              <span className="font-medium text-white flex-1">
+                Email Verification ({currentVerificationService})
+              </span>
               {currentVerification && (
                 <span className="text-xs text-yellow-400 animate-pulse">Verifying...</span>
               )}
