@@ -91,7 +91,8 @@ function EmailTab({
                 <div>
                   <h3 className="font-medium text-text-main">Hunter.io API</h3>
                   <p className="text-xs text-text-muted">
-                    Primary email finder • {hunterKeys.length} key{hunterKeys.length !== 1 ? 's' : ''} configured
+                    Primary email finder • {hunterKeys.length} key
+                    {hunterKeys.length !== 1 ? 's' : ''} configured
                   </p>
                 </div>
               </div>
@@ -107,7 +108,10 @@ function EmailTab({
               <div className="space-y-2">
                 <label className="block text-sm text-text-muted">Saved Keys (for rotation)</label>
                 {hunterKeys.map((entry, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-surface/50 rounded border border-border/50">
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 p-2 bg-surface/50 rounded border border-border/50"
+                  >
                     <span className="text-xs text-text-muted w-6">#{idx + 1}</span>
                     <span className="flex-1 text-sm text-text-main font-mono">{entry.key}</span>
                     <button
@@ -152,10 +156,15 @@ function EmailTab({
               </div>
               <p className="text-xs text-text-muted">
                 Get API keys from{' '}
-                <a href="https://hunter.io/api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                <a
+                  href="https://hunter.io/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
                   hunter.io
-                </a>
-                {' '}• Add multiple keys for rotation when rate limited
+                </a>{' '}
+                • Add multiple keys for rotation when rate limited
               </p>
             </div>
           </div>
@@ -170,7 +179,8 @@ function EmailTab({
                 <div>
                   <h3 className="font-medium text-text-main">Snov.io API</h3>
                   <p className="text-xs text-text-muted">
-                    Fallback email finder • {snovKeys.length} credential{snovKeys.length !== 1 ? 's' : ''} configured
+                    Fallback email finder • {snovKeys.length} credential
+                    {snovKeys.length !== 1 ? 's' : ''} configured
                   </p>
                 </div>
               </div>
@@ -184,9 +194,14 @@ function EmailTab({
             {/* Existing Keys */}
             {snovKeys.length > 0 && (
               <div className="space-y-2">
-                <label className="block text-sm text-text-muted">Saved Credentials (for rotation)</label>
+                <label className="block text-sm text-text-muted">
+                  Saved Credentials (for rotation)
+                </label>
                 {snovKeys.map((entry, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 bg-surface/50 rounded border border-border/50">
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 p-2 bg-surface/50 rounded border border-border/50"
+                  >
                     <span className="text-xs text-text-muted w-6">#{idx + 1}</span>
                     <span className="flex-1 text-sm text-text-main font-mono">
                       ID: {entry.key} / Secret: {entry.userId || '••••'}
@@ -214,7 +229,9 @@ function EmailTab({
                 placeholder="Client ID"
                 value={localSnovKeys[0]?.clientId || ''}
                 onChange={(e) =>
-                  setLocalSnovKeys([{ clientId: e.target.value, clientSecret: localSnovKeys[0]?.clientSecret || '' }])
+                  setLocalSnovKeys([
+                    { clientId: e.target.value, clientSecret: localSnovKeys[0]?.clientSecret || '' }
+                  ])
                 }
               />
               <div className="flex gap-3">
@@ -224,7 +241,9 @@ function EmailTab({
                     placeholder="Client Secret"
                     value={localSnovKeys[0]?.clientSecret || ''}
                     onChange={(e) =>
-                      setLocalSnovKeys([{ clientId: localSnovKeys[0]?.clientId || '', clientSecret: e.target.value }])
+                      setLocalSnovKeys([
+                        { clientId: localSnovKeys[0]?.clientId || '', clientSecret: e.target.value }
+                      ])
                     }
                   />
                 </div>
@@ -233,21 +252,33 @@ function EmailTab({
                   onClick={() => {
                     const entry = localSnovKeys[0]
                     if (entry?.clientId?.trim() && entry?.clientSecret?.trim()) {
-                      onSaveSnovKeys([...snovKeys, { key: entry.clientId.trim(), userId: entry.clientSecret.trim() }])
+                      onSaveSnovKeys([
+                        ...snovKeys,
+                        { key: entry.clientId.trim(), userId: entry.clientSecret.trim() }
+                      ])
                       setLocalSnovKeys([])
                     }
                   }}
-                  disabled={saving || !localSnovKeys[0]?.clientId?.trim() || !localSnovKeys[0]?.clientSecret?.trim()}
+                  disabled={
+                    saving ||
+                    !localSnovKeys[0]?.clientId?.trim() ||
+                    !localSnovKeys[0]?.clientSecret?.trim()
+                  }
                 >
                   <FiPlus size={16} className="mr-1" /> Add
                 </Button>
               </div>
               <p className="text-xs text-text-muted">
                 Get credentials from{' '}
-                <a href="https://app.snov.io/account/api" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                <a
+                  href="https://app.snov.io/account/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
                   snov.io
-                </a>
-                {' '}• Fallback when all Hunter.io keys are rate limited
+                </a>{' '}
+                • Fallback when all Hunter.io keys are rate limited
               </p>
             </div>
           </div>

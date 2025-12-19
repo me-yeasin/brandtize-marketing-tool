@@ -783,7 +783,14 @@ async function findEmailByDomainWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const { key: keyEntry, index, allExhausted } = getNextKey('hunter', allKeys.map((k) => ({ key: k.key })))
+  const {
+    key: keyEntry,
+    index,
+    allExhausted
+  } = getNextKey(
+    'hunter',
+    allKeys.map((k) => ({ key: k.key }))
+  )
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -832,7 +839,14 @@ async function findEmailByNameWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const { key: keyEntry, index, allExhausted } = getNextKey('hunter', allKeys.map((k) => ({ key: k.key })))
+  const {
+    key: keyEntry,
+    index,
+    allExhausted
+  } = getNextKey(
+    'hunter',
+    allKeys.map((k) => ({ key: k.key }))
+  )
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -902,7 +916,9 @@ async function findEmailByDomainSnovWithRotation(
 
   // Build keys array
   const allKeys: { clientId: string; clientSecret: string; index: number }[] = []
-  snovKeys.forEach((k, i) => allKeys.push({ clientId: k.key, clientSecret: k.userId || '', index: i }))
+  snovKeys.forEach((k, i) =>
+    allKeys.push({ clientId: k.key, clientSecret: k.userId || '', index: i })
+  )
   if (snovClientId && snovClientSecret && snovKeys.length === 0) {
     allKeys.push({ clientId: snovClientId, clientSecret: snovClientSecret, index: 0 })
   }
@@ -911,7 +927,14 @@ async function findEmailByDomainSnovWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const { key: keyEntry, index, allExhausted } = getNextKey('snov', allKeys.map((k) => ({ key: k.clientId })))
+  const {
+    key: keyEntry,
+    index,
+    allExhausted
+  } = getNextKey(
+    'snov',
+    allKeys.map((k) => ({ key: k.clientId }))
+  )
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -935,7 +958,10 @@ async function findEmailByDomainSnovWithRotation(
   try {
     const startResponse = await fetch('https://api.snov.io/v2/domain-search/domain-emails/start', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
       body: new URLSearchParams({ domain })
     })
 
@@ -964,12 +990,133 @@ async function findEmailByDomainSnovWithRotation(
       const resultData = await resultResponse.json()
       if (resultData.status === 'completed' && resultData.data?.length > 0) {
         const validEmail = resultData.data.find(
-          (e: { email: string; smtp_status?: string }) => e.email && (e.smtp_status === 'valid' || !e.smtp_status)
+          (e: { email: string; smtp_status?: string }) =>
+            e.email && (e.smtp_status === 'valid' || !e.smtp_status)
         )
-        return { email: validEmail?.email || resultData.data[0].email, rateLimited: false, keyIndex: index }
+        return {
+          email: validEmail?.email || resultData.data[0].email,
+          rateLimited: false,
+          keyIndex: index
+        }
       }
       if (resultData.status === 'completed') break
     }
+    return { email: null, rateLimited: false, keyIndex: index }
+  } catch {
+    return { email: null, rateLimited: false, keyIndex: index }
+  }
+}
+
+// Snov.io API - Find email by name and domain (exactly like Hunter.io Email Finder)
+async function findEmailByNameSnovWithRotation(
+  firstName: string,
+  lastName: string,
+  domain: string
+): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
+  const snovKeys = getSnovApiKeys()
+  const { snovClientId, snovClientSecret } = getApiKeys()
+
+  // Build keys array
+  const allKeys: { clientId: string; clientSecret: string; index: number }[] = []
+  snovKeys.forEach((k, i) =>
+    allKeys.push({ clientId: k.key, clientSecret: k.userId || '', index: i })
+  )
+  if (snovClientId && snovClientSecret && snovKeys.length === 0) {
+    allKeys.push({ clientId: snovClientId, clientSecret: snovClientSecret, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    return { email: null, rateLimited: false, keyIndex: -1 }
+  }
+
+  const {
+    key: keyEntry,
+    index,
+    allExhausted
+  } = getNextKey(
+    'snov',
+    allKeys.map((k) => ({ key: k.clientId }))
+  )
+  if (!keyEntry || allExhausted) {
+    return { email: null, rateLimited: true, keyIndex: -1 }
+  }
+
+  const currentKey = allKeys[index]
+  const { token, rateLimited: tokenRateLimited } = await getSnovAccessTokenWithKey(
+    currentKey.clientId,
+    currentKey.clientSecret
+  )
+
+  if (tokenRateLimited) {
+    console.log(`[Snov.io] Key #${index + 1} rate limited during auth`)
+    markKeyExhausted('snov', index, 'rate_limit')
+    return { email: null, rateLimited: true, keyIndex: index }
+  }
+
+  if (!token) {
+    return { email: null, rateLimited: false, keyIndex: index }
+  }
+
+  try {
+    // Step 1: Start email search by name + domain
+    const startResponse = await fetch('https://api.snov.io/v2/emails-by-domain-by-name/start', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        rows: [{ first_name: firstName, last_name: lastName, domain }]
+      })
+    })
+
+    if (isRateLimitError(startResponse)) {
+      markKeyExhausted('snov', index, 'rate_limit')
+      return { email: null, rateLimited: true, keyIndex: index }
+    }
+
+    const startData = await startResponse.json()
+    const taskHash = startData.data?.task_hash
+
+    if (!taskHash) {
+      return { email: null, rateLimited: false, keyIndex: index }
+    }
+
+    // Step 2: Poll for results (max 10 attempts, 1 second apart)
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1000))
+
+      const resultResponse = await fetch(
+        `https://api.snov.io/v2/emails-by-domain-by-name/result?task_hash=${taskHash}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      if (isRateLimitError(resultResponse)) {
+        markKeyExhausted('snov', index, 'rate_limit')
+        return { email: null, rateLimited: true, keyIndex: index }
+      }
+
+      const resultData = await resultResponse.json()
+
+      if (resultData.status === 'completed' && resultData.data?.length > 0) {
+        const personResult = resultData.data[0]
+        if (personResult.result?.length > 0) {
+          // Find valid email (prefer smtp_status = valid)
+          const validEmail = personResult.result.find(
+            (e: { email: string; smtp_status?: string }) =>
+              e.email && (e.smtp_status === 'valid' || e.smtp_status === 'unknown')
+          )
+          if (validEmail) {
+            return { email: validEmail.email, rateLimited: false, keyIndex: index }
+          }
+          // Fallback to first email
+          return { email: personResult.result[0].email, rateLimited: false, keyIndex: index }
+        }
+      }
+
+      if (resultData.status === 'completed') break
+    }
+
     return { email: null, rateLimited: false, keyIndex: index }
   } catch {
     return { email: null, rateLimited: false, keyIndex: index }
@@ -1010,8 +1157,10 @@ async function findEmailWithFallback(
     const domainResult = await findEmailByDomainWithRotation(domain)
     if (domainResult.email) return { email: domainResult.email, source: 'hunter_domain' }
     if (!domainResult.rateLimited) break // No rate limit, just no result
-    
-    console.log(`[Email Finder] Hunter.io attempt ${hunterAttempts} rate limited, trying next key...`)
+
+    console.log(
+      `[Email Finder] Hunter.io attempt ${hunterAttempts} rate limited, trying next key...`
+    )
   }
 
   // If Hunter exhausted all keys, try Snov.io
@@ -1029,14 +1178,32 @@ async function findEmailWithFallback(
   let snovAttempts = 0
   const maxSnovAttempts = Math.max(snovKeys.length, 1) + 1
 
+  // Try Snov.io with key rotation - EXACTLY like Hunter.io (name first, then domain)
   while (snovAttempts < maxSnovAttempts) {
     snovAttempts++
 
-    const result = await findEmailByDomainSnovWithRotation(domain)
-    if (result.email) return { email: result.email, source: 'snov_domain' }
-    if (!result.rateLimited) break
+    // Step 1: Try to find email by name + domain (if we have a name)
+    if (firstName && lastName) {
+      const nameResult = await findEmailByNameSnovWithRotation(firstName, lastName, domain)
+      if (nameResult.email) return { email: nameResult.email, source: 'snov_name' }
+      if (!nameResult.rateLimited) {
+        // No rate limit but no result from name search, try domain search
+      } else {
+        console.log(
+          `[Email Finder] Snov.io name search attempt ${snovAttempts} rate limited, trying next key...`
+        )
+        continue
+      }
+    }
 
-    console.log(`[Email Finder] Snov.io attempt ${snovAttempts} rate limited, trying next key...`)
+    // Step 2: Try to find email by domain only
+    const domainResult = await findEmailByDomainSnovWithRotation(domain)
+    if (domainResult.email) return { email: domainResult.email, source: 'snov_domain' }
+    if (!domainResult.rateLimited) break // No rate limit, just no result
+
+    console.log(
+      `[Email Finder] Snov.io domain search attempt ${snovAttempts} rate limited, trying next key...`
+    )
   }
 
   // Check if all keys exhausted
