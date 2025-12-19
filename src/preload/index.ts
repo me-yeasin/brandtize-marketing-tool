@@ -247,6 +247,46 @@ const api = {
     const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
     ipcRenderer.on('leads:error', handler)
     return () => ipcRenderer.removeListener('leads:error', handler)
+  },
+
+  // Auto-Update API
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateAvailable: (cb: (data: { version: string; releaseNotes?: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: { version: string; releaseNotes?: string }
+    ): void => cb(data)
+    ipcRenderer.on('update:available', handler)
+    return () => ipcRenderer.removeListener('update:available', handler)
+  },
+  onUpdateProgress: (
+    cb: (data: {
+      percent: number
+      bytesPerSecond: number
+      transferred: number
+      total: number
+    }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: { percent: number; bytesPerSecond: number; transferred: number; total: number }
+    ): void => cb(data)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
+  },
+  onUpdateDownloaded: (cb: (data: { version: string; releaseNotes?: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: { version: string; releaseNotes?: string }
+    ): void => cb(data)
+    ipcRenderer.on('update:downloaded', handler)
+    return () => ipcRenderer.removeListener('update:downloaded', handler)
+  },
+  onUpdateError: (cb: (error: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
+    ipcRenderer.on('update:error', handler)
+    return () => ipcRenderer.removeListener('update:error', handler)
   }
 }
 

@@ -1,5 +1,6 @@
 import { Toaster } from 'sonner'
 import { HomeScreen } from './screens/HomeScreen'
+import { UpdateNotification } from './components/UpdateNotification'
 
 function App(): React.JSX.Element {
   return (
@@ -16,6 +17,7 @@ function App(): React.JSX.Element {
         }}
       />
       <HomeScreen />
+      <UpdateNotification />
     </>
   )
 }

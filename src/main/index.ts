@@ -3,8 +3,9 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { setupIpcHandlers } from './ipc-handlers'
+import { setupAutoUpdater } from './services/auto-updater'
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -34,6 +35,8 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
@@ -53,7 +56,12 @@ app.whenReady().then(() => {
   // Setup IPC handlers for settings, agent, and mail
   setupIpcHandlers()
 
-  createWindow()
+  const mainWindow = createWindow()
+
+  // Setup auto-updater (only in production)
+  if (!is.dev) {
+    setupAutoUpdater(mainWindow)
+  }
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

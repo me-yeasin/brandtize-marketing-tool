@@ -177,6 +177,21 @@ interface Api {
   onLeadFound: (cb: (lead: unknown) => void) => () => void
   onLeadsComplete: (cb: (leads: unknown[]) => void) => () => void
   onLeadsError: (cb: (error: string) => void) => () => void
+
+  // Auto-Update API
+  checkForUpdates: () => Promise<boolean>
+  installUpdate: () => Promise<void>
+  onUpdateAvailable: (cb: (data: { version: string; releaseNotes?: string }) => void) => () => void
+  onUpdateProgress: (
+    cb: (data: {
+      percent: number
+      bytesPerSecond: number
+      transferred: number
+      total: number
+    }) => void
+  ) => () => void
+  onUpdateDownloaded: (cb: (data: { version: string; releaseNotes?: string }) => void) => () => void
+  onUpdateError: (cb: (error: string) => void) => () => void
 }
 
 declare global {
