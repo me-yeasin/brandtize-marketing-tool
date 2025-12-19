@@ -10,7 +10,9 @@ import {
   FiChevronDown,
   FiChevronRight,
   FiTarget,
-  FiXCircle
+  FiXCircle,
+  FiUserCheck,
+  FiShield
 } from 'react-icons/fi'
 
 interface SearchResult {
@@ -65,10 +67,21 @@ function LeadGenerationView({
   const [currentServiceMatch, setCurrentServiceMatch] = useState<string>('')
   const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([])
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
-    new Set(['search', 'cleanup', 'scrape', 'serviceMatch'])
+    new Set(['search', 'cleanup', 'scrape', 'serviceMatch', 'emailFinding', 'verification'])
   )
   const [error, setError] = useState<string>('')
   const [skippedCount, setSkippedCount] = useState(0)
+  const [currentEmailFinding, setCurrentEmailFinding] = useState<{
+    url: string
+    type: string
+  } | null>(null)
+  const [emailFindingResults, setEmailFindingResults] = useState<
+    Map<string, { email: string | null; source: string }>
+  >(new Map())
+  const [currentVerification, setCurrentVerification] = useState<string>('')
+  const [verificationResults, setVerificationResults] = useState<
+    Map<string, { verified: boolean }>
+  >(new Map())
   const [cleanupProgress, setCleanupProgress] = useState<{
     current: number
     total: number
@@ -118,6 +131,14 @@ function LeadGenerationView({
       toast.info('Protected website detected', {
         description: `${new URL(data.url).hostname} - treating as secure business`,
         duration: 2000
+      })
+    })
+
+    // Key rotation notifications
+    const unsubKeyRotation = window.api.onLeadsKeyRotation((data) => {
+      toast.warning(`${data.service} API key rotated`, {
+        description: `Using key ${data.keyIndex}/${data.totalKeys} - ${data.reason}`,
+        duration: 3000
       })
     })
 
@@ -178,6 +199,39 @@ function LeadGenerationView({
       }
     })
 
+    // Email Finding events (Hunter.io / Snov.io)
+    const unsubHunterStart = window.api.onLeadsHunterStart((data) => {
+      const { url, type } = data as { url: string; type: string }
+      setCurrentEmailFinding({ url, type })
+      setStage('emailFinding')
+    })
+
+    const unsubHunterResult = window.api.onLeadsHunterResult((data) => {
+      const { url, email } = data as { url: string; email: string | null }
+      setEmailFindingResults((prev) =>
+        new Map(prev).set(url, { email, source: email ? 'hunter/snov' : 'none' })
+      )
+      setCurrentEmailFinding(null)
+      if (email) {
+        toast.success(`Email found: ${email}`, { duration: 2000 })
+      }
+    })
+
+    // Email Verification events (Reoon)
+    const unsubVerifyStart = window.api.onLeadsVerifyStart((email) => {
+      setCurrentVerification(email)
+      setStage('verification')
+    })
+
+    const unsubVerifyResult = window.api.onLeadsVerifyResult((data) => {
+      const { email, verified } = data as { email: string; verified: boolean }
+      setVerificationResults((prev) => new Map(prev).set(email, { verified }))
+      setCurrentVerification('')
+      if (verified) {
+        toast.success(`Email verified: ${email}`, { duration: 2000 })
+      }
+    })
+
     const unsubLeadFound = window.api.onLeadFound((lead) => {
       setVerifiedLeads((prev) => [...prev, lead as Lead])
     })
@@ -197,6 +251,7 @@ function LeadGenerationView({
       unsubCleanupProgress()
       unsubServiceSwitched()
       unsubProtectedUrl()
+      unsubKeyRotation()
       unsubCleanupComplete()
       unsubScrapeStart()
       unsubScrapeComplete()
@@ -205,6 +260,10 @@ function LeadGenerationView({
       unsubAiResult()
       unsubServiceMatchStart()
       unsubServiceMatchResult()
+      unsubHunterStart()
+      unsubHunterResult()
+      unsubVerifyStart()
+      unsubVerifyResult()
       unsubLeadFound()
       unsubComplete()
       unsubError()
@@ -426,6 +485,108 @@ function LeadGenerationView({
                     {match.reason && (
                       <div className="text-white/50 mt-1 text-[10px]">{match.reason}</div>
                     )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Email Finding Panel (Hunter.io / Snov.io) */}
+        {(currentEmailFinding || emailFindingResults.size > 0) && (
+          <div className="bg-slate-800 rounded-xl overflow-hidden">
+            <button
+              onClick={() => togglePanel('emailFinding')}
+              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
+            >
+              <FiUserCheck className="text-indigo-400" size={20} />
+              <span className="font-medium text-white flex-1">Email Finding (Hunter/Snov)</span>
+              {currentEmailFinding && (
+                <span className="text-xs text-yellow-400 animate-pulse">
+                  Finding via {currentEmailFinding.type}...
+                </span>
+              )}
+              <span className="text-xs text-green-400">
+                {Array.from(emailFindingResults.values()).filter((r) => r.email).length} found
+              </span>
+              {expandedPanels.has('emailFinding') ? <FiChevronDown /> : <FiChevronRight />}
+            </button>
+            {expandedPanels.has('emailFinding') && (
+              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
+                {currentEmailFinding && (
+                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
+                    <div className="font-medium">
+                      Finding email via{' '}
+                      {currentEmailFinding.type === 'name' ? 'Name Search' : 'Domain Search'}
+                    </div>
+                    <div className="text-white/60 truncate mt-1">{currentEmailFinding.url}</div>
+                  </div>
+                )}
+                {Array.from(emailFindingResults.entries()).map(([url, result]) => (
+                  <div
+                    key={url}
+                    className={`text-xs p-2 rounded ${result.email ? 'bg-green-500/10' : 'bg-slate-700/30'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {result.email ? (
+                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
+                      ) : (
+                        <FiXCircle className="text-red-400/50 shrink-0" size={12} />
+                      )}
+                      <span className={result.email ? 'text-green-400' : 'text-white/50'}>
+                        {result.email || 'Not found'}
+                      </span>
+                    </div>
+                    <div className="text-white/40 truncate mt-1">{url}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Email Verification Panel (Reoon) */}
+        {(currentVerification || verificationResults.size > 0) && (
+          <div className="bg-slate-800 rounded-xl overflow-hidden">
+            <button
+              onClick={() => togglePanel('verification')}
+              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
+            >
+              <FiShield className="text-emerald-400" size={20} />
+              <span className="font-medium text-white flex-1">Email Verification (Reoon)</span>
+              {currentVerification && (
+                <span className="text-xs text-yellow-400 animate-pulse">Verifying...</span>
+              )}
+              <span className="text-xs text-green-400">
+                {Array.from(verificationResults.values()).filter((r) => r.verified).length} verified
+              </span>
+              {expandedPanels.has('verification') ? <FiChevronDown /> : <FiChevronRight />}
+            </button>
+            {expandedPanels.has('verification') && (
+              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
+                {currentVerification && (
+                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
+                    Verifying: {currentVerification}
+                  </div>
+                )}
+                {Array.from(verificationResults.entries()).map(([email, result]) => (
+                  <div
+                    key={email}
+                    className={`text-xs p-2 rounded ${result.verified ? 'bg-green-500/10' : 'bg-red-500/10'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {result.verified ? (
+                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
+                      ) : (
+                        <FiXCircle className="text-red-400 shrink-0" size={12} />
+                      )}
+                      <span className={result.verified ? 'text-green-400' : 'text-red-400'}>
+                        {email}
+                      </span>
+                    </div>
+                    <div className="text-white/50 mt-1">
+                      {result.verified ? 'Valid & deliverable' : 'Invalid or undeliverable'}
+                    </div>
                   </div>
                 ))}
               </div>

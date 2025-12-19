@@ -1,8 +1,6 @@
 import {
   getApiKeys,
   getAgencyProfile,
-  getNeutrinoApiKeys,
-  getLinkPreviewApiKeys,
   getSerperApiKeys,
   getJinaApiKeys,
   getHunterApiKeys,
@@ -27,8 +25,6 @@ interface KeyRotationState {
 const keyRotationState: Record<string, KeyRotationState> = {
   serper: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   jina: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  neutrino: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  linkPreview: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   hunter: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   snov: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   reoon: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
@@ -118,302 +114,6 @@ export interface LeadGenerationCallbacks {
   onLeadFound: (lead: LeadResult) => void
   onComplete: (leads: LeadResult[]) => void
   onError: (error: string) => void
-}
-
-// Neutrino API - Smart URL categorization with multi-key rotation
-async function categorizeUrlWithNeutrino(
-  url: string,
-  mainWindow: Electron.BrowserWindow | null
-): Promise<{ category: string | null; error: string | null; keyIndex?: number }> {
-  // Try multi-keys first
-  const multiKeys = getNeutrinoApiKeys()
-  if (multiKeys.length > 0) {
-    const { key, index, allExhausted } = getNextKey('neutrino', multiKeys)
-
-    if (key && key.key && key.userId) {
-      try {
-        const response = await fetch('https://neutrinoapi.net/url-info', {
-          method: 'POST',
-          headers: {
-            'User-ID': key.userId,
-            'API-Key': key.key,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: `url=${encodeURIComponent(url)}&fetch-content=false`
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          const errorMsg = errorData['api-error-msg'] || `HTTP ${response.status}`
-
-          // Check if rate limited
-          if (errorMsg.includes('LIMIT') || response.status === 429) {
-            markKeyExhausted('neutrino', index, errorMsg)
-            mainWindow?.webContents.send('leads:keyRotation', {
-              service: 'Neutrino',
-              keyIndex: index + 1,
-              totalKeys: multiKeys.length,
-              reason: errorMsg
-            })
-
-            // Try next key recursively
-            if (!allExhausted) {
-              return categorizeUrlWithNeutrino(url, mainWindow)
-            }
-          }
-
-          return { category: null, error: `Neutrino API error: ${errorMsg}`, keyIndex: index }
-        }
-
-        const data = await response.json()
-        console.log(
-          `Neutrino[${index + 1}/${multiKeys.length}] categorized ${url} as: ${data['content-type'] || 'unknown'}`
-        )
-        return { category: data['content-type'] || null, error: null, keyIndex: index }
-      } catch (error) {
-        return { category: null, error: `Neutrino API connection error: ${error}`, keyIndex: index }
-      }
-    }
-  }
-
-  // Fallback to single key
-  const { neutrinoApiKey, neutrinoUserId } = getApiKeys()
-  if (!neutrinoApiKey || !neutrinoUserId) {
-    return {
-      category: null,
-      error: 'Neutrino API credentials not configured. Please add User ID and API Key in Settings.'
-    }
-  }
-
-  try {
-    const response = await fetch('https://neutrinoapi.net/url-info', {
-      method: 'POST',
-      headers: {
-        'User-ID': neutrinoUserId,
-        'API-Key': neutrinoApiKey,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: `url=${encodeURIComponent(url)}&fetch-content=false`
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      const errorMsg = errorData['api-error-msg'] || `HTTP ${response.status}`
-      return { category: null, error: `Neutrino API error: ${errorMsg}` }
-    }
-
-    const data = await response.json()
-    console.log(`Neutrino categorized ${url} as: ${data['content-type'] || 'unknown'}`)
-    return { category: data['content-type'] || null, error: null }
-  } catch (error) {
-    return { category: null, error: `Neutrino API connection error: ${error}` }
-  }
-}
-
-// LinkPreview API - Fallback URL categorization with multi-key rotation
-async function categorizeUrlWithLinkPreview(
-  url: string,
-  mainWindow: Electron.BrowserWindow | null
-): Promise<{ category: string | null; error: string | null }> {
-  // Try multi-keys first
-  const multiKeys = getLinkPreviewApiKeys()
-  if (multiKeys.length > 0) {
-    const { key, index, allExhausted } = getNextKey('linkPreview', multiKeys)
-
-    if (key && key.key) {
-      try {
-        const response = await fetch(`https://api.linkpreview.net/?q=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          headers: {
-            'X-Linkpreview-Api-Key': key.key
-          }
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          const errorMsg = errorData.error || `HTTP ${response.status}`
-
-          // Check if rate limited (425 or 429)
-          if (response.status === 425 || response.status === 429 || errorMsg.includes('limit')) {
-            markKeyExhausted('linkPreview', index, errorMsg)
-            mainWindow?.webContents.send('leads:keyRotation', {
-              service: 'LinkPreview',
-              keyIndex: index + 1,
-              totalKeys: multiKeys.length,
-              reason: errorMsg
-            })
-
-            // Try next key recursively
-            if (!allExhausted) {
-              return categorizeUrlWithLinkPreview(url, mainWindow)
-            }
-          }
-
-          return { category: null, error: `LinkPreview API error: ${errorMsg}` }
-        }
-
-        const data = await response.json()
-        const content =
-          `${data.title || ''} ${data.description || ''} ${data.site_name || ''}`.toLowerCase()
-
-        let category = 'website'
-        if (content.includes('job') || content.includes('career') || content.includes('hiring')) {
-          category = 'job-board'
-        } else if (
-          content.includes('facebook') ||
-          content.includes('instagram') ||
-          content.includes('twitter') ||
-          content.includes('linkedin') ||
-          content.includes('tiktok')
-        ) {
-          category = 'social-media'
-        }
-
-        console.log(
-          `LinkPreview[${index + 1}/${multiKeys.length}] categorized ${url} as: ${category}`
-        )
-        return { category, error: null }
-      } catch (error) {
-        return { category: null, error: `LinkPreview API connection error: ${error}` }
-      }
-    }
-  }
-
-  // Fallback to single key
-  const { linkPreviewApiKey } = getApiKeys()
-  if (!linkPreviewApiKey) {
-    return {
-      category: null,
-      error: 'LinkPreview API key not configured. Please add API Key in Settings.'
-    }
-  }
-
-  try {
-    const response = await fetch(`https://api.linkpreview.net/?q=${encodeURIComponent(url)}`, {
-      method: 'GET',
-      headers: {
-        'X-Linkpreview-Api-Key': linkPreviewApiKey
-      }
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      return {
-        category: null,
-        error: `LinkPreview API error: ${errorData.error || response.status}`
-      }
-    }
-
-    const data = await response.json()
-    // LinkPreview returns title/description - analyze for keywords
-    const content =
-      `${data.title || ''} ${data.description || ''} ${data.site_name || ''}`.toLowerCase()
-
-    // Determine category from content keywords
-    let category = 'unknown'
-    if (content.includes('job') || content.includes('career') || content.includes('hiring')) {
-      category = 'job-board'
-    } else if (
-      content.includes('facebook') ||
-      content.includes('instagram') ||
-      content.includes('twitter') ||
-      content.includes('linkedin') ||
-      content.includes('tiktok')
-    ) {
-      category = 'social-media'
-    } else if (content.includes('classified') || content.includes('craigslist')) {
-      category = 'classifieds'
-    } else {
-      category = 'website'
-    }
-
-    console.log(`LinkPreview categorized ${url} as: ${category}`)
-    return { category, error: null }
-  } catch (error) {
-    return { category: null, error: `LinkPreview API connection error: ${error}` }
-  }
-}
-
-// Check if URL should be blocked based on category
-function shouldBlockCategory(category: string | null): boolean {
-  if (!category) return false
-
-  const blockedCategories = [
-    'job-board',
-    'job',
-    'recruitment',
-    'careers',
-    'employment',
-    'social-media',
-    'social',
-    'classifieds',
-    'dating',
-    'gambling',
-    'porn',
-    'adult'
-  ]
-
-  return blockedCategories.some((blocked) => category.toLowerCase().includes(blocked))
-}
-
-// AI-powered URL validation - Second opinion for blocked/uncertain URLs
-async function validateUrlWithAI(
-  url: string,
-  title: string,
-  snippet: string,
-  category: string,
-  niche: string
-): Promise<{ isValidLead: boolean; reason: string }> {
-  const prompt = `You are a lead qualification expert. Analyze this URL to determine if it could be a potential business client.
-
-URL: ${url}
-Title: ${title}
-Snippet: ${snippet}
-Category detected: ${category}
-Target niche: ${niche}
-
-The URL was initially categorized as "${category}" which would normally be blocked.
-
-Your task: Determine if this is actually a legitimate business that could be a potential client, or if it truly is a job board/social media/irrelevant site.
-
-Consider:
-1. Is this a real business website that happens to have a careers page?
-2. Could this business benefit from services in the "${niche}" niche?
-3. Is this a company's main website vs a pure job listing site?
-
-Respond in JSON format only:
-{
-  "isValidLead": true/false,
-  "reason": "Brief explanation"
-}
-
-Examples:
-- "acme-corp.com/careers" → isValidLead: true (company website with careers section)
-- "indeed.com" → isValidLead: false (pure job board)
-- "linkedin.com/company/acme" → isValidLead: false (social media platform)
-- "acme-restaurant.com" → isValidLead: true (business website)`
-
-  const defaultValue = { isValidLead: true, reason: 'AI not configured - allowing URL' }
-
-  return executeWithAiRotation(
-    prompt,
-    (response: string) => {
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        return {
-          isValidLead: Boolean(parsed.isValidLead),
-          reason: parsed.reason || 'AI analysis'
-        }
-      }
-      return { isValidLead: true, reason: 'Could not parse AI response - allowing URL' }
-    },
-    defaultValue,
-    {
-      onModelSwitch: (from, to) => console.log(`[URL Validation] Model switch: ${from} -> ${to}`),
-      onKeySwitch: (idx, total) => console.log(`[URL Validation] Key switch: ${idx}/${total}`)
-    }
-  )
 }
 
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
@@ -509,180 +209,6 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
   }
 
   throw new Error('All Serper API keys exhausted')
-}
-
-// Session state for URL cleanup services
-let neutrinoDisabledForSession = false
-let linkPreviewDisabledForSession = false
-let neutrinoLastError = ''
-
-// Reset session state (call when starting new lead generation)
-function resetCleanupSessionState(): void {
-  neutrinoDisabledForSession = false
-  linkPreviewDisabledForSession = false
-  neutrinoLastError = ''
-}
-
-// URL Cleanup - Use Neutrino API with LinkPreview fallback + AI validation
-// Flow: Neutrino (all keys) → LinkPreview (all keys) → Check Neutrino first key reset → STOP if not reset
-async function cleanupUrls(
-  results: SearchResult[],
-  mainWindow: Electron.BrowserWindow | null,
-  niche: string
-): Promise<string[]> {
-  const cleanedUrls: string[] = []
-
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i]
-    const url = result.link
-    let category: string | null = null
-    let usedService = ''
-
-    // Send progress update to UI
-    mainWindow?.webContents.send('leads:cleanupProgress', {
-      current: i + 1,
-      total: results.length,
-      url: url,
-      status: 'processing'
-    })
-
-    // STEP 1: Try Neutrino API first (if not disabled for session)
-    if (!neutrinoDisabledForSession) {
-      const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
-
-      if (!neutrinoResult.error && neutrinoResult.category) {
-        category = neutrinoResult.category
-        usedService = 'Neutrino'
-      } else {
-        neutrinoLastError = neutrinoResult.error || 'Unknown error'
-
-        // Check if all Neutrino keys are exhausted
-        const neutrinoKeys = getNeutrinoApiKeys()
-        if (keyRotationState.neutrino.exhaustedKeys.size >= (neutrinoKeys.length || 1)) {
-          neutrinoDisabledForSession = true
-          console.log(`[Neutrino] All keys exhausted. Switching to LinkPreview...`)
-
-          mainWindow?.webContents.send('leads:serviceSwitched', {
-            from: 'Neutrino',
-            to: 'LinkPreview',
-            reason: neutrinoLastError
-          })
-        }
-      }
-    }
-
-    // STEP 2: Use LinkPreview if Neutrino didn't work
-    if (!category && !linkPreviewDisabledForSession) {
-      const linkPreviewResult = await categorizeUrlWithLinkPreview(url, mainWindow)
-
-      if (!linkPreviewResult.error && linkPreviewResult.category) {
-        category = linkPreviewResult.category
-        usedService = 'LinkPreview'
-      } else {
-        // Check if all LinkPreview keys are exhausted
-        const linkPreviewKeys = getLinkPreviewApiKeys()
-        if (keyRotationState.linkPreview.exhaustedKeys.size >= (linkPreviewKeys.length || 1)) {
-          linkPreviewDisabledForSession = true
-          console.log(`[LinkPreview] All keys exhausted.`)
-        }
-      }
-    }
-
-    // STEP 3: Both services exhausted - check if Neutrino first key has reset
-    if (!category && neutrinoDisabledForSession && linkPreviewDisabledForSession) {
-      console.log(
-        '[URL Cleanup] Both services exhausted, checking if Neutrino first key has reset...'
-      )
-
-      // Clear Neutrino state and try first key
-      keyRotationState.neutrino.exhaustedKeys.clear()
-      keyRotationState.neutrino.currentIndex = 0
-
-      const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
-
-      if (!neutrinoResult.error && neutrinoResult.category) {
-        // First key reset! Re-enable Neutrino and clear LinkPreview state too
-        console.log('[URL Cleanup] Neutrino first key has reset! Continuing...')
-        neutrinoDisabledForSession = false
-        linkPreviewDisabledForSession = false
-        keyRotationState.linkPreview.exhaustedKeys.clear()
-        keyRotationState.linkPreview.currentIndex = 0
-
-        category = neutrinoResult.category
-        usedService = 'Neutrino'
-      } else {
-        // Neutrino still failing - treat as secure website
-        category = 'secure-website'
-        usedService = 'Assumed'
-        console.log(`[URL Cleanup] Neutrino still failing. ${url} treating as secure-website`)
-
-        mainWindow?.webContents.send('leads:protectedUrl', {
-          url: url,
-          reason: 'All URL cleanup API keys exhausted'
-        })
-      }
-    }
-
-    // Fallback if no category yet (shouldn't happen but just in case)
-    if (!category) {
-      category = 'secure-website'
-      usedService = 'Assumed'
-    }
-
-    let shouldBlock = shouldBlockCategory(category)
-    let aiOverride = false
-    let aiReason = ''
-
-    // If URL would be blocked, use AI for second opinion
-    if (shouldBlock && category) {
-      mainWindow?.webContents.send('leads:cleanupProgress', {
-        current: i + 1,
-        total: results.length,
-        url: url,
-        status: 'ai-validating'
-      })
-
-      const aiResult = await validateUrlWithAI(url, result.title, result.snippet, category, niche)
-
-      if (aiResult.isValidLead) {
-        shouldBlock = false
-        aiOverride = true
-        aiReason = aiResult.reason
-        console.log(`AI OVERRIDE: ${url} - ${aiResult.reason}`)
-
-        mainWindow?.webContents.send('leads:aiOverride', {
-          url: url,
-          originalCategory: category,
-          reason: aiResult.reason
-        })
-      } else {
-        console.log(`AI CONFIRMED BLOCK: ${url} - ${aiResult.reason}`)
-      }
-    }
-
-    const finalStatus = shouldBlock ? 'blocked' : aiOverride ? 'ai-allowed' : 'allowed'
-    console.log(
-      `${usedService}: ${url} -> ${category} - ${finalStatus}${aiOverride ? ` (AI: ${aiReason})` : ''}`
-    )
-
-    // Send progress update with result
-    mainWindow?.webContents.send('leads:cleanupProgress', {
-      current: i + 1,
-      total: results.length,
-      url: url,
-      status: finalStatus,
-      service: usedService,
-      category: category,
-      aiOverride: aiOverride,
-      aiReason: aiReason
-    })
-
-    if (!shouldBlock) {
-      cleanedUrls.push(url)
-    }
-  }
-
-  return cleanedUrls
 }
 
 // Jina Reader API - Content Scraping with key rotation on rate limit
@@ -1305,108 +831,6 @@ async function findEmailWithFallback(
   return { email: null, source: 'none' }
 }
 
-// AI Analysis - Extract email and decision maker from content
-interface AiAnalysisResult {
-  email: string | null
-  decisionMaker: string | null
-}
-
-async function analyzeContentWithAi(content: string): Promise<AiAnalysisResult> {
-  const prompt = `Analyze the following website content and extract:
-1. Any email addresses you find (look for patterns like name@domain.com)
-2. The name of the business owner, CEO, founder, or main decision maker
-
-Respond ONLY in this exact JSON format, nothing else:
-{"email": "found_email@example.com or null", "decisionMaker": "Person Name or null"}
-
-Website content:
-${content.slice(0, 8000)}`
-
-  const defaultValue: AiAnalysisResult = { email: null, decisionMaker: null }
-
-  return executeWithAiRotation(
-    prompt,
-    (response: string) => {
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        return {
-          email: parsed.email === 'null' ? null : parsed.email || null,
-          decisionMaker: parsed.decisionMaker === 'null' ? null : parsed.decisionMaker || null
-        }
-      }
-      return { email: null, decisionMaker: null }
-    },
-    defaultValue,
-    {
-      onModelSwitch: (from, to) => console.log(`[AI Analysis] Model switch: ${from} -> ${to}`),
-      onKeySwitch: (idx, total) => console.log(`[AI Analysis] Key switch: ${idx}/${total}`)
-    }
-  )
-}
-
-// Service Matching - Check if the business needs our services (saves Hunter.io and Reoon credits)
-interface ServiceMatchResult {
-  needsServices: boolean
-  reason: string | null
-}
-
-async function checkServiceMatch(content: string): Promise<ServiceMatchResult> {
-  const profile = getAgencyProfile()
-  const services = profile.services.filter((s) => s.trim().length > 0)
-
-  if (services.length === 0) {
-    return { needsServices: true, reason: 'No services defined in profile - accepting all leads' }
-  }
-
-  const prompt = `You are a lead qualification expert. Analyze this website content and determine if this business could benefit from these services:
-
-SERVICES WE OFFER:
-${services.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-WEBSITE CONTENT:
-${content.slice(0, 6000)}
-
-Analyze if this business shows ANY of these signs:
-1. Outdated website (old copyright dates like 2019-2022, old design patterns)
-2. Missing features we could provide (no mobile optimization, poor SEO, etc.)
-3. Job postings or "we're hiring" for services we offer
-4. Explicit mentions of needing help with services we provide
-5. Poor quality in areas where we excel
-6. send your resume to
-7. 
-
-Be STRICT - only say YES if there's clear evidence they need our services.
-
-Respond ONLY in this exact JSON format:
-{"needsServices": true/false, "reason": "One sentence explaining WHY they need or don't need our services"}`
-
-  const defaultValue: ServiceMatchResult = {
-    needsServices: true,
-    reason: 'AI not configured - accepting lead'
-  }
-
-  return executeWithAiRotation(
-    prompt,
-    (response: string) => {
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        return {
-          needsServices: parsed.needsServices === true,
-          reason: parsed.reason || null
-        }
-      }
-      return { needsServices: false, reason: 'Could not analyze - skipping to save credits' }
-    },
-    defaultValue,
-    {
-      onModelSwitch: (from, to) => console.log(`[Service Match] Model switch: ${from} -> ${to}`),
-      onKeySwitch: (idx, total) => console.log(`[Service Match] Key switch: ${idx}/${total}`)
-    }
-  )
-}
-
 // Reoon API - Email Verification with multi-key rotation
 // Flow: Always try first key first → rotate through keys → fallback to Rapid → check first key reset
 async function verifyEmailWithReoon(
@@ -1514,7 +938,89 @@ async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
   }
 }
 
+// AI-powered combined analysis: URL qualification + Service matching + Data extraction
+interface CombinedAiAnalysisResult {
+  isValidLead: boolean
+  qualificationReason: string
+  needsServices: boolean
+  serviceMatchReason: string
+  email: string | null
+  decisionMaker: string | null
+}
+
+async function combinedAiAnalysis(content: string, url: string): Promise<CombinedAiAnalysisResult> {
+  const profile = getAgencyProfile()
+  const services = profile.services.filter((s) => s.trim().length > 0)
+
+  const prompt = `You are a B2B lead qualification expert. Analyze this website content and perform THREE tasks:
+
+TASK 1 - URL QUALIFICATION:
+Determine if this is a legitimate business website that could be a potential client.
+REJECT if it's: a job board (Indeed, LinkedIn Jobs), social media platform, classified ads, dating site, or irrelevant content.
+ACCEPT if it's: a real business website (even if it has a careers page).
+
+TASK 2 - SERVICE MATCHING:
+${services.length > 0 ? `Check if this business could benefit from these services:\n${services.map((s, i) => `${i + 1}. ${s}`).join('\n')}` : 'No services defined - accept all leads.'}
+
+Look for signs like:
+- Outdated website (old copyright dates, old design)
+- Missing features we could provide
+- Poor quality in areas where we excel
+- Explicit needs for our services
+
+TASK 3 - DATA EXTRACTION:
+Extract any email addresses and the name of the business owner/CEO/founder/decision maker.
+
+Website URL: ${url}
+Website Content:
+${content.slice(0, 8000)}
+
+Respond ONLY in this exact JSON format:
+{
+  "isValidLead": true/false,
+  "qualificationReason": "Brief reason why this is/isn't a valid lead",
+  "needsServices": true/false,
+  "serviceMatchReason": "Brief reason why they need/don't need our services",
+  "email": "found_email@example.com or null",
+  "decisionMaker": "Person Name or null"
+}`
+
+  const defaultValue: CombinedAiAnalysisResult = {
+    isValidLead: true,
+    qualificationReason: 'AI not configured - accepting lead',
+    needsServices: true,
+    serviceMatchReason: 'AI not configured - accepting lead',
+    email: null,
+    decisionMaker: null
+  }
+
+  return executeWithAiRotation(
+    prompt,
+    (response: string) => {
+      const jsonMatch = response.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          isValidLead: parsed.isValidLead !== false,
+          qualificationReason: parsed.qualificationReason || 'AI analysis',
+          needsServices: parsed.needsServices !== false,
+          serviceMatchReason: parsed.serviceMatchReason || 'AI analysis',
+          email: parsed.email === 'null' ? null : parsed.email || null,
+          decisionMaker: parsed.decisionMaker === 'null' ? null : parsed.decisionMaker || null
+        }
+      }
+      return defaultValue
+    },
+    defaultValue,
+    {
+      onModelSwitch: (from, to) => console.log(`[AI Analysis] Model switch: ${from} -> ${to}`),
+      onKeySwitch: (idx, total) => console.log(`[AI Analysis] Key switch: ${idx}/${total}`)
+    }
+  )
+}
+
 // Export the main lead generation function
+// NEW STREAMING FLOW: Search → Save ALL URLs → For each URL: Scrape → AI Analysis → Email Finding → Verification
 export async function generateLeads(
   input: LeadGenerationInput,
   callbacks: LeadGenerationCallbacks,
@@ -1528,27 +1034,30 @@ export async function generateLeads(
   // Reset AI rotation state for new lead generation
   resetAiRotationState()
 
-  // Reset cleanup session state for new lead generation
-  resetCleanupSessionState()
-
   try {
-    // Step 1: Web Search with Serper
+    // Step 1: Web Search with Serper - get 10 organic results
     callbacks.onSearchStart(input.searchQuery)
     const searchResults = await searchWithSerper(input.searchQuery)
     callbacks.onSearchComplete(searchResults)
 
-    // Step 2: URL Cleanup with AI validation
-    const cleanedUrls = await cleanupUrls(searchResults, mainWindow, input.niche)
-    callbacks.onCleanupComplete(cleanedUrls)
-
-    if (cleanedUrls.length === 0) {
-      callbacks.onError('No valid URLs found after cleanup')
+    if (searchResults.length === 0) {
+      callbacks.onError('No search results found')
       callbacks.onComplete(leads)
       return
     }
 
-    // Step 3-7: Process each URL sequentially for quality
-    for (const url of cleanedUrls) {
+    // Get all URLs from search results
+    const allUrls = searchResults.map((r) => r.link)
+
+    // Notify UI that cleanup is complete (all URLs pass through now - AI will filter)
+    callbacks.onCleanupComplete(allUrls)
+
+    // Step 2-6: Process each URL one-by-one in STREAMING fashion
+    // As soon as one URL completes scraping, it goes to AI analysis
+    // As soon as AI passes, it goes to email finding, then verification
+    for (const result of searchResults) {
+      const url = result.link
+
       try {
         const domain = extractDomain(url)
 
@@ -1565,23 +1074,78 @@ export async function generateLeads(
           continue
         }
 
-        // Step 3: Scrape content with Jina
+        // Step 2: Scrape content with Jina
         callbacks.onScrapeStart(url)
-        const scraped = await scrapeWithJina(url)
-        callbacks.onScrapeComplete(url, scraped)
+        let scraped: ScrapedContent
+        try {
+          scraped = await scrapeWithJina(url)
+          callbacks.onScrapeComplete(url, scraped)
+        } catch (scrapeError) {
+          const errorMsg = scrapeError instanceof Error ? scrapeError.message : 'Scrape failed'
+          callbacks.onScrapeError(url, errorMsg)
 
-        // Step 4: AI Analysis - uses selected provider from settings
+          // Save as processed to avoid retrying
+          const processedDomain: ProcessedDomain = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            domain,
+            url,
+            email: null,
+            decisionMaker: null,
+            verified: false,
+            source: 'direct',
+            processedAt: Date.now(),
+            searchQuery: input.searchQuery
+          }
+          addProcessedDomain(processedDomain)
+          continue
+        }
+
+        // Step 3: Combined AI Analysis - URL qualification + Service matching + Data extraction
         callbacks.onAiAnalysisStart(url)
-        const aiResult = await analyzeContentWithAi(scraped.content)
+        const aiResult = await combinedAiAnalysis(scraped.content, url)
         callbacks.onAiAnalysisResult(url, aiResult.email, aiResult.decisionMaker)
 
-        // Step 4.5: Service Match - Check if they need our services BEFORE using paid APIs
+        // Send service match result to UI
         callbacks.onServiceMatchStart(url)
-        const serviceMatch = await checkServiceMatch(scraped.content)
-        callbacks.onServiceMatchResult(url, serviceMatch.needsServices, serviceMatch.reason)
+        callbacks.onServiceMatchResult(url, aiResult.needsServices, aiResult.serviceMatchReason)
+
+        // Skip if URL is not a valid lead (job board, social media, etc.)
+        if (!aiResult.isValidLead) {
+          console.log(`[Lead Gen] Skipping invalid lead: ${url} - ${aiResult.qualificationReason}`)
+
+          // Save as processed
+          const processedDomain: ProcessedDomain = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            domain,
+            url,
+            email: null,
+            decisionMaker: aiResult.decisionMaker,
+            verified: false,
+            source: 'direct',
+            processedAt: Date.now(),
+            searchQuery: input.searchQuery
+          }
+          addProcessedDomain(processedDomain)
+          continue
+        }
 
         // Skip if they don't need our services - SAVES Hunter.io and Reoon credits!
-        if (!serviceMatch.needsServices) {
+        if (!aiResult.needsServices) {
+          console.log(`[Lead Gen] Skipping - doesn't need services: ${url}`)
+
+          // Save as processed
+          const processedDomain: ProcessedDomain = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            domain,
+            url,
+            email: null,
+            decisionMaker: aiResult.decisionMaker,
+            verified: false,
+            source: 'direct',
+            processedAt: Date.now(),
+            searchQuery: input.searchQuery
+          }
+          addProcessedDomain(processedDomain)
           continue
         }
 
@@ -1589,7 +1153,7 @@ export async function generateLeads(
         let emailSource: 'direct' | 'hunter_name' | 'hunter_domain' | 'snov_name' | 'snov_domain' =
           'direct'
 
-        // Step 5: If no direct email found, try Hunter.io with Snov.io fallback (only for qualified leads)
+        // Step 4: Email Finding - If no direct email found, try Hunter.io with Snov.io fallback
         if (!finalEmail) {
           let firstName: string | undefined
           let lastName: string | undefined
@@ -1619,7 +1183,7 @@ export async function generateLeads(
           }
         }
 
-        // Step 6: Verify email with Reoon (with key rotation) + Rapid Verifier fallback
+        // Step 5: Email Verification with Reoon (with key rotation) + Rapid Verifier fallback
         let verified = false
         if (finalEmail) {
           callbacks.onVerificationStart(finalEmail)
@@ -1637,7 +1201,7 @@ export async function generateLeads(
           callbacks.onVerificationResult(finalEmail, verified)
         }
 
-        // Step 7: Add to leads if we have a verified email
+        // Step 6: Add to leads if we have a verified email
         if (finalEmail && verified) {
           const lead: LeadResult = {
             url,
@@ -1645,8 +1209,8 @@ export async function generateLeads(
             decisionMaker: aiResult.decisionMaker,
             verified: true,
             source: emailSource,
-            needsServices: serviceMatch.needsServices,
-            serviceMatchReason: serviceMatch.reason
+            needsServices: aiResult.needsServices,
+            serviceMatchReason: aiResult.serviceMatchReason
           }
           leads.push(lead)
           callbacks.onLeadFound(lead)

@@ -25,9 +25,6 @@ function SettingsScreen(): JSX.Element {
   const [googleKey, setGoogleKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
   const [jinaKey, setJinaKey] = useState('')
-  const [neutrinoKey, setNeutrinoKey] = useState('')
-  const [neutrinoUserId, setNeutrinoUserId] = useState('')
-  const [linkPreviewKey, setLinkPreviewKey] = useState('')
   const [selectedModel, setSelectedModel] = useState(GROQ_MODELS[0]?.id ?? '')
   const [selectedMistralModel, setSelectedMistralModel] = useState(MISTRAL_MODELS[0]?.id ?? '')
   const [selectedGoogleModel, setSelectedGoogleModel] = useState(GOOGLE_MODELS[0]?.id ?? '')
@@ -40,8 +37,6 @@ function SettingsScreen(): JSX.Element {
   const [hasSerperKey, setHasSerperKey] = useState(false)
   const [hasHunterKey, setHasHunterKey] = useState(false)
   const [hasJinaKey, setHasJinaKey] = useState(false)
-  const [hasNeutrinoKey, setHasNeutrinoKey] = useState(false)
-  const [hasLinkPreviewKey, setHasLinkPreviewKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<MessageState>(null)
@@ -50,16 +45,12 @@ function SettingsScreen(): JSX.Element {
   const [multiKeys, setMultiKeys] = useState<{
     serper: { key: string; userId?: string; label?: string }[]
     jina: { key: string; userId?: string; label?: string }[]
-    neutrino: { key: string; userId?: string; label?: string }[]
-    linkPreview: { key: string; userId?: string; label?: string }[]
     hunter: { key: string; userId?: string; label?: string }[]
     reoon: { key: string; userId?: string; label?: string }[]
     snov: { key: string; userId?: string; label?: string }[]
   }>({
     serper: [],
     jina: [],
-    neutrino: [],
-    linkPreview: [],
     hunter: [],
     reoon: [],
     snov: []
@@ -81,17 +72,12 @@ function SettingsScreen(): JSX.Element {
       setGoogleKey(keys.googleApiKey)
       setSerperKey(keys.serperApiKey)
       setJinaKey(keys.jinaApiKey)
-      setNeutrinoKey(keys.neutrinoApiKey)
-      setNeutrinoUserId(keys.neutrinoUserId)
-      setLinkPreviewKey(keys.linkPreviewApiKey)
       setHasGroqKey(keys.hasGroqKey)
       setHasMistralKey(keys.hasMistralKey)
       setHasGoogleKey(keys.hasGoogleKey)
       setHasSerperKey(keys.hasSerperKey)
       setHasHunterKey(keys.hasHunterKey)
       setHasJinaKey(keys.hasJinaKey)
-      setHasNeutrinoKey(keys.hasNeutrinoKey)
-      setHasLinkPreviewKey(keys.hasLinkPreviewKey)
     })
 
     // Fetch multi-keys
@@ -207,36 +193,6 @@ function SettingsScreen(): JSX.Element {
       setHasJinaKey(keys.hasJinaKey)
     } catch (error) {
       console.error('Failed to save Jina API key:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const saveNeutrinoKey = async (): Promise<void> => {
-    setSaving(true)
-    try {
-      await window.api.setNeutrinoApiKey(neutrinoKey)
-      await window.api.setNeutrinoUserId(neutrinoUserId)
-      const keys = await window.api.getApiKeys()
-      setNeutrinoKey(keys.neutrinoApiKey)
-      setNeutrinoUserId(keys.neutrinoUserId)
-      setHasNeutrinoKey(keys.hasNeutrinoKey)
-    } catch (error) {
-      console.error('Failed to save Neutrino credentials:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const saveLinkPreviewKey = async (): Promise<void> => {
-    setSaving(true)
-    try {
-      await window.api.setLinkPreviewApiKey(linkPreviewKey)
-      const keys = await window.api.getApiKeys()
-      setLinkPreviewKey(keys.linkPreviewApiKey)
-      setHasLinkPreviewKey(keys.hasLinkPreviewKey)
-    } catch (error) {
-      console.error('Failed to save LinkPreview API key:', error)
     } finally {
       setSaving(false)
     }
@@ -384,7 +340,7 @@ function SettingsScreen(): JSX.Element {
             statuses={{
               profile: hasProfile,
               aiProvider: hasGroqKey || hasMistralKey || hasGoogleKey,
-              searchApi: hasSerperKey || hasJinaKey || hasNeutrinoKey,
+              searchApi: hasSerperKey || hasJinaKey,
               email: hasHunterKey || multiKeys.reoon.length > 0
             }}
           />
@@ -453,23 +409,13 @@ function SettingsScreen(): JSX.Element {
             <SearchApiTab
               serperKey={serperKey}
               jinaKey={jinaKey}
-              neutrinoKey={neutrinoKey}
-              neutrinoUserId={neutrinoUserId}
-              linkPreviewKey={linkPreviewKey}
               hasSerperKey={hasSerperKey}
               hasJinaKey={hasJinaKey}
-              hasNeutrinoKey={hasNeutrinoKey}
-              hasLinkPreviewKey={hasLinkPreviewKey}
               saving={saving}
               onSerperKeyChange={setSerperKey}
               onJinaKeyChange={setJinaKey}
-              onNeutrinoKeyChange={setNeutrinoKey}
-              onNeutrinoUserIdChange={setNeutrinoUserId}
-              onLinkPreviewKeyChange={setLinkPreviewKey}
               onSaveSerperKey={saveSerperKey}
               onSaveJinaKey={saveJinaKey}
-              onSaveNeutrinoKey={saveNeutrinoKey}
-              onSaveLinkPreviewKey={saveLinkPreviewKey}
               multiKeys={multiKeys}
               onSaveMultiKeys={saveMultiKeys}
             />

@@ -12,8 +12,6 @@ interface ApiKeyEntry {
 interface MultiKeys {
   serper: ApiKeyEntry[]
   jina: ApiKeyEntry[]
-  neutrino: ApiKeyEntry[]
-  linkPreview: ApiKeyEntry[]
   hunter: ApiKeyEntry[]
   reoon: ApiKeyEntry[]
   snov: ApiKeyEntry[]
@@ -33,9 +31,6 @@ interface ApiKeys {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
-  neutrinoApiKey: string
-  neutrinoUserId: string
-  linkPreviewApiKey: string
   snovClientId: string
   snovClientSecret: string
   hasGroqKey: boolean
@@ -45,8 +40,6 @@ interface ApiKeys {
   hasHunterKey: boolean
   hasReoonKey: boolean
   hasJinaKey: boolean
-  hasNeutrinoKey: boolean
-  hasLinkPreviewKey: boolean
   hasSnovKey: boolean
 }
 
@@ -101,9 +94,6 @@ interface Api {
   setHunterApiKey: (key: string) => Promise<{ success: boolean }>
   setReoonApiKey: (key: string) => Promise<{ success: boolean }>
   setJinaApiKey: (key: string) => Promise<{ success: boolean }>
-  setNeutrinoApiKey: (key: string) => Promise<{ success: boolean }>
-  setNeutrinoUserId: (userId: string) => Promise<{ success: boolean }>
-  setLinkPreviewApiKey: (key: string) => Promise<{ success: boolean }>
   setSnovClientId: (clientId: string) => Promise<{ success: boolean }>
   setSnovClientSecret: (clientSecret: string) => Promise<{ success: boolean }>
   hasRequiredKeys: () => Promise<boolean>
@@ -163,6 +153,9 @@ interface Api {
   ) => () => void
   onLeadsServiceSwitched: (
     cb: (data: { from: string; to: string; reason: string }) => void
+  ) => () => void
+  onLeadsKeyRotation: (
+    cb: (data: { service: string; keyIndex: number; totalKeys: number; reason: string }) => void
   ) => () => void
   onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => () => void
   onLeadsCleanupComplete: (cb: (urls: string[]) => void) => () => void

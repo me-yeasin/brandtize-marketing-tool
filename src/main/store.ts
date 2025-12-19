@@ -62,7 +62,7 @@ export type GoogleMode = 'aiStudio' | 'vertexApiKey'
 // Multi-key support for API rotation
 export interface ApiKeyEntry {
   key: string
-  userId?: string // For services like Neutrino that need userId
+  userId?: string // For services like Snov that need userId
   label?: string // Optional label for identification
 }
 
@@ -102,16 +102,11 @@ interface StoreSchema {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
-  neutrinoApiKey: string
-  neutrinoUserId: string
-  linkPreviewApiKey: string
   snovClientId: string
   snovClientSecret: string
   // Multi-key arrays for rotation
   serperApiKeys: ApiKeyEntry[]
   jinaApiKeys: ApiKeyEntry[]
-  neutrinoApiKeys: ApiKeyEntry[] // Each entry has key + userId
-  linkPreviewApiKeys: ApiKeyEntry[]
   hunterApiKeys: ApiKeyEntry[]
   reoonApiKeys: ApiKeyEntry[]
   snovApiKeys: ApiKeyEntry[] // Each entry has key (clientId) + userId (clientSecret)
@@ -141,16 +136,11 @@ const store = new Store<StoreSchema>({
     hunterApiKey: '',
     reoonApiKey: '',
     jinaApiKey: '',
-    neutrinoApiKey: '',
-    neutrinoUserId: '',
-    linkPreviewApiKey: '',
     snovClientId: '',
     snovClientSecret: '',
     // Multi-key arrays (empty by default)
     serperApiKeys: [],
     jinaApiKeys: [],
-    neutrinoApiKeys: [],
-    linkPreviewApiKeys: [],
     hunterApiKeys: [],
     reoonApiKeys: [],
     snovApiKeys: [],
@@ -181,9 +171,6 @@ export function getApiKeys(): {
   hunterApiKey: string
   reoonApiKey: string
   jinaApiKey: string
-  neutrinoApiKey: string
-  neutrinoUserId: string
-  linkPreviewApiKey: string
   snovClientId: string
   snovClientSecret: string
 } {
@@ -195,9 +182,6 @@ export function getApiKeys(): {
     hunterApiKey: store.get('hunterApiKey', ''),
     reoonApiKey: store.get('reoonApiKey', ''),
     jinaApiKey: store.get('jinaApiKey', ''),
-    neutrinoApiKey: store.get('neutrinoApiKey', ''),
-    neutrinoUserId: store.get('neutrinoUserId', ''),
-    linkPreviewApiKey: store.get('linkPreviewApiKey', ''),
     snovClientId: store.get('snovClientId', ''),
     snovClientSecret: store.get('snovClientSecret', '')
   }
@@ -217,18 +201,6 @@ export function setHunterApiKey(key: string): void {
 
 export function setReoonApiKey(key: string): void {
   store.set('reoonApiKey', key)
-}
-
-export function setNeutrinoApiKey(key: string): void {
-  store.set('neutrinoApiKey', key)
-}
-
-export function setNeutrinoUserId(userId: string): void {
-  store.set('neutrinoUserId', userId)
-}
-
-export function setLinkPreviewApiKey(key: string): void {
-  store.set('linkPreviewApiKey', key)
 }
 
 export function setSnovClientId(clientId: string): void {
@@ -364,22 +336,6 @@ export function setJinaApiKeys(keys: ApiKeyEntry[]): void {
   store.set('jinaApiKeys', keys)
 }
 
-export function getNeutrinoApiKeys(): ApiKeyEntry[] {
-  return store.get('neutrinoApiKeys', [])
-}
-
-export function setNeutrinoApiKeys(keys: ApiKeyEntry[]): void {
-  store.set('neutrinoApiKeys', keys)
-}
-
-export function getLinkPreviewApiKeys(): ApiKeyEntry[] {
-  return store.get('linkPreviewApiKeys', [])
-}
-
-export function setLinkPreviewApiKeys(keys: ApiKeyEntry[]): void {
-  store.set('linkPreviewApiKeys', keys)
-}
-
 export function getHunterApiKeys(): ApiKeyEntry[] {
   return store.get('hunterApiKeys', [])
 }
@@ -433,8 +389,6 @@ export function setGoogleApiKeys(keys: ApiKeyEntry[]): void {
 export function getAllMultiKeys(): {
   serper: ApiKeyEntry[]
   jina: ApiKeyEntry[]
-  neutrino: ApiKeyEntry[]
-  linkPreview: ApiKeyEntry[]
   hunter: ApiKeyEntry[]
   reoon: ApiKeyEntry[]
   snov: ApiKeyEntry[]
@@ -442,8 +396,6 @@ export function getAllMultiKeys(): {
   return {
     serper: getSerperApiKeys(),
     jina: getJinaApiKeys(),
-    neutrino: getNeutrinoApiKeys(),
-    linkPreview: getLinkPreviewApiKeys(),
     hunter: getHunterApiKeys(),
     reoon: getReoonApiKeys(),
     snov: getSnovApiKeys()

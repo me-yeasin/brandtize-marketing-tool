@@ -1,5 +1,5 @@
 import React from 'react'
-import { FiSearch, FiFileText, FiFilter, FiChevronDown, FiChevronRight } from 'react-icons/fi'
+import { FiSearch, FiFileText, FiChevronDown, FiChevronRight } from 'react-icons/fi'
 
 import { Button, Input } from '../../../components/ui'
 import MultiKeyInput from './MultiKeyInput'
@@ -13,32 +13,21 @@ interface ApiKeyEntry {
 interface MultiKeys {
   serper: ApiKeyEntry[]
   jina: ApiKeyEntry[]
-  neutrino: ApiKeyEntry[]
-  linkPreview: ApiKeyEntry[]
   hunter: ApiKeyEntry[]
   reoon: ApiKeyEntry[]
+  snov: ApiKeyEntry[]
 }
 
 interface SearchApiTabProps {
   serperKey: string
   jinaKey: string
-  neutrinoKey: string
-  neutrinoUserId: string
-  linkPreviewKey: string
   hasSerperKey: boolean
   hasJinaKey: boolean
-  hasNeutrinoKey: boolean
-  hasLinkPreviewKey: boolean
   saving: boolean
   onSerperKeyChange: (value: string) => void
   onJinaKeyChange: (value: string) => void
-  onNeutrinoKeyChange: (value: string) => void
-  onNeutrinoUserIdChange: (value: string) => void
-  onLinkPreviewKeyChange: (value: string) => void
   onSaveSerperKey: () => Promise<void>
   onSaveJinaKey: () => Promise<void>
-  onSaveNeutrinoKey: () => Promise<void>
-  onSaveLinkPreviewKey: () => Promise<void>
   // Multi-key props
   multiKeys: MultiKeys
   onSaveMultiKeys: (service: string, keys: ApiKeyEntry[]) => Promise<void>
@@ -47,27 +36,17 @@ interface SearchApiTabProps {
 function SearchApiTab({
   serperKey,
   jinaKey,
-  neutrinoKey,
-  neutrinoUserId,
-  linkPreviewKey,
   hasSerperKey,
   hasJinaKey,
-  hasNeutrinoKey,
-  hasLinkPreviewKey,
   saving,
   onSerperKeyChange,
   onJinaKeyChange,
-  onNeutrinoKeyChange,
-  onNeutrinoUserIdChange,
-  onLinkPreviewKeyChange,
   onSaveSerperKey,
   onSaveJinaKey,
-  onSaveNeutrinoKey,
-  onSaveLinkPreviewKey,
   multiKeys,
   onSaveMultiKeys
 }: SearchApiTabProps): React.JSX.Element {
-  const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping' | 'cleanup'>('board')
+  const [activeSubTab, setActiveSubTab] = React.useState<'board' | 'scoping'>('board')
   const [expandedMultiKey, setExpandedMultiKey] = React.useState<string | null>(null)
 
   const toggleMultiKey = (service: string): void => {
@@ -106,17 +85,6 @@ function SearchApiTab({
             ].join(' ')}
           >
             Scoping Services
-          </button>
-          <button
-            onClick={() => setActiveSubTab('cleanup')}
-            className={[
-              'py-2 px-1 border-b-2 font-medium text-sm transition-colors',
-              activeSubTab === 'cleanup'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-muted hover:text-text-main'
-            ].join(' ')}
-          >
-            URL Cleanup
           </button>
         </nav>
       </div>
@@ -266,166 +234,6 @@ function SearchApiTab({
                 />
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* URL Cleanup Subtab */}
-      {activeSubTab === 'cleanup' && (
-        <div className="space-y-4">
-          {/* Neutrino API Card - Primary */}
-          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/20">
-                  <FiFilter className="text-xl text-red-400" size={20} />
-                </div>
-                <div>
-                  <h3 className="font-medium text-text-main">Neutrino API</h3>
-                  <p className="text-xs text-text-muted">Primary - Smart URL categorization</p>
-                </div>
-              </div>
-              {hasNeutrinoKey && (
-                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                  Connected
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="block text-sm text-text-muted">User ID</label>
-                <Input
-                  type="text"
-                  placeholder="Enter your Neutrino User ID"
-                  value={neutrinoUserId}
-                  onChange={(e) => onNeutrinoUserIdChange(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm text-text-muted">API Key</label>
-                <Input
-                  type="password"
-                  placeholder={hasNeutrinoKey ? '••••••••••••••••' : 'Enter your Neutrino API key'}
-                  value={neutrinoKey}
-                  onChange={(e) => onNeutrinoKeyChange(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="primary"
-                onClick={onSaveNeutrinoKey}
-                disabled={saving || !neutrinoKey.trim() || !neutrinoUserId.trim()}
-                className="w-full"
-              >
-                {saving ? 'Saving...' : 'Save Neutrino Credentials'}
-              </Button>
-              <p className="text-xs text-text-muted">
-                Get your User ID and API key from{' '}
-                <a
-                  href="https://www.neutrinoapi.com/signup"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  neutrinoapi.com
-                </a>
-              </p>
-
-              {/* Multi-key expandable section */}
-              <div className="border-t border-border pt-4 mt-4">
-                <button
-                  onClick={() => toggleMultiKey('neutrino')}
-                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                >
-                  {expandedMultiKey === 'neutrino' ? <FiChevronDown /> : <FiChevronRight />}
-                  Advanced: Multiple API Keys for Rotation
-                </button>
-                {expandedMultiKey === 'neutrino' && (
-                  <div className="mt-3">
-                    <MultiKeyInput
-                      needsUserId={true}
-                      existingKeys={multiKeys.neutrino}
-                      onSave={(keys) => onSaveMultiKeys('neutrino', keys)}
-                      getKeyUrl="https://www.neutrinoapi.com/signup"
-                      saving={saving}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* LinkPreview API Card - Fallback */}
-          <div className="rounded-lg border border-border bg-surface/30 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
-                  <FiFilter className="text-xl text-orange-400" size={20} />
-                </div>
-                <div>
-                  <h3 className="font-medium text-text-main">LinkPreview API</h3>
-                  <p className="text-xs text-text-muted">Fallback - URL metadata extraction</p>
-                </div>
-              </div>
-              {hasLinkPreviewKey && (
-                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
-                  Connected
-                </span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="block text-sm text-text-muted">API Key</label>
-                <Input
-                  type="password"
-                  placeholder={
-                    hasLinkPreviewKey ? '••••••••••••••••' : 'Enter your LinkPreview API key'
-                  }
-                  value={linkPreviewKey}
-                  onChange={(e) => onLinkPreviewKeyChange(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="primary"
-                onClick={onSaveLinkPreviewKey}
-                disabled={saving || !linkPreviewKey.trim()}
-                className="w-full"
-              >
-                {saving ? 'Saving...' : 'Save LinkPreview Key'}
-              </Button>
-              <p className="text-xs text-text-muted">
-                Get your API key from{' '}
-                <a
-                  href="https://my.linkpreview.net"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  linkpreview.net
-                </a>{' '}
-                - Used as fallback when Neutrino API limit is reached
-              </p>
-
-              {/* Multi-key expandable section */}
-              <div className="border-t border-border pt-4 mt-4">
-                <button
-                  onClick={() => toggleMultiKey('linkPreview')}
-                  className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
-                >
-                  {expandedMultiKey === 'linkPreview' ? <FiChevronDown /> : <FiChevronRight />}
-                  Advanced: Multiple API Keys for Rotation
-                </button>
-                {expandedMultiKey === 'linkPreview' && (
-                  <div className="mt-3">
-                    <MultiKeyInput
-                      existingKeys={multiKeys.linkPreview}
-                      onSave={(keys) => onSaveMultiKeys('linkPreview', keys)}
-                      getKeyUrl="https://my.linkpreview.net"
-                      saving={saving}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}

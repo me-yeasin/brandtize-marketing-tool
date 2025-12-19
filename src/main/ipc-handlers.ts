@@ -8,9 +8,6 @@ import {
   setHunterApiKey,
   setReoonApiKey,
   setJinaApiKey,
-  setNeutrinoApiKey,
-  setNeutrinoUserId,
-  setLinkPreviewApiKey,
   setSnovClientId,
   setSnovClientSecret,
   hasRequiredApiKeys,
@@ -31,8 +28,6 @@ import {
   getAllMultiKeys,
   setSerperApiKeys,
   setJinaApiKeys,
-  setNeutrinoApiKeys,
-  setLinkPreviewApiKeys,
   setHunterApiKeys,
   setReoonApiKeys,
   setSnovApiKeys,
@@ -78,11 +73,6 @@ export function setupIpcHandlers(): void {
       hunterApiKey: keys.hunterApiKey ? '••••••••' + keys.hunterApiKey.slice(-4) : '',
       reoonApiKey: keys.reoonApiKey ? '••••••••' + keys.reoonApiKey.slice(-4) : '',
       jinaApiKey: keys.jinaApiKey ? '••••••••' + keys.jinaApiKey.slice(-4) : '',
-      neutrinoApiKey: keys.neutrinoApiKey ? '••••••••' + keys.neutrinoApiKey.slice(-4) : '',
-      neutrinoUserId: keys.neutrinoUserId || '',
-      linkPreviewApiKey: keys.linkPreviewApiKey
-        ? '••••••••' + keys.linkPreviewApiKey.slice(-4)
-        : '',
       snovClientId: keys.snovClientId ? '••••••••' + keys.snovClientId.slice(-4) : '',
       snovClientSecret: keys.snovClientSecret ? '••••••••' + keys.snovClientSecret.slice(-4) : '',
       hasGroqKey: keys.groqApiKey.length > 0,
@@ -92,8 +82,6 @@ export function setupIpcHandlers(): void {
       hasHunterKey: keys.hunterApiKey.length > 0,
       hasReoonKey: keys.reoonApiKey.length > 0,
       hasJinaKey: keys.jinaApiKey.length > 0,
-      hasNeutrinoKey: keys.neutrinoApiKey.length > 0 && keys.neutrinoUserId.length > 0,
-      hasLinkPreviewKey: keys.linkPreviewApiKey.length > 0,
       hasSnovKey: keys.snovClientId.length > 0 && keys.snovClientSecret.length > 0
     }
   })
@@ -125,21 +113,6 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('settings:setReoonApiKey', (_event, key: string) => {
     setReoonApiKey(key)
-    return { success: true }
-  })
-
-  ipcMain.handle('settings:setNeutrinoApiKey', (_event, key: string) => {
-    setNeutrinoApiKey(key)
-    return { success: true }
-  })
-
-  ipcMain.handle('settings:setNeutrinoUserId', (_event, userId: string) => {
-    setNeutrinoUserId(userId)
-    return { success: true }
-  })
-
-  ipcMain.handle('settings:setLinkPreviewApiKey', (_event, key: string) => {
-    setLinkPreviewApiKey(key)
     return { success: true }
   })
 
@@ -232,8 +205,6 @@ export function setupIpcHandlers(): void {
     return {
       serper: multiKeys.serper.map(maskKey),
       jina: multiKeys.jina.map(maskKey),
-      neutrino: multiKeys.neutrino.map(maskKey),
-      linkPreview: multiKeys.linkPreview.map(maskKey),
       hunter: multiKeys.hunter.map(maskKey),
       reoon: multiKeys.reoon.map(maskKey),
       snov: multiKeys.snov.map(maskKey)
@@ -281,12 +252,6 @@ export function setupIpcHandlers(): void {
         break
       case 'jina':
         setJinaApiKeys(keys)
-        break
-      case 'neutrino':
-        setNeutrinoApiKeys(keys)
-        break
-      case 'linkPreview':
-        setLinkPreviewApiKeys(keys)
         break
       case 'hunter':
         setHunterApiKeys(keys)

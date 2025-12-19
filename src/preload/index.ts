@@ -21,9 +21,6 @@ const api = {
   setHunterApiKey: (key: string) => ipcRenderer.invoke('settings:setHunterApiKey', key),
   setReoonApiKey: (key: string) => ipcRenderer.invoke('settings:setReoonApiKey', key),
   setJinaApiKey: (key: string) => ipcRenderer.invoke('settings:setJinaApiKey', key),
-  setNeutrinoApiKey: (key: string) => ipcRenderer.invoke('settings:setNeutrinoApiKey', key),
-  setNeutrinoUserId: (userId: string) => ipcRenderer.invoke('settings:setNeutrinoUserId', userId),
-  setLinkPreviewApiKey: (key: string) => ipcRenderer.invoke('settings:setLinkPreviewApiKey', key),
   setSnovClientId: (clientId: string) => ipcRenderer.invoke('settings:setSnovClientId', clientId),
   setSnovClientSecret: (clientSecret: string) =>
     ipcRenderer.invoke('settings:setSnovClientSecret', clientSecret),
@@ -141,6 +138,16 @@ const api = {
     ): void => cb(data)
     ipcRenderer.on('leads:serviceSwitched', handler)
     return () => ipcRenderer.removeListener('leads:serviceSwitched', handler)
+  },
+  onLeadsKeyRotation: (
+    cb: (data: { service: string; keyIndex: number; totalKeys: number; reason: string }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: { service: string; keyIndex: number; totalKeys: number; reason: string }
+    ): void => cb(data)
+    ipcRenderer.on('leads:keyRotation', handler)
+    return () => ipcRenderer.removeListener('leads:keyRotation', handler)
   },
   onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, data: { url: string; reason: string }): void =>
