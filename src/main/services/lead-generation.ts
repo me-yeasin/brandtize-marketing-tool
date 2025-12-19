@@ -1389,6 +1389,33 @@ async function verifyEmailWithReoon(
   return { verified: false, rateLimited: true, allKeysExhausted: true }
 }
 
+// Rapid Email Verifier - Free Open Source fallback (no API key needed)
+// https://rapid-email-verifier.fly.dev/ - unlimited, no auth required
+async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
+  try {
+    console.log(`[Rapid Verifier] Verifying email (free fallback): ${email}`)
+    const response = await fetch(
+      `https://rapid-email-verifier.fly.dev/api/validate?email=${encodeURIComponent(email)}`
+    )
+
+    if (!response.ok) {
+      console.log('[Rapid Verifier] API error, treating as unverified')
+      return false
+    }
+
+    const data = await response.json()
+
+    // Rapid Verifier returns: is_valid, is_disposable, is_role_based, etc.
+    // We consider valid if: is_valid is true AND not disposable
+    const isValid = data.is_valid === true && data.is_disposable !== true
+    console.log(`[Rapid Verifier] Result for ${email}: ${isValid ? 'valid' : 'invalid'}`)
+    return isValid
+  } catch (error) {
+    console.log('[Rapid Verifier] Error:', error)
+    return false
+  }
+}
+
 // Export the main lead generation function
 export async function generateLeads(
   input: LeadGenerationInput,
@@ -1480,22 +1507,22 @@ export async function generateLeads(
           }
         }
 
-        // Step 6: Verify email with Reoon (with key rotation)
+        // Step 6: Verify email with Reoon (with key rotation) + Rapid Verifier fallback
         let verified = false
         if (finalEmail) {
           callbacks.onVerificationStart(finalEmail)
           const verifyResult = await verifyEmailWithReoon(finalEmail)
           verified = verifyResult.verified
-          callbacks.onVerificationResult(finalEmail, verified)
 
-          // Check if all Reoon keys are exhausted
+          // If Reoon keys exhausted, fallback to free Rapid Email Verifier
           if (verifyResult.allKeysExhausted) {
-            callbacks.onError(
-              'All email verification API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email → Email Verifier.'
+            console.log(
+              '[Email Verifier] All Reoon keys exhausted, falling back to Rapid Verifier...'
             )
-            callbacks.onComplete(leads)
-            return
+            verified = await verifyEmailWithRapidVerifier(finalEmail)
           }
+
+          callbacks.onVerificationResult(finalEmail, verified)
         }
 
         // Step 7: Add to leads if we have a verified email
