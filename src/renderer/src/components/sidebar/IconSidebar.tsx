@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 
-type TabId = 'email' | 'settings'
+type TabId = 'email' | 'results' | 'settings'
 
 interface IconSidebarProps {
   activeTab: TabId
@@ -57,6 +57,24 @@ function EmailIcon(): React.JSX.Element {
   )
 }
 
+function ResultsIcon(): React.JSX.Element {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    </svg>
+  )
+}
+
 function SettingsIcon(): React.JSX.Element {
   return (
     <svg
@@ -96,6 +114,12 @@ function IconSidebar({ activeTab, onSelectTab }: IconSidebarProps): React.JSX.El
             isActive={activeTab === 'email'}
             onClick={() => onSelectTab('email')}
             icon={<EmailIcon />}
+          />
+          <IconTabButton
+            ariaLabel="Results"
+            isActive={activeTab === 'results'}
+            onClick={() => onSelectTab('results')}
+            icon={<ResultsIcon />}
           />
           <IconTabButton
             ariaLabel="Settings"

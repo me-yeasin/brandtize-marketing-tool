@@ -66,6 +66,34 @@ export interface ApiKeyEntry {
   label?: string // Optional label for identification
 }
 
+// Processed domain entry for deduplication
+export interface ProcessedDomain {
+  id: string
+  domain: string
+  url: string
+  email: string | null
+  decisionMaker: string | null
+  verified: boolean
+  source: string
+  processedAt: number // timestamp
+  searchQuery?: string
+}
+
+// Found lead entry
+export interface FoundLead {
+  id: string
+  email: string
+  domain: string
+  url: string
+  decisionMaker: string | null
+  verified: boolean
+  source: string
+  foundAt: number // timestamp
+  searchQuery?: string
+  niche?: string
+  location?: string
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -99,6 +127,9 @@ interface StoreSchema {
   googleProjectId: string
   googleLocation: string
   agencyProfile: AgencyProfile
+  // Results storage for deduplication
+  processedDomains: ProcessedDomain[]
+  foundLeads: FoundLead[]
 }
 
 const store = new Store<StoreSchema>({
@@ -134,7 +165,10 @@ const store = new Store<StoreSchema>({
     selectedGoogleModel: 'gemini-2.0-flash',
     googleProjectId: '',
     googleLocation: 'us-central1',
-    agencyProfile: DEFAULT_PROFILE
+    agencyProfile: DEFAULT_PROFILE,
+    // Results storage (empty by default)
+    processedDomains: [],
+    foundLeads: []
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -414,6 +448,63 @@ export function getAllMultiKeys(): {
     reoon: getReoonApiKeys(),
     snov: getSnovApiKeys()
   }
+}
+
+// Processed domains functions
+export function getProcessedDomains(): ProcessedDomain[] {
+  return store.get('processedDomains', [])
+}
+
+export function addProcessedDomain(domain: ProcessedDomain): void {
+  const domains = getProcessedDomains()
+  // Check if domain already exists, update if so
+  const existingIndex = domains.findIndex((d) => d.domain === domain.domain)
+  if (existingIndex >= 0) {
+    domains[existingIndex] = domain
+  } else {
+    domains.push(domain)
+  }
+  store.set('processedDomains', domains)
+}
+
+export function removeProcessedDomain(id: string): void {
+  const domains = getProcessedDomains().filter((d) => d.id !== id)
+  store.set('processedDomains', domains)
+}
+
+export function clearProcessedDomains(): void {
+  store.set('processedDomains', [])
+}
+
+export function isDomainProcessed(domain: string): ProcessedDomain | null {
+  const domains = getProcessedDomains()
+  return domains.find((d) => d.domain === domain) || null
+}
+
+// Found leads functions
+export function getFoundLeads(): FoundLead[] {
+  return store.get('foundLeads', [])
+}
+
+export function addFoundLead(lead: FoundLead): void {
+  const leads = getFoundLeads()
+  // Check if email already exists, update if so
+  const existingIndex = leads.findIndex((l) => l.email === lead.email)
+  if (existingIndex >= 0) {
+    leads[existingIndex] = lead
+  } else {
+    leads.push(lead)
+  }
+  store.set('foundLeads', leads)
+}
+
+export function removeFoundLead(id: string): void {
+  const leads = getFoundLeads().filter((l) => l.id !== id)
+  store.set('foundLeads', leads)
+}
+
+export function clearFoundLeads(): void {
+  store.set('foundLeads', [])
 }
 
 export { store }

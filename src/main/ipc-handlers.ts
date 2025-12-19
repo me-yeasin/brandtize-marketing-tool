@@ -43,10 +43,21 @@ import {
   setMistralApiKeys,
   getGoogleApiKeys,
   setGoogleApiKeys,
+  // Results storage functions
+  getProcessedDomains,
+  addProcessedDomain,
+  removeProcessedDomain,
+  clearProcessedDomains,
+  getFoundLeads,
+  addFoundLead,
+  removeFoundLead,
+  clearFoundLeads,
   type AgencyProfile,
   type AiProvider,
   type GoogleMode,
-  type ApiKeyEntry
+  type ApiKeyEntry,
+  type ProcessedDomain,
+  type FoundLead
 } from './store'
 import { streamAgentResponse, type ChatMessage } from './services'
 import {
@@ -326,6 +337,45 @@ export function setupIpcHandlers(): void {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       return { success: false, error: errorMessage }
     }
+  })
+
+  // Results storage handlers
+  ipcMain.handle('results:getProcessedDomains', () => {
+    return getProcessedDomains()
+  })
+
+  ipcMain.handle('results:addProcessedDomain', (_event, domain: ProcessedDomain) => {
+    addProcessedDomain(domain)
+    return { success: true }
+  })
+
+  ipcMain.handle('results:removeProcessedDomain', (_event, id: string) => {
+    removeProcessedDomain(id)
+    return { success: true }
+  })
+
+  ipcMain.handle('results:clearProcessedDomains', () => {
+    clearProcessedDomains()
+    return { success: true }
+  })
+
+  ipcMain.handle('results:getFoundLeads', () => {
+    return getFoundLeads()
+  })
+
+  ipcMain.handle('results:addFoundLead', (_event, lead: FoundLead) => {
+    addFoundLead(lead)
+    return { success: true }
+  })
+
+  ipcMain.handle('results:removeFoundLead', (_event, id: string) => {
+    removeFoundLead(id)
+    return { success: true }
+  })
+
+  ipcMain.handle('results:clearFoundLeads', () => {
+    clearFoundLeads()
+    return { success: true }
   })
 
   // Lead generation handler

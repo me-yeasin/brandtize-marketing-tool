@@ -8,7 +8,12 @@ import {
   getHunterApiKeys,
   getSnovApiKeys,
   getReoonApiKeys,
-  type ApiKeyEntry
+  addProcessedDomain,
+  isDomainProcessed,
+  addFoundLead,
+  type ApiKeyEntry,
+  type ProcessedDomain,
+  type FoundLead
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
 
@@ -1545,6 +1550,21 @@ export async function generateLeads(
     // Step 3-7: Process each URL sequentially for quality
     for (const url of cleanedUrls) {
       try {
+        const domain = extractDomain(url)
+
+        // Check if domain was already processed - SKIP to save credits
+        const existingDomain = isDomainProcessed(domain)
+        if (existingDomain) {
+          console.log(`[Lead Gen] Skipping already processed domain: ${domain}`)
+          mainWindow?.webContents.send('leads:domainSkipped', {
+            url,
+            domain,
+            reason: 'Already processed',
+            previousEmail: existingDomain.email
+          })
+          continue
+        }
+
         // Step 3: Scrape content with Jina
         callbacks.onScrapeStart(url)
         const scraped = await scrapeWithJina(url)
@@ -1565,7 +1585,6 @@ export async function generateLeads(
           continue
         }
 
-        const domain = extractDomain(url)
         let finalEmail: string | null = aiResult.email
         let emailSource: 'direct' | 'hunter_name' | 'hunter_domain' | 'snov_name' | 'snov_domain' =
           'direct'
@@ -1631,7 +1650,37 @@ export async function generateLeads(
           }
           leads.push(lead)
           callbacks.onLeadFound(lead)
+
+          // Save to persistent storage for future deduplication
+          const foundLead: FoundLead = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            email: finalEmail,
+            domain,
+            url,
+            decisionMaker: aiResult.decisionMaker,
+            verified: true,
+            source: emailSource,
+            foundAt: Date.now(),
+            searchQuery: input.searchQuery,
+            niche: input.niche,
+            location: input.location
+          }
+          addFoundLead(foundLead)
         }
+
+        // Save processed domain to avoid re-processing (even if no email found)
+        const processedDomain: ProcessedDomain = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          domain,
+          url,
+          email: finalEmail,
+          decisionMaker: aiResult.decisionMaker,
+          verified: finalEmail ? verified : false,
+          source: emailSource,
+          processedAt: Date.now(),
+          searchQuery: input.searchQuery
+        }
+        addProcessedDomain(processedDomain)
       } catch (urlError) {
         const errorMsg = urlError instanceof Error ? urlError.message : 'Unknown error'
         callbacks.onScrapeError(url, errorMsg)
