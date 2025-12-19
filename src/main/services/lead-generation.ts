@@ -412,96 +412,112 @@ Examples:
 }
 
 async function searchWithSerper(query: string): Promise<SearchResult[]> {
-  // Try multi-keys first with rotation on rate limit (429)
   const multiKeys = getSerperApiKeys()
-  if (multiKeys.length > 0) {
-    const { key, index, allExhausted } = getNextKey('serper', multiKeys)
+  const singleKey = getApiKeys().serperApiKey
 
-    if (key && key.key) {
-      const response = await fetch('https://google.serper.dev/search', {
-        method: 'POST',
-        headers: {
-          'X-API-KEY': key.key,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          q: query,
-          num: 10
-        })
-      })
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  multiKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && multiKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
 
-      if (!response.ok) {
-        // Only rotate on rate limit errors (429)
-        if (response.status === 429) {
-          markKeyExhausted('serper', index, `Rate limit (429)`)
-          console.log(
-            `Serper key ${index + 1}/${multiKeys.length} rate limited, switching to next...`
-          )
+  if (allKeys.length === 0) {
+    throw new Error('Serper API key not configured')
+  }
 
-          // Try next key recursively if not all exhausted
-          if (!allExhausted) {
-            return searchWithSerper(query)
-          }
-        }
-        throw new Error(`Serper API error: ${response.status}`)
-      }
+  // Helper to make Serper request
+  const makeSerperRequest = async (apiKey: string): Promise<Response> => {
+    return fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ q: query, num: 10 })
+    })
+  }
 
+  // Try each key with rotation
+  for (let attempt = 0; attempt < allKeys.length; attempt++) {
+    const { key: keyEntry, index, allExhausted } = getNextKey(
+      'serper',
+      allKeys.map((k) => ({ key: k.key }))
+    )
+
+    if (!keyEntry) break
+
+    console.log(`Serper[${index + 1}/${allKeys.length}] searching...`)
+    const response = await makeSerperRequest(keyEntry.key)
+
+    if (response.ok) {
       const data = await response.json()
-      console.log(`Serper[${index + 1}/${multiKeys.length}] search successful`)
+      console.log(`Serper[${index + 1}/${allKeys.length}] search successful`)
       return (data.organic || []).map((item: { title: string; link: string; snippet: string }) => ({
         title: item.title,
         link: item.link,
         snippet: item.snippet || ''
       }))
     }
-  }
 
-  // Fallback to single key
-  const { serperApiKey } = getApiKeys()
-  if (!serperApiKey) throw new Error('Serper API key not configured')
+    // Rate limit (429) or unauthorized - mark exhausted and try next
+    if (response.status === 429 || response.status === 401) {
+      console.log(`Serper[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`)
+      markKeyExhausted('serper', index, `HTTP ${response.status}`)
 
-  const response = await fetch('https://google.serper.dev/search', {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': serperApiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      q: query,
-      num: 10
-    })
-  })
+      // If all keys exhausted, try first key again to check if reset
+      if (allExhausted || keyRotationState.serper.exhaustedKeys.size >= allKeys.length) {
+        console.log('[Serper] All keys exhausted, checking if first key has reset...')
+        const firstKeyResponse = await makeSerperRequest(allKeys[0].key)
 
-  if (!response.ok) {
+        if (firstKeyResponse.ok) {
+          // First key reset! Clear exhausted state and use it
+          console.log('[Serper] First key has reset! Continuing...')
+          keyRotationState.serper.exhaustedKeys.clear()
+          keyRotationState.serper.currentIndex = 0
+          const data = await firstKeyResponse.json()
+          return (data.organic || []).map((item: { title: string; link: string; snippet: string }) => ({
+            title: item.title,
+            link: item.link,
+            snippet: item.snippet || ''
+          }))
+        }
+
+        // First key still rate limited - STOP
+        throw new Error(
+          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
+        )
+      }
+      continue
+    }
+
+    // Other error - throw immediately
     throw new Error(`Serper API error: ${response.status}`)
   }
 
-  const data = await response.json()
-  return (data.organic || []).map((item: { title: string; link: string; snippet: string }) => ({
-    title: item.title,
-    link: item.link,
-    snippet: item.snippet || ''
-  }))
+  throw new Error('All Serper API keys exhausted')
 }
 
-// Session state for Neutrino API
+// Session state for URL cleanup services
 let neutrinoDisabledForSession = false
+let linkPreviewDisabledForSession = false
 let neutrinoLastError = ''
 
 // Reset session state (call when starting new lead generation)
 function resetCleanupSessionState(): void {
   neutrinoDisabledForSession = false
+  linkPreviewDisabledForSession = false
   neutrinoLastError = ''
 }
 
 // URL Cleanup - Use Neutrino API with LinkPreview fallback + AI validation
+// Flow: Neutrino (all keys) → LinkPreview (all keys) → Check Neutrino first key reset → STOP if not reset
 async function cleanupUrls(
   results: SearchResult[],
   mainWindow: Electron.BrowserWindow | null,
   niche: string
 ): Promise<string[]> {
   const cleanedUrls: string[] = []
-  const MAX_RETRIES = 3
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i]
@@ -517,63 +533,85 @@ async function cleanupUrls(
       status: 'processing'
     })
 
-    // Try Neutrino API first (if not disabled for session)
+    // STEP 1: Try Neutrino API first (if not disabled for session)
     if (!neutrinoDisabledForSession) {
-      let neutrinoSuccess = false
+      const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
 
-      for (let retry = 0; retry < MAX_RETRIES; retry++) {
-        const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
-
-        if (!neutrinoResult.error && neutrinoResult.category) {
-          category = neutrinoResult.category
-          usedService = 'Neutrino'
-          neutrinoSuccess = true
-          break
-        }
-
+      if (!neutrinoResult.error && neutrinoResult.category) {
+        category = neutrinoResult.category
+        usedService = 'Neutrino'
+      } else {
         neutrinoLastError = neutrinoResult.error || 'Unknown error'
 
-        if (retry < MAX_RETRIES - 1) {
-          console.log(`Neutrino retry ${retry + 1}/${MAX_RETRIES} for ${url}...`)
-          await new Promise((resolve) => setTimeout(resolve, 500))
+        // Check if all Neutrino keys are exhausted
+        const neutrinoKeys = getNeutrinoApiKeys()
+        if (keyRotationState.neutrino.exhaustedKeys.size >= (neutrinoKeys.length || 1)) {
+          neutrinoDisabledForSession = true
+          console.log(`[Neutrino] All keys exhausted. Switching to LinkPreview...`)
+
+          mainWindow?.webContents.send('leads:serviceSwitched', {
+            from: 'Neutrino',
+            to: 'LinkPreview',
+            reason: neutrinoLastError
+          })
         }
-      }
-
-      // If all retries failed, disable Neutrino for this session
-      if (!neutrinoSuccess) {
-        neutrinoDisabledForSession = true
-        console.log(
-          `Neutrino disabled for session after ${MAX_RETRIES} retries. Reason: ${neutrinoLastError}`
-        )
-
-        // Notify UI about service switch
-        mainWindow?.webContents.send('leads:serviceSwitched', {
-          from: 'Neutrino',
-          to: 'LinkPreview',
-          reason: neutrinoLastError
-        })
       }
     }
 
-    // Use LinkPreview if Neutrino didn't work
-    if (!category) {
+    // STEP 2: Use LinkPreview if Neutrino didn't work
+    if (!category && !linkPreviewDisabledForSession) {
       const linkPreviewResult = await categorizeUrlWithLinkPreview(url, mainWindow)
 
       if (!linkPreviewResult.error && linkPreviewResult.category) {
         category = linkPreviewResult.category
         usedService = 'LinkPreview'
       } else {
-        // Both services failed - treat as secure website (likely has bot protection)
+        // Check if all LinkPreview keys are exhausted
+        const linkPreviewKeys = getLinkPreviewApiKeys()
+        if (keyRotationState.linkPreview.exhaustedKeys.size >= (linkPreviewKeys.length || 1)) {
+          linkPreviewDisabledForSession = true
+          console.log(`[LinkPreview] All keys exhausted.`)
+        }
+      }
+    }
+
+    // STEP 3: Both services exhausted - check if Neutrino first key has reset
+    if (!category && neutrinoDisabledForSession && linkPreviewDisabledForSession) {
+      console.log('[URL Cleanup] Both services exhausted, checking if Neutrino first key has reset...')
+
+      // Clear Neutrino state and try first key
+      keyRotationState.neutrino.exhaustedKeys.clear()
+      keyRotationState.neutrino.currentIndex = 0
+
+      const neutrinoResult = await categorizeUrlWithNeutrino(url, mainWindow)
+
+      if (!neutrinoResult.error && neutrinoResult.category) {
+        // First key reset! Re-enable Neutrino and clear LinkPreview state too
+        console.log('[URL Cleanup] Neutrino first key has reset! Continuing...')
+        neutrinoDisabledForSession = false
+        linkPreviewDisabledForSession = false
+        keyRotationState.linkPreview.exhaustedKeys.clear()
+        keyRotationState.linkPreview.currentIndex = 0
+
+        category = neutrinoResult.category
+        usedService = 'Neutrino'
+      } else {
+        // Neutrino still failing - treat as secure website
         category = 'secure-website'
         usedService = 'Assumed'
-        console.log(`${url} has protection, treating as secure-website`)
+        console.log(`[URL Cleanup] Neutrino still failing. ${url} treating as secure-website`)
 
-        // Notify UI about protected URL
         mainWindow?.webContents.send('leads:protectedUrl', {
           url: url,
-          reason: linkPreviewResult.error || 'Bot protection detected'
+          reason: 'All URL cleanup API keys exhausted'
         })
       }
+    }
+
+    // Fallback if no category yet (shouldn't happen but just in case)
+    if (!category) {
+      category = 'secure-website'
+      usedService = 'Assumed'
     }
 
     let shouldBlock = shouldBlockCategory(category)
@@ -635,6 +673,18 @@ async function cleanupUrls(
 // Jina Reader API - Content Scraping with key rotation on rate limit
 async function scrapeWithJina(url: string): Promise<ScrapedContent> {
   const multiKeys = getJinaApiKeys()
+  const singleKey = getApiKeys().jinaApiKey
+
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  multiKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && multiKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    throw new Error('Jina API key not configured')
+  }
 
   // Helper to make the actual Jina request
   const makeJinaRequest = async (apiKey: string): Promise<Response> => {
@@ -657,92 +707,55 @@ async function scrapeWithJina(url: string): Promise<ScrapedContent> {
     }
   }
 
-  // Try multi-keys with rotation on rate limit (429)
-  if (multiKeys.length > 0) {
-    let currentKeyIndex = keyRotationState.jina.currentIndex % multiKeys.length
+  // Try each key with rotation
+  for (let attempt = 0; attempt < allKeys.length; attempt++) {
+    const { key: keyEntry, index, allExhausted } = getNextKey(
+      'jina',
+      allKeys.map((k) => ({ key: k.key }))
+    )
 
-    // Try each key until one works or all exhausted
-    for (let keyAttempt = 0; keyAttempt < multiKeys.length; keyAttempt++) {
-      const keyEntry = multiKeys[currentKeyIndex]
-      if (!keyEntry || !keyEntry.key) {
-        currentKeyIndex = (currentKeyIndex + 1) % multiKeys.length
-        continue
-      }
+    if (!keyEntry) break
 
-      console.log(`Jina[${currentKeyIndex + 1}/${multiKeys.length}] scraping ${url}`)
+    console.log(`Jina[${index + 1}/${allKeys.length}] scraping ${url}`)
+    const response = await makeJinaRequest(keyEntry.key)
 
-      const response = await makeJinaRequest(keyEntry.key)
-
-      if (response.ok) {
-        return parseResponse(response)
-      }
-
-      // Non-rate-limit error: stop immediately with human-readable message
-      if (response.status !== 429) {
-        throw new Error(
-          `Jina API error (${response.status}): Unable to scrape content. Please check your API key or try again later.`
-        )
-      }
-
-      // Rate limit (429): wait 60 seconds and retry same key
-      console.log(
-        `Jina[${currentKeyIndex + 1}/${multiKeys.length}] rate limited. Waiting 60 seconds...`
-      )
-      await new Promise((resolve) => setTimeout(resolve, 60000))
-
-      // Retry same key after waiting
-      const retryResponse = await makeJinaRequest(keyEntry.key)
-
-      if (retryResponse.ok) {
-        return parseResponse(retryResponse)
-      }
-
-      // Still failing after wait: switch to next key
-      console.log(
-        `Jina[${currentKeyIndex + 1}/${multiKeys.length}] still failing after wait. Switching to next key...`
-      )
-      markKeyExhausted('jina', currentKeyIndex, `Rate limit persisted`)
-      currentKeyIndex = (currentKeyIndex + 1) % multiKeys.length
-      keyRotationState.jina.currentIndex = currentKeyIndex
+    if (response.ok) {
+      return parseResponse(response)
     }
 
-    // All keys exhausted
-    throw new Error(
-      'All Jina API keys exhausted due to rate limits. Please wait and try again later.'
-    )
-  }
+    // Rate limit (429) - mark exhausted and try next
+    if (response.status === 429) {
+      console.log(`Jina[${index + 1}/${allKeys.length}] rate limited, trying next key...`)
+      markKeyExhausted('jina', index, 'rate_limit')
 
-  // Fallback to single key
-  const { jinaApiKey } = getApiKeys()
-  if (!jinaApiKey) throw new Error('Jina API key not configured')
+      // If all keys exhausted, try first key again to check if reset
+      if (allExhausted || keyRotationState.jina.exhaustedKeys.size >= allKeys.length) {
+        console.log('[Jina] All keys exhausted, checking if first key has reset...')
+        const firstKeyResponse = await makeJinaRequest(allKeys[0].key)
 
-  const response = await makeJinaRequest(jinaApiKey)
+        if (firstKeyResponse.ok) {
+          // First key reset! Clear exhausted state and use it
+          console.log('[Jina] First key has reset! Continuing...')
+          keyRotationState.jina.exhaustedKeys.clear()
+          keyRotationState.jina.currentIndex = 0
+          return parseResponse(firstKeyResponse)
+        }
 
-  if (response.ok) {
-    return parseResponse(response)
-  }
+        // First key still rate limited - STOP
+        throw new Error(
+          'All Jina API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
+        )
+      }
+      continue
+    }
 
-  // Non-rate-limit error: stop with human-readable message
-  if (response.status !== 429) {
+    // Other error - throw immediately
     throw new Error(
       `Jina API error (${response.status}): Unable to scrape content. Please check your API key or try again later.`
     )
   }
 
-  // Rate limit on single key: wait 60 seconds and retry once
-  console.log('Jina rate limited. Waiting 60 seconds before retry...')
-  await new Promise((resolve) => setTimeout(resolve, 60000))
-
-  const retryResponse = await makeJinaRequest(jinaApiKey)
-
-  if (retryResponse.ok) {
-    return parseResponse(retryResponse)
-  }
-
-  // Still failing after wait with single key: stop with error
-  throw new Error(
-    `Jina API still rate limited after waiting. Please try again later or add more API keys in Settings.`
-  )
+  throw new Error('All Jina API keys exhausted')
 }
 
 // Extract domain from URL
@@ -1126,12 +1139,12 @@ async function findEmailByNameSnovWithRotation(
 }
 
 // Combined email finder with multi-key rotation and service fallback
+// Flow: Hunter.io (all keys) → Snov.io (all keys) → Check Hunter first key reset → STOP if not reset
 async function findEmailWithFallback(
   domain: string,
   firstName?: string,
   lastName?: string
 ): Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }> {
-  // Reset rotation state at the start of each lead generation session
   const hunterKeys = getHunterApiKeys()
   const snovKeys = getSnovApiKeys()
   const { hunterApiKey, snovClientId, snovClientSecret } = getApiKeys()
@@ -1143,77 +1156,130 @@ async function findEmailWithFallback(
     return { email: null, source: 'none' }
   }
 
-  let hunterAttempts = 0
-  const maxHunterAttempts = Math.max(hunterKeys.length, 1) + 1
+  // Helper to try Hunter.io with all available keys
+  const tryHunterWithAllKeys = async (): Promise<{
+    email: string | null
+    source: string
+    allExhausted: boolean
+  }> => {
+    const totalHunterKeys = hunterKeys.length || (hunterApiKey ? 1 : 0)
+    for (let attempt = 0; attempt < totalHunterKeys + 1; attempt++) {
+      if (firstName && lastName) {
+        const result = await findEmailByNameWithRotation(firstName, lastName, domain)
+        if (result.email) return { email: result.email, source: 'hunter_name', allExhausted: false }
+        if (!result.rateLimited) return { email: null, source: 'none', allExhausted: false }
+      }
 
-  // Try Hunter.io with key rotation
-  while (hasHunterKeys && hunterAttempts < maxHunterAttempts) {
-    hunterAttempts++
+      const domainResult = await findEmailByDomainWithRotation(domain)
+      if (domainResult.email)
+        return { email: domainResult.email, source: 'hunter_domain', allExhausted: false }
+      if (!domainResult.rateLimited) return { email: null, source: 'none', allExhausted: false }
+
+      console.log(`[Email Finder] Hunter.io key rate limited, trying next...`)
+    }
+    return { email: null, source: 'none', allExhausted: true }
+  }
+
+  // Helper to try Snov.io with all available keys
+  const trySnovWithAllKeys = async (): Promise<{
+    email: string | null
+    source: string
+    allExhausted: boolean
+  }> => {
+    const totalSnovKeys = snovKeys.length || (snovClientId && snovClientSecret ? 1 : 0)
+    for (let attempt = 0; attempt < totalSnovKeys + 1; attempt++) {
+      if (firstName && lastName) {
+        const nameResult = await findEmailByNameSnovWithRotation(firstName, lastName, domain)
+        if (nameResult.email)
+          return { email: nameResult.email, source: 'snov_name', allExhausted: false }
+        if (!nameResult.rateLimited) {
+          // No rate limit, try domain search
+        } else {
+          console.log(`[Email Finder] Snov.io name search rate limited, trying next key...`)
+          continue
+        }
+      }
+
+      const domainResult = await findEmailByDomainSnovWithRotation(domain)
+      if (domainResult.email)
+        return { email: domainResult.email, source: 'snov_domain', allExhausted: false }
+      if (!domainResult.rateLimited) return { email: null, source: 'none', allExhausted: false }
+
+      console.log(`[Email Finder] Snov.io domain search rate limited, trying next key...`)
+    }
+    return { email: null, source: 'none', allExhausted: true }
+  }
+
+  // Helper to check if Hunter first key has reset
+  const checkHunterFirstKeyReset = async (): Promise<{
+    email: string | null
+    source: string
+    isReset: boolean
+  }> => {
+    // Clear Hunter exhausted state to test first key
+    keyRotationState.hunter.exhaustedKeys.clear()
+    keyRotationState.hunter.currentIndex = 0
 
     if (firstName && lastName) {
       const result = await findEmailByNameWithRotation(firstName, lastName, domain)
-      if (result.email) return { email: result.email, source: 'hunter_name' }
-      if (!result.rateLimited) break // No rate limit, just no result
+      if (result.email) return { email: result.email, source: 'hunter_name', isReset: true }
+      if (!result.rateLimited) return { email: null, source: 'none', isReset: true }
     }
 
     const domainResult = await findEmailByDomainWithRotation(domain)
-    if (domainResult.email) return { email: domainResult.email, source: 'hunter_domain' }
-    if (!domainResult.rateLimited) break // No rate limit, just no result
+    if (domainResult.email)
+      return { email: domainResult.email, source: 'hunter_domain', isReset: true }
+    if (!domainResult.rateLimited) return { email: null, source: 'none', isReset: true }
 
-    console.log(
-      `[Email Finder] Hunter.io attempt ${hunterAttempts} rate limited, trying next key...`
-    )
+    return { email: null, source: 'none', isReset: false }
   }
 
-  // If Hunter exhausted all keys, try Snov.io
-  if (!hasSnovKeys) {
-    // Check if Hunter was rate limited on all keys
-    const hunterState = keyRotationState.hunter
-    if (hunterState.exhaustedKeys.size >= maxHunterAttempts - 1) {
-      return { email: null, source: 'none', allKeysExhausted: !hasSnovKeys }
+  // STEP 1: Try Hunter.io with all keys
+  if (hasHunterKeys) {
+    console.log('[Email Finder] Starting with Hunter.io...')
+    const hunterResult = await tryHunterWithAllKeys()
+    if (hunterResult.email) return { email: hunterResult.email, source: hunterResult.source }
+    if (!hunterResult.allExhausted) return { email: null, source: 'none' }
+    console.log('[Email Finder] All Hunter.io keys exhausted')
+  }
+
+  // STEP 2: Switch to Snov.io
+  if (hasSnovKeys) {
+    console.log('[Email Finder] Switching to Snov.io fallback...')
+    const snovResult = await trySnovWithAllKeys()
+    if (snovResult.email) return { email: snovResult.email, source: snovResult.source }
+    if (!snovResult.allExhausted) return { email: null, source: 'none' }
+    console.log('[Email Finder] All Snov.io keys exhausted')
+  }
+
+  // STEP 3: Both services exhausted - check if Hunter first key has reset
+  if (hasHunterKeys && hasSnovKeys) {
+    console.log('[Email Finder] All keys exhausted, checking if Hunter.io first key has reset...')
+    const resetCheck = await checkHunterFirstKeyReset()
+
+    if (resetCheck.isReset) {
+      console.log('[Email Finder] Hunter.io first key has reset! Restarting cycle...')
+      if (resetCheck.email) return { email: resetCheck.email, source: resetCheck.source }
+
+      // First key reset but no email found, continue with remaining Hunter keys
+      const hunterResult = await tryHunterWithAllKeys()
+      if (hunterResult.email) return { email: hunterResult.email, source: hunterResult.source }
+      if (!hunterResult.allExhausted) return { email: null, source: 'none' }
+
+      // Then try Snov again
+      keyRotationState.snov.exhaustedKeys.clear()
+      keyRotationState.snov.currentIndex = 0
+      const snovResult = await trySnovWithAllKeys()
+      if (snovResult.email) return { email: snovResult.email, source: snovResult.source }
     }
-    return { email: null, source: 'none' }
+
+    // Hunter first key NOT reset - STOP
+    console.log('[Email Finder] Hunter.io first key NOT reset - ALL SERVICES EXHAUSTED')
+    return { email: null, source: 'none', allKeysExhausted: true }
   }
 
-  console.log('[Email Finder] Switching to Snov.io fallback...')
-
-  let snovAttempts = 0
-  const maxSnovAttempts = Math.max(snovKeys.length, 1) + 1
-
-  // Try Snov.io with key rotation - EXACTLY like Hunter.io (name first, then domain)
-  while (snovAttempts < maxSnovAttempts) {
-    snovAttempts++
-
-    // Step 1: Try to find email by name + domain (if we have a name)
-    if (firstName && lastName) {
-      const nameResult = await findEmailByNameSnovWithRotation(firstName, lastName, domain)
-      if (nameResult.email) return { email: nameResult.email, source: 'snov_name' }
-      if (!nameResult.rateLimited) {
-        // No rate limit but no result from name search, try domain search
-      } else {
-        console.log(
-          `[Email Finder] Snov.io name search attempt ${snovAttempts} rate limited, trying next key...`
-        )
-        continue
-      }
-    }
-
-    // Step 2: Try to find email by domain only
-    const domainResult = await findEmailByDomainSnovWithRotation(domain)
-    if (domainResult.email) return { email: domainResult.email, source: 'snov_domain' }
-    if (!domainResult.rateLimited) break // No rate limit, just no result
-
-    console.log(
-      `[Email Finder] Snov.io domain search attempt ${snovAttempts} rate limited, trying next key...`
-    )
-  }
-
-  // Check if all keys exhausted
-  const hunterExhausted = keyRotationState.hunter.exhaustedKeys.size >= (hunterKeys.length || 1)
-  const snovExhausted = keyRotationState.snov.exhaustedKeys.size >= (snovKeys.length || 1)
-
-  if (hunterExhausted && snovExhausted && hasHunterKeys && hasSnovKeys) {
-    console.log('[Email Finder] ALL KEYS EXHAUSTED - Rate limit hit on all services')
+  // Only one service configured and it's exhausted
+  if (hasHunterKeys || hasSnovKeys) {
     return { email: null, source: 'none', allKeysExhausted: true }
   }
 
@@ -1323,6 +1389,7 @@ Respond ONLY in this exact JSON format:
 }
 
 // Reoon API - Email Verification with multi-key rotation
+// Flow: Always try first key first → rotate through keys → fallback to Rapid → check first key reset
 async function verifyEmailWithReoon(
   email: string
 ): Promise<{ verified: boolean; rateLimited: boolean; allKeysExhausted: boolean }> {
@@ -1340,52 +1407,64 @@ async function verifyEmailWithReoon(
     return { verified: false, rateLimited: false, allKeysExhausted: false }
   }
 
-  const maxAttempts = allKeys.length + 1
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    attempts++
-
-    const {
-      key: keyEntry,
-      index,
-      allExhausted
-    } = getNextKey(
-      'reoon',
-      allKeys.map((k) => ({ key: k.key }))
-    )
-
-    if (!keyEntry || allExhausted) {
-      console.log('[Reoon] All keys exhausted')
-      return { verified: false, rateLimited: true, allKeysExhausted: true }
-    }
-
+  // Helper to make Reoon verification request
+  const makeReoonRequest = async (
+    apiKey: string
+  ): Promise<{ verified: boolean; rateLimited: boolean; error: boolean }> => {
     try {
       const response = await fetch(
-        `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${keyEntry.key}&mode=power`
+        `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${apiKey}&mode=power`
       )
 
       const data = await response.json()
 
-      // Check for rate limit
       if (isRateLimitError(response, data)) {
-        console.log(`[Reoon] Key #${index + 1} rate limited, trying next key...`)
-        markKeyExhausted('reoon', index, 'rate_limit')
-        continue
+        return { verified: false, rateLimited: true, error: false }
       }
 
       if (!response.ok) {
-        return { verified: false, rateLimited: false, allKeysExhausted: false }
+        return { verified: false, rateLimited: false, error: true }
       }
 
-      // Reoon returns status: "valid", "invalid", "unknown", etc.
       const verified = data.status === 'valid' || data.status === 'safe'
-      return { verified, rateLimited: false, allKeysExhausted: false }
+      return { verified, rateLimited: false, error: false }
     } catch {
-      return { verified: false, rateLimited: false, allKeysExhausted: false }
+      return { verified: false, rateLimited: false, error: true }
     }
   }
 
+  // ALWAYS try first key first (to check if it has reset from previous calls)
+  console.log(`[Reoon] Trying first key first (checking if reset)...`)
+  const firstKeyResult = await makeReoonRequest(allKeys[0].key)
+
+  if (!firstKeyResult.rateLimited && !firstKeyResult.error) {
+    // First key works! Clear exhausted state and return result
+    keyRotationState.reoon.exhaustedKeys.clear()
+    keyRotationState.reoon.currentIndex = 0
+    return { verified: firstKeyResult.verified, rateLimited: false, allKeysExhausted: false }
+  }
+
+  if (firstKeyResult.rateLimited) {
+    console.log(`[Reoon] First key still rate limited, trying other keys...`)
+    markKeyExhausted('reoon', 0, 'rate_limit')
+  }
+
+  // Try remaining keys
+  for (let i = 1; i < allKeys.length; i++) {
+    const keyResult = await makeReoonRequest(allKeys[i].key)
+
+    if (!keyResult.rateLimited && !keyResult.error) {
+      return { verified: keyResult.verified, rateLimited: false, allKeysExhausted: false }
+    }
+
+    if (keyResult.rateLimited) {
+      console.log(`[Reoon] Key #${i + 1} rate limited, trying next...`)
+      markKeyExhausted('reoon', i, 'rate_limit')
+    }
+  }
+
+  // All keys exhausted
+  console.log('[Reoon] All keys exhausted')
   return { verified: false, rateLimited: true, allKeysExhausted: true }
 }
 
