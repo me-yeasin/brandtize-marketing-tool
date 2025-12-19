@@ -10,28 +10,24 @@ interface ApiKeyEntry {
 }
 
 interface EmailTabProps {
-  reoonKey: string
-  hasReoonKey: boolean
   saving: boolean
-  onReoonKeyChange: (value: string) => void
-  onSaveReoonKey: () => Promise<void>
   // Multi-key props
   hunterKeys: ApiKeyEntry[]
   snovKeys: ApiKeyEntry[]
+  reoonKeys: ApiKeyEntry[]
   onSaveHunterKeys: (keys: ApiKeyEntry[]) => Promise<void>
   onSaveSnovKeys: (keys: ApiKeyEntry[]) => Promise<void>
+  onSaveReoonKeys: (keys: ApiKeyEntry[]) => Promise<void>
 }
 
 function EmailTab({
-  reoonKey,
-  hasReoonKey,
   saving,
-  onReoonKeyChange,
-  onSaveReoonKey,
   hunterKeys,
   snovKeys,
+  reoonKeys,
   onSaveHunterKeys,
-  onSaveSnovKeys
+  onSaveSnovKeys,
+  onSaveReoonKeys
 }: EmailTabProps): React.JSX.Element {
   const [activeSubTab, setActiveSubTab] = React.useState<'finder' | 'verifier'>('finder')
 
@@ -40,6 +36,7 @@ function EmailTab({
   const [localSnovKeys, setLocalSnovKeys] = React.useState<
     { clientId: string; clientSecret: string }[]
   >([])
+  const [localReoonKey, setLocalReoonKey] = React.useState('')
 
   return (
     <div className="max-w-xl space-y-6">
@@ -295,32 +292,67 @@ function EmailTab({
               </div>
               <div>
                 <h3 className="font-medium text-text-main">Reoon API</h3>
-                <p className="text-xs text-text-muted">Email verification (Power Mode)</p>
+                <p className="text-xs text-text-muted">
+                  Email verification (Power Mode) • {reoonKeys.length} key
+                  {reoonKeys.length !== 1 ? 's' : ''} configured
+                </p>
               </div>
             </div>
-            {hasReoonKey && (
+            {reoonKeys.length > 0 && (
               <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs text-green-400">
                 Connected
               </span>
             )}
           </div>
+
+          {/* Existing Keys */}
+          {reoonKeys.length > 0 && (
+            <div className="space-y-2">
+              <label className="block text-sm text-text-muted">Saved Keys (for rotation)</label>
+              {reoonKeys.map((entry, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 p-2 bg-surface/50 rounded border border-border/50"
+                >
+                  <span className="text-xs text-text-muted w-6">#{idx + 1}</span>
+                  <span className="flex-1 text-sm text-text-main font-mono">{entry.key}</span>
+                  <button
+                    onClick={() => {
+                      const newKeys = reoonKeys.filter((_, i) => i !== idx)
+                      onSaveReoonKeys(newKeys)
+                    }}
+                    className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded"
+                  >
+                    <FiTrash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add New Key */}
           <div className="space-y-3">
-            <label className="block text-sm text-text-muted">API Key</label>
+            <label className="block text-sm text-text-muted">Add New API Key</label>
             <div className="flex gap-3">
               <div className="flex-1">
                 <Input
                   type="password"
-                  placeholder={hasReoonKey ? '••••••••••••••••' : 'Enter your Reoon API key'}
-                  value={reoonKey}
-                  onChange={(e) => onReoonKeyChange(e.target.value)}
+                  placeholder="Enter Reoon API key"
+                  value={localReoonKey}
+                  onChange={(e) => setLocalReoonKey(e.target.value)}
                 />
               </div>
               <Button
                 variant="primary"
-                onClick={onSaveReoonKey}
-                disabled={saving || !reoonKey.trim()}
+                onClick={() => {
+                  if (localReoonKey.trim()) {
+                    onSaveReoonKeys([...reoonKeys, { key: localReoonKey.trim() }])
+                    setLocalReoonKey('')
+                  }
+                }}
+                disabled={saving || !localReoonKey.trim()}
               >
-                {saving ? 'Saving...' : 'Save'}
+                <FiPlus size={16} className="mr-1" /> Add
               </Button>
             </div>
             <p className="text-xs text-text-muted">
@@ -332,7 +364,8 @@ function EmailTab({
                 className="text-primary hover:underline"
               >
                 reoon.com
-              </a>
+              </a>{' '}
+              • Add multiple keys for rotation when rate limited
             </p>
           </div>
         </div>

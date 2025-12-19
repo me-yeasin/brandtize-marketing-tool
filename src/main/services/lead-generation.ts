@@ -7,6 +7,7 @@ import {
   getJinaApiKeys,
   getHunterApiKeys,
   getSnovApiKeys,
+  getReoonApiKeys,
   type ApiKeyEntry
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
@@ -24,7 +25,8 @@ const keyRotationState: Record<string, KeyRotationState> = {
   neutrino: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   linkPreview: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   hunter: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  snov: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
+  snov: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  reoon: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
 }
 
 function resetKeyRotation(): void {
@@ -1320,24 +1322,71 @@ Respond ONLY in this exact JSON format:
   )
 }
 
-// Reoon API - Email Verification (Power Mode)
-async function verifyEmailWithReoon(email: string): Promise<boolean> {
-  const { reoonApiKey } = getApiKeys()
-  if (!reoonApiKey) return false
+// Reoon API - Email Verification with multi-key rotation
+async function verifyEmailWithReoon(
+  email: string
+): Promise<{ verified: boolean; rateLimited: boolean; allKeysExhausted: boolean }> {
+  const reoonKeys = getReoonApiKeys()
+  const singleKey = getApiKeys().reoonApiKey
 
-  try {
-    const response = await fetch(
-      `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${reoonApiKey}&mode=power`
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  reoonKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && reoonKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    return { verified: false, rateLimited: false, allKeysExhausted: false }
+  }
+
+  const maxAttempts = allKeys.length + 1
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    attempts++
+
+    const {
+      key: keyEntry,
+      index,
+      allExhausted
+    } = getNextKey(
+      'reoon',
+      allKeys.map((k) => ({ key: k.key }))
     )
 
-    if (!response.ok) return false
+    if (!keyEntry || allExhausted) {
+      console.log('[Reoon] All keys exhausted')
+      return { verified: false, rateLimited: true, allKeysExhausted: true }
+    }
 
-    const data = await response.json()
-    // Reoon returns status: "valid", "invalid", "unknown", etc.
-    return data.status === 'valid' || data.status === 'safe'
-  } catch {
-    return false
+    try {
+      const response = await fetch(
+        `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${keyEntry.key}&mode=power`
+      )
+
+      const data = await response.json()
+
+      // Check for rate limit
+      if (isRateLimitError(response, data)) {
+        console.log(`[Reoon] Key #${index + 1} rate limited, trying next key...`)
+        markKeyExhausted('reoon', index, 'rate_limit')
+        continue
+      }
+
+      if (!response.ok) {
+        return { verified: false, rateLimited: false, allKeysExhausted: false }
+      }
+
+      // Reoon returns status: "valid", "invalid", "unknown", etc.
+      const verified = data.status === 'valid' || data.status === 'safe'
+      return { verified, rateLimited: false, allKeysExhausted: false }
+    } catch {
+      return { verified: false, rateLimited: false, allKeysExhausted: false }
+    }
   }
+
+  return { verified: false, rateLimited: true, allKeysExhausted: true }
 }
 
 // Export the main lead generation function
@@ -1431,12 +1480,22 @@ export async function generateLeads(
           }
         }
 
-        // Step 6: Verify email with Reoon
+        // Step 6: Verify email with Reoon (with key rotation)
         let verified = false
         if (finalEmail) {
           callbacks.onVerificationStart(finalEmail)
-          verified = await verifyEmailWithReoon(finalEmail)
+          const verifyResult = await verifyEmailWithReoon(finalEmail)
+          verified = verifyResult.verified
           callbacks.onVerificationResult(finalEmail, verified)
+
+          // Check if all Reoon keys are exhausted
+          if (verifyResult.allKeysExhausted) {
+            callbacks.onError(
+              'All email verification API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email → Email Verifier.'
+            )
+            callbacks.onComplete(leads)
+            return
+          }
         }
 
         // Step 7: Add to leads if we have a verified email

@@ -24,7 +24,6 @@ function SettingsScreen(): JSX.Element {
   const [mistralKey, setMistralKey] = useState('')
   const [googleKey, setGoogleKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
-  const [reoonKey, setReoonKey] = useState('')
   const [jinaKey, setJinaKey] = useState('')
   const [neutrinoKey, setNeutrinoKey] = useState('')
   const [neutrinoUserId, setNeutrinoUserId] = useState('')
@@ -40,7 +39,6 @@ function SettingsScreen(): JSX.Element {
   const [hasGoogleKey, setHasGoogleKey] = useState(false)
   const [hasSerperKey, setHasSerperKey] = useState(false)
   const [hasHunterKey, setHasHunterKey] = useState(false)
-  const [hasReoonKey, setHasReoonKey] = useState(false)
   const [hasJinaKey, setHasJinaKey] = useState(false)
   const [hasNeutrinoKey, setHasNeutrinoKey] = useState(false)
   const [hasLinkPreviewKey, setHasLinkPreviewKey] = useState(false)
@@ -82,7 +80,6 @@ function SettingsScreen(): JSX.Element {
       setMistralKey(keys.mistralApiKey)
       setGoogleKey(keys.googleApiKey)
       setSerperKey(keys.serperApiKey)
-      setReoonKey(keys.reoonApiKey)
       setJinaKey(keys.jinaApiKey)
       setNeutrinoKey(keys.neutrinoApiKey)
       setNeutrinoUserId(keys.neutrinoUserId)
@@ -92,7 +89,6 @@ function SettingsScreen(): JSX.Element {
       setHasGoogleKey(keys.hasGoogleKey)
       setHasSerperKey(keys.hasSerperKey)
       setHasHunterKey(keys.hasHunterKey)
-      setHasReoonKey(keys.hasReoonKey)
       setHasJinaKey(keys.hasJinaKey)
       setHasNeutrinoKey(keys.hasNeutrinoKey)
       setHasLinkPreviewKey(keys.hasLinkPreviewKey)
@@ -198,20 +194,6 @@ function SettingsScreen(): JSX.Element {
       scheduleMessage({ type: 'success', text: 'Serper API key saved successfully!' })
     } catch {
       scheduleMessage({ type: 'error', text: 'Failed to save Serper API key' })
-    }
-    setSaving(false)
-  }
-
-  const saveReoonKey = async (): Promise<void> => {
-    if (!reoonKey.trim()) return
-    setSaving(true)
-    try {
-      await window.api.setReoonApiKey(reoonKey.trim())
-      setHasReoonKey(true)
-      setReoonKey('')
-      scheduleMessage({ type: 'success', text: 'Reoon API key saved successfully!' })
-    } catch {
-      scheduleMessage({ type: 'error', text: 'Failed to save Reoon API key' })
     }
     setSaving(false)
   }
@@ -403,7 +385,7 @@ function SettingsScreen(): JSX.Element {
               profile: hasProfile,
               aiProvider: hasGroqKey || hasMistralKey || hasGoogleKey,
               searchApi: hasSerperKey || hasJinaKey || hasNeutrinoKey,
-              email: hasHunterKey || hasReoonKey
+              email: hasHunterKey || multiKeys.reoon.length > 0
             }}
           />
         </div>
@@ -494,15 +476,13 @@ function SettingsScreen(): JSX.Element {
           )}
           {activeTab === 'email' && (
             <EmailTab
-              reoonKey={reoonKey}
-              hasReoonKey={hasReoonKey}
               saving={saving}
-              onReoonKeyChange={setReoonKey}
-              onSaveReoonKey={saveReoonKey}
               hunterKeys={multiKeys.hunter}
               snovKeys={multiKeys.snov}
+              reoonKeys={multiKeys.reoon}
               onSaveHunterKeys={(keys) => saveMultiKeys('hunter', keys)}
               onSaveSnovKeys={(keys) => saveMultiKeys('snov', keys)}
+              onSaveReoonKeys={(keys) => saveMultiKeys('reoon', keys)}
             />
           )}
         </div>
