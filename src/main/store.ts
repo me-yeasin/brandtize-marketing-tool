@@ -86,6 +86,7 @@ interface StoreSchema {
   linkPreviewApiKeys: ApiKeyEntry[]
   hunterApiKeys: ApiKeyEntry[]
   reoonApiKeys: ApiKeyEntry[]
+  snovApiKeys: ApiKeyEntry[] // Each entry has key (clientId) + userId (clientSecret)
   // AI Provider multi-key arrays for rotation
   groqApiKeys: ApiKeyEntry[]
   mistralApiKeys: ApiKeyEntry[]
@@ -121,6 +122,7 @@ const store = new Store<StoreSchema>({
     linkPreviewApiKeys: [],
     hunterApiKeys: [],
     reoonApiKeys: [],
+    snovApiKeys: [],
     // AI Provider multi-key arrays
     groqApiKeys: [],
     mistralApiKeys: [],
@@ -360,6 +362,14 @@ export function setReoonApiKeys(keys: ApiKeyEntry[]): void {
   store.set('reoonApiKeys', keys)
 }
 
+export function getSnovApiKeys(): ApiKeyEntry[] {
+  return store.get('snovApiKeys', [])
+}
+
+export function setSnovApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('snovApiKeys', keys)
+}
+
 // AI Provider multi-key getters and setters
 export function getGroqApiKeys(): ApiKeyEntry[] {
   return store.get('groqApiKeys', [])
@@ -393,6 +403,7 @@ export function getAllMultiKeys(): {
   linkPreview: ApiKeyEntry[]
   hunter: ApiKeyEntry[]
   reoon: ApiKeyEntry[]
+  snov: ApiKeyEntry[]
 } {
   return {
     serper: getSerperApiKeys(),
@@ -400,7 +411,8 @@ export function getAllMultiKeys(): {
     neutrino: getNeutrinoApiKeys(),
     linkPreview: getLinkPreviewApiKeys(),
     hunter: getHunterApiKeys(),
-    reoon: getReoonApiKeys()
+    reoon: getReoonApiKeys(),
+    snov: getSnovApiKeys()
   }
 }
 

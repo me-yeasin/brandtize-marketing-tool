@@ -24,7 +24,6 @@ function SettingsScreen(): JSX.Element {
   const [mistralKey, setMistralKey] = useState('')
   const [googleKey, setGoogleKey] = useState('')
   const [serperKey, setSerperKey] = useState('')
-  const [hunterKey, setHunterKey] = useState('')
   const [reoonKey, setReoonKey] = useState('')
   const [jinaKey, setJinaKey] = useState('')
   const [neutrinoKey, setNeutrinoKey] = useState('')
@@ -45,9 +44,6 @@ function SettingsScreen(): JSX.Element {
   const [hasJinaKey, setHasJinaKey] = useState(false)
   const [hasNeutrinoKey, setHasNeutrinoKey] = useState(false)
   const [hasLinkPreviewKey, setHasLinkPreviewKey] = useState(false)
-  const [snovClientId, setSnovClientId] = useState('')
-  const [snovClientSecret, setSnovClientSecret] = useState('')
-  const [hasSnovKey, setHasSnovKey] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<AiProvider>('groq')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<MessageState>(null)
@@ -60,13 +56,15 @@ function SettingsScreen(): JSX.Element {
     linkPreview: { key: string; userId?: string; label?: string }[]
     hunter: { key: string; userId?: string; label?: string }[]
     reoon: { key: string; userId?: string; label?: string }[]
+    snov: { key: string; userId?: string; label?: string }[]
   }>({
     serper: [],
     jina: [],
     neutrino: [],
     linkPreview: [],
     hunter: [],
-    reoon: []
+    reoon: [],
+    snov: []
   })
   const [aiProviderMultiKeys, setAiProviderMultiKeys] = useState<{
     groq: { key: string; label?: string }[]
@@ -84,7 +82,6 @@ function SettingsScreen(): JSX.Element {
       setMistralKey(keys.mistralApiKey)
       setGoogleKey(keys.googleApiKey)
       setSerperKey(keys.serperApiKey)
-      setHunterKey(keys.hunterApiKey)
       setReoonKey(keys.reoonApiKey)
       setJinaKey(keys.jinaApiKey)
       setNeutrinoKey(keys.neutrinoApiKey)
@@ -99,9 +96,6 @@ function SettingsScreen(): JSX.Element {
       setHasJinaKey(keys.hasJinaKey)
       setHasNeutrinoKey(keys.hasNeutrinoKey)
       setHasLinkPreviewKey(keys.hasLinkPreviewKey)
-      setSnovClientId(keys.snovClientId)
-      setSnovClientSecret(keys.snovClientSecret)
-      setHasSnovKey(keys.hasSnovKey)
     })
 
     // Fetch multi-keys
@@ -208,20 +202,6 @@ function SettingsScreen(): JSX.Element {
     setSaving(false)
   }
 
-  const saveHunterKey = async (): Promise<void> => {
-    if (!hunterKey.trim()) return
-    setSaving(true)
-    try {
-      await window.api.setHunterApiKey(hunterKey.trim())
-      setHasHunterKey(true)
-      setHunterKey('')
-      scheduleMessage({ type: 'success', text: 'Hunter.io API key saved successfully!' })
-    } catch {
-      scheduleMessage({ type: 'error', text: 'Failed to save Hunter.io API key' })
-    }
-    setSaving(false)
-  }
-
   const saveReoonKey = async (): Promise<void> => {
     if (!reoonKey.trim()) return
     setSaving(true)
@@ -232,22 +212,6 @@ function SettingsScreen(): JSX.Element {
       scheduleMessage({ type: 'success', text: 'Reoon API key saved successfully!' })
     } catch {
       scheduleMessage({ type: 'error', text: 'Failed to save Reoon API key' })
-    }
-    setSaving(false)
-  }
-
-  const saveSnovKey = async (): Promise<void> => {
-    if (!snovClientId.trim() || !snovClientSecret.trim()) return
-    setSaving(true)
-    try {
-      await window.api.setSnovClientId(snovClientId.trim())
-      await window.api.setSnovClientSecret(snovClientSecret.trim())
-      setHasSnovKey(true)
-      setSnovClientId('')
-      setSnovClientSecret('')
-      scheduleMessage({ type: 'success', text: 'Snov.io API credentials saved successfully!' })
-    } catch {
-      scheduleMessage({ type: 'error', text: 'Failed to save Snov.io API credentials' })
     }
     setSaving(false)
   }
@@ -530,21 +494,15 @@ function SettingsScreen(): JSX.Element {
           )}
           {activeTab === 'email' && (
             <EmailTab
-              hunterKey={hunterKey}
               reoonKey={reoonKey}
-              snovClientId={snovClientId}
-              snovClientSecret={snovClientSecret}
-              hasHunterKey={hasHunterKey}
               hasReoonKey={hasReoonKey}
-              hasSnovKey={hasSnovKey}
               saving={saving}
-              onHunterKeyChange={setHunterKey}
               onReoonKeyChange={setReoonKey}
-              onSnovClientIdChange={setSnovClientId}
-              onSnovClientSecretChange={setSnovClientSecret}
-              onSaveHunterKey={saveHunterKey}
               onSaveReoonKey={saveReoonKey}
-              onSaveSnovKey={saveSnovKey}
+              hunterKeys={multiKeys.hunter}
+              snovKeys={multiKeys.snov}
+              onSaveHunterKeys={(keys) => saveMultiKeys('hunter', keys)}
+              onSaveSnovKeys={(keys) => saveMultiKeys('snov', keys)}
             />
           )}
         </div>

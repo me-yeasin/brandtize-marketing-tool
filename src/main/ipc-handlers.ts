@@ -35,6 +35,7 @@ import {
   setLinkPreviewApiKeys,
   setHunterApiKeys,
   setReoonApiKeys,
+  setSnovApiKeys,
   // AI Provider multi-key functions
   getGroqApiKeys,
   setGroqApiKeys,
@@ -223,7 +224,8 @@ export function setupIpcHandlers(): void {
       neutrino: multiKeys.neutrino.map(maskKey),
       linkPreview: multiKeys.linkPreview.map(maskKey),
       hunter: multiKeys.hunter.map(maskKey),
-      reoon: multiKeys.reoon.map(maskKey)
+      reoon: multiKeys.reoon.map(maskKey),
+      snov: multiKeys.snov.map(maskKey)
     }
   })
 
@@ -280,6 +282,9 @@ export function setupIpcHandlers(): void {
         break
       case 'reoon':
         setReoonApiKeys(keys)
+        break
+      case 'snov':
+        setSnovApiKeys(keys)
         break
       default:
         return { success: false, error: 'Unknown service' }

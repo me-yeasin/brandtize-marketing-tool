@@ -5,6 +5,8 @@ import {
   getLinkPreviewApiKeys,
   getSerperApiKeys,
   getJinaApiKeys,
+  getHunterApiKeys,
+  getSnovApiKeys,
   type ApiKeyEntry
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
@@ -20,7 +22,9 @@ const keyRotationState: Record<string, KeyRotationState> = {
   serper: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   jina: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
   neutrino: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  linkPreview: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
+  linkPreview: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  hunter: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
+  snov: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
 }
 
 function resetKeyRotation(): void {
@@ -84,7 +88,7 @@ export interface LeadResult {
   email: string | null
   decisionMaker: string | null
   verified: boolean
-  source: 'direct' | 'hunter_name' | 'hunter_domain'
+  source: 'direct' | 'hunter_name' | 'hunter_domain' | 'snov_name' | 'snov_domain'
   needsServices: boolean
   serviceMatchReason: string | null
 }
@@ -749,250 +753,300 @@ function extractDomain(url: string): string {
   }
 }
 
-// Hunter.io API - Find email by domain
-async function findEmailByDomain(domain: string): Promise<string | null> {
-  const { hunterApiKey } = getApiKeys()
-  if (!hunterApiKey) return null
+// Rate limit detection helper
+function isRateLimitError(response: Response, data?: unknown): boolean {
+  if (response.status === 429) return true
+  if (response.status === 402) return true // Payment required / quota exceeded
+  if (data && typeof data === 'object') {
+    const d = data as Record<string, unknown>
+    if (d.error === 'rate_limit' || d.error === 'quota_exceeded') return true
+    if (typeof d.message === 'string' && d.message.toLowerCase().includes('rate limit')) return true
+  }
+  return false
+}
+
+// Hunter.io API with multi-key rotation
+async function findEmailByDomainWithRotation(
+  domain: string
+): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
+  const hunterKeys = getHunterApiKeys()
+  const singleKey = getApiKeys().hunterApiKey
+
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  hunterKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && hunterKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    return { email: null, rateLimited: false, keyIndex: -1 }
+  }
+
+  const { key: keyEntry, index, allExhausted } = getNextKey('hunter', allKeys.map((k) => ({ key: k.key })))
+  if (!keyEntry || allExhausted) {
+    return { email: null, rateLimited: true, keyIndex: -1 }
+  }
 
   try {
     const response = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${hunterApiKey}`
+      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${keyEntry.key}`
     )
 
-    if (!response.ok) return null
-
     const data = await response.json()
-    if (data.data?.emails?.length > 0) {
-      // Return the first email found
-      return data.data.emails[0].value
+
+    if (isRateLimitError(response, data)) {
+      console.log(`[Hunter.io] Key #${index + 1} rate limited, marking exhausted`)
+      markKeyExhausted('hunter', index, 'rate_limit')
+      return { email: null, rateLimited: true, keyIndex: index }
     }
-    return null
+
+    if (!response.ok) {
+      return { email: null, rateLimited: false, keyIndex: index }
+    }
+
+    if (data.data?.emails?.length > 0) {
+      return { email: data.data.emails[0].value, rateLimited: false, keyIndex: index }
+    }
+    return { email: null, rateLimited: false, keyIndex: index }
   } catch {
-    return null
+    return { email: null, rateLimited: false, keyIndex: index }
   }
 }
 
-// Hunter.io API - Find email by name and domain
-async function findEmailByName(
+async function findEmailByNameWithRotation(
   firstName: string,
   lastName: string,
   domain: string
-): Promise<string | null> {
-  const { hunterApiKey } = getApiKeys()
-  if (!hunterApiKey) return null
+): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
+  const hunterKeys = getHunterApiKeys()
+  const singleKey = getApiKeys().hunterApiKey
+
+  const allKeys: { key: string; index: number }[] = []
+  hunterKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && hunterKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    return { email: null, rateLimited: false, keyIndex: -1 }
+  }
+
+  const { key: keyEntry, index, allExhausted } = getNextKey('hunter', allKeys.map((k) => ({ key: k.key })))
+  if (!keyEntry || allExhausted) {
+    return { email: null, rateLimited: true, keyIndex: -1 }
+  }
 
   try {
     const response = await fetch(
-      `https://api.hunter.io/v2/email-finder?domain=${encodeURIComponent(domain)}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&api_key=${hunterApiKey}`
+      `https://api.hunter.io/v2/email-finder?domain=${encodeURIComponent(domain)}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&api_key=${keyEntry.key}`
     )
 
-    if (!response.ok) return null
-
     const data = await response.json()
-    if (data.data?.email) {
-      return data.data.email
+
+    if (isRateLimitError(response, data)) {
+      console.log(`[Hunter.io] Key #${index + 1} rate limited, marking exhausted`)
+      markKeyExhausted('hunter', index, 'rate_limit')
+      return { email: null, rateLimited: true, keyIndex: index }
     }
-    return null
+
+    if (!response.ok) {
+      return { email: null, rateLimited: false, keyIndex: index }
+    }
+
+    if (data.data?.email) {
+      return { email: data.data.email, rateLimited: false, keyIndex: index }
+    }
+    return { email: null, rateLimited: false, keyIndex: index }
   } catch {
-    return null
+    return { email: null, rateLimited: false, keyIndex: index }
   }
 }
 
-// Snov.io API - Token cache
-let snovAccessToken: string | null = null
-let snovTokenExpiry: number = 0
-
-// Snov.io API - Get access token
-async function getSnovAccessToken(): Promise<string | null> {
-  const { snovClientId, snovClientSecret } = getApiKeys()
-  if (!snovClientId || !snovClientSecret) return null
-
-  // Return cached token if still valid (with 5 min buffer)
-  if (snovAccessToken && Date.now() < snovTokenExpiry - 300000) {
-    return snovAccessToken
-  }
-
+// Snov.io with multi-key rotation
+async function getSnovAccessTokenWithKey(
+  clientId: string,
+  clientSecret: string
+): Promise<{ token: string | null; rateLimited: boolean }> {
   try {
     const response = await fetch('https://api.snov.io/v1/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        client_id: snovClientId,
-        client_secret: snovClientSecret
+        client_id: clientId,
+        client_secret: clientSecret
       })
     })
 
-    if (!response.ok) return null
-
     const data = await response.json()
-    if (data.access_token) {
-      snovAccessToken = data.access_token
-      snovTokenExpiry = Date.now() + (data.expires_in || 3600) * 1000
-      return snovAccessToken
+
+    if (isRateLimitError(response, data)) {
+      return { token: null, rateLimited: true }
     }
-    return null
+
+    if (data.access_token) {
+      return { token: data.access_token, rateLimited: false }
+    }
+    return { token: null, rateLimited: false }
   } catch {
-    return null
+    return { token: null, rateLimited: false }
   }
 }
 
-// Snov.io API - Find emails by domain (async flow)
-async function findEmailByDomainSnov(domain: string): Promise<string | null> {
-  const token = await getSnovAccessToken()
-  if (!token) return null
+async function findEmailByDomainSnovWithRotation(
+  domain: string
+): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
+  const snovKeys = getSnovApiKeys()
+  const { snovClientId, snovClientSecret } = getApiKeys()
+
+  // Build keys array
+  const allKeys: { clientId: string; clientSecret: string; index: number }[] = []
+  snovKeys.forEach((k, i) => allKeys.push({ clientId: k.key, clientSecret: k.userId || '', index: i }))
+  if (snovClientId && snovClientSecret && snovKeys.length === 0) {
+    allKeys.push({ clientId: snovClientId, clientSecret: snovClientSecret, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    return { email: null, rateLimited: false, keyIndex: -1 }
+  }
+
+  const { key: keyEntry, index, allExhausted } = getNextKey('snov', allKeys.map((k) => ({ key: k.clientId })))
+  if (!keyEntry || allExhausted) {
+    return { email: null, rateLimited: true, keyIndex: -1 }
+  }
+
+  const currentKey = allKeys[index]
+  const { token, rateLimited: tokenRateLimited } = await getSnovAccessTokenWithKey(
+    currentKey.clientId,
+    currentKey.clientSecret
+  )
+
+  if (tokenRateLimited) {
+    console.log(`[Snov.io] Key #${index + 1} rate limited during auth`)
+    markKeyExhausted('snov', index, 'rate_limit')
+    return { email: null, rateLimited: true, keyIndex: index }
+  }
+
+  if (!token) {
+    return { email: null, rateLimited: false, keyIndex: index }
+  }
 
   try {
-    // Step 1: Start domain search
     const startResponse = await fetch('https://api.snov.io/v2/domain-search/domain-emails/start', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ domain })
     })
 
-    if (!startResponse.ok) return null
+    if (isRateLimitError(startResponse)) {
+      markKeyExhausted('snov', index, 'rate_limit')
+      return { email: null, rateLimited: true, keyIndex: index }
+    }
 
     const startData = await startResponse.json()
     const taskHash = startData.meta?.task_hash || startData.data?.task_hash
+    if (!taskHash) return { email: null, rateLimited: false, keyIndex: index }
 
-    if (!taskHash) return null
-
-    // Step 2: Poll for results (max 10 attempts, 1 second apart)
+    // Poll for results
     for (let i = 0; i < 10; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
+      await new Promise((r) => setTimeout(r, 1000))
       const resultResponse = await fetch(
         `https://api.snov.io/v2/domain-search/domain-emails/result/${taskHash}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       )
 
-      if (!resultResponse.ok) continue
+      if (isRateLimitError(resultResponse)) {
+        markKeyExhausted('snov', index, 'rate_limit')
+        return { email: null, rateLimited: true, keyIndex: index }
+      }
 
       const resultData = await resultResponse.json()
-
       if (resultData.status === 'completed' && resultData.data?.length > 0) {
-        // Return first valid email
         const validEmail = resultData.data.find(
-          (e: { email: string; smtp_status?: string }) =>
-            e.email && (e.smtp_status === 'valid' || !e.smtp_status)
+          (e: { email: string; smtp_status?: string }) => e.email && (e.smtp_status === 'valid' || !e.smtp_status)
         )
-        if (validEmail) return validEmail.email
-        // Fallback to first email if none marked valid
-        return resultData.data[0].email
+        return { email: validEmail?.email || resultData.data[0].email, rateLimited: false, keyIndex: index }
       }
-
       if (resultData.status === 'completed') break
     }
-
-    return null
+    return { email: null, rateLimited: false, keyIndex: index }
   } catch {
-    return null
+    return { email: null, rateLimited: false, keyIndex: index }
   }
 }
 
-// Snov.io API - Find email by name and domain
-async function findEmailByNameSnov(
-  firstName: string,
-  lastName: string,
-  domain: string
-): Promise<string | null> {
-  const token = await getSnovAccessToken()
-  if (!token) return null
-
-  try {
-    // Step 1: Start email search
-    const startResponse = await fetch('https://api.snov.io/v2/emails-by-domain-by-name/start', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        rows: [{ first_name: firstName, last_name: lastName, domain }]
-      })
-    })
-
-    if (!startResponse.ok) return null
-
-    const startData = await startResponse.json()
-    const taskHash = startData.data?.task_hash
-
-    if (!taskHash) return null
-
-    // Step 2: Poll for results (max 10 attempts, 1 second apart)
-    for (let i = 0; i < 10; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      const resultResponse = await fetch(
-        `https://api.snov.io/v2/emails-by-domain-by-name/result?task_hash=${taskHash}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      )
-
-      if (!resultResponse.ok) continue
-
-      const resultData = await resultResponse.json()
-
-      if (resultData.status === 'completed' && resultData.data?.length > 0) {
-        const personResult = resultData.data[0]
-        if (personResult.result?.length > 0) {
-          // Find valid email
-          const validEmail = personResult.result.find(
-            (e: { email: string; smtp_status?: string }) =>
-              e.email && (e.smtp_status === 'valid' || e.smtp_status === 'unknown')
-          )
-          if (validEmail) return validEmail.email
-          return personResult.result[0].email
-        }
-      }
-
-      if (resultData.status === 'completed') break
-    }
-
-    return null
-  } catch {
-    return null
-  }
-}
-
-// Combined email finder with Hunter.io primary and Snov.io fallback
+// Combined email finder with multi-key rotation and service fallback
 async function findEmailWithFallback(
   domain: string,
   firstName?: string,
   lastName?: string
-): Promise<{ email: string | null; source: string }> {
-  // Try Hunter.io first
-  let email: string | null = null
+): Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }> {
+  // Reset rotation state at the start of each lead generation session
+  const hunterKeys = getHunterApiKeys()
+  const snovKeys = getSnovApiKeys()
+  const { hunterApiKey, snovClientId, snovClientSecret } = getApiKeys()
 
-  if (firstName && lastName) {
-    email = await findEmailByName(firstName, lastName, domain)
-    if (email) return { email, source: 'hunter_name' }
-  }
+  const hasHunterKeys = hunterKeys.length > 0 || !!hunterApiKey
+  const hasSnovKeys = snovKeys.length > 0 || (!!snovClientId && !!snovClientSecret)
 
-  email = await findEmailByDomain(domain)
-  if (email) return { email, source: 'hunter_domain' }
-
-  // Fallback to Snov.io
-  const { snovClientId, snovClientSecret } = getApiKeys()
-  if (!snovClientId || !snovClientSecret) {
+  if (!hasHunterKeys && !hasSnovKeys) {
     return { email: null, source: 'none' }
   }
 
-  console.log('[Lead Generation] Hunter.io returned no result, trying Snov.io fallback...')
+  let hunterAttempts = 0
+  const maxHunterAttempts = Math.max(hunterKeys.length, 1) + 1
 
-  if (firstName && lastName) {
-    email = await findEmailByNameSnov(firstName, lastName, domain)
-    if (email) return { email, source: 'snov_name' }
+  // Try Hunter.io with key rotation
+  while (hasHunterKeys && hunterAttempts < maxHunterAttempts) {
+    hunterAttempts++
+
+    if (firstName && lastName) {
+      const result = await findEmailByNameWithRotation(firstName, lastName, domain)
+      if (result.email) return { email: result.email, source: 'hunter_name' }
+      if (!result.rateLimited) break // No rate limit, just no result
+    }
+
+    const domainResult = await findEmailByDomainWithRotation(domain)
+    if (domainResult.email) return { email: domainResult.email, source: 'hunter_domain' }
+    if (!domainResult.rateLimited) break // No rate limit, just no result
+    
+    console.log(`[Email Finder] Hunter.io attempt ${hunterAttempts} rate limited, trying next key...`)
   }
 
-  email = await findEmailByDomainSnov(domain)
-  if (email) return { email, source: 'snov_domain' }
+  // If Hunter exhausted all keys, try Snov.io
+  if (!hasSnovKeys) {
+    // Check if Hunter was rate limited on all keys
+    const hunterState = keyRotationState.hunter
+    if (hunterState.exhaustedKeys.size >= maxHunterAttempts - 1) {
+      return { email: null, source: 'none', allKeysExhausted: !hasSnovKeys }
+    }
+    return { email: null, source: 'none' }
+  }
+
+  console.log('[Email Finder] Switching to Snov.io fallback...')
+
+  let snovAttempts = 0
+  const maxSnovAttempts = Math.max(snovKeys.length, 1) + 1
+
+  while (snovAttempts < maxSnovAttempts) {
+    snovAttempts++
+
+    const result = await findEmailByDomainSnovWithRotation(domain)
+    if (result.email) return { email: result.email, source: 'snov_domain' }
+    if (!result.rateLimited) break
+
+    console.log(`[Email Finder] Snov.io attempt ${snovAttempts} rate limited, trying next key...`)
+  }
+
+  // Check if all keys exhausted
+  const hunterExhausted = keyRotationState.hunter.exhaustedKeys.size >= (hunterKeys.length || 1)
+  const snovExhausted = keyRotationState.snov.exhaustedKeys.size >= (snovKeys.length || 1)
+
+  if (hunterExhausted && snovExhausted && hasHunterKeys && hasSnovKeys) {
+    console.log('[Email Finder] ALL KEYS EXHAUSTED - Rate limit hit on all services')
+    return { email: null, source: 'none', allKeysExhausted: true }
+  }
 
   return { email: null, source: 'none' }
 }
@@ -1193,12 +1247,21 @@ export async function generateLeads(
             }
           }
 
-          // Use combined finder with fallback
+          // Use combined finder with fallback and key rotation
           callbacks.onHunterStart(url, firstName && lastName ? 'name' : 'domain')
           const result = await findEmailWithFallback(domain, firstName, lastName)
           finalEmail = result.email
           emailSource = result.source as typeof emailSource
           callbacks.onHunterResult(url, finalEmail)
+
+          // Check if all API keys are exhausted (rate limited)
+          if (result.allKeysExhausted) {
+            callbacks.onError(
+              'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.'
+            )
+            callbacks.onComplete(leads)
+            return
+          }
         }
 
         // Step 6: Verify email with Reoon

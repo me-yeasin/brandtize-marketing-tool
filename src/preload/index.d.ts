@@ -16,6 +16,7 @@ interface MultiKeys {
   linkPreview: ApiKeyEntry[]
   hunter: ApiKeyEntry[]
   reoon: ApiKeyEntry[]
+  snov: ApiKeyEntry[]
 }
 
 interface AiProviderMultiKeys {
