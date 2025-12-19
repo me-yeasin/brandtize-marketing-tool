@@ -41,5 +41,5 @@ npmRebuild: false
 publish:
   provider: github
   owner: me-yeasin
-  repo: ar-branding
+  repo: brandtize-marketing-tool
   releaseType: release
