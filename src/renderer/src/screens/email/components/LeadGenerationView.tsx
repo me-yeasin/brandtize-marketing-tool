@@ -1,29 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import {
-  FiSearch,
   FiFileText,
   FiCpu,
-  FiMail,
   FiCheckCircle,
-  FiChevronDown,
-  FiChevronRight,
   FiTarget,
-  FiXCircle,
   FiUserCheck,
-  FiShield
+  FiArrowRight,
+  FiGlobe
 } from 'react-icons/fi'
+
+// --- Interfaces ---
 
 interface SearchResult {
   title: string
   link: string
   snippet: string
-}
-
-interface ScrapedContent {
-  url: string
-  content: string
-  title: string
 }
 
 interface Lead {
@@ -36,574 +28,310 @@ interface Lead {
   serviceMatchReason?: string | null
 }
 
-interface ServiceMatchResult {
-  url: string
-  needsServices: boolean
-  reason: string | null
-}
-
 interface LeadGenerationViewProps {
   searchQuery: string
   niche: string
   location: string
 }
 
+// --- Components ---
+
+
+const StatCard = ({ label, value, icon: Icon, colorClass }: { label: string, value: number, icon: any, colorClass: string }) => (
+  <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4">
+    <div className={`p-3 rounded-full bg-white/5 ${colorClass}`}>
+      <Icon size={20} />
+    </div>
+    <div>
+      <div className="text-2xl font-light text-white">{value}</div>
+      <div className="text-xs text-white/40 uppercase tracking-wider">{label}</div>
+    </div>
+  </div>
+)
+
+// --- Main View ---
+
 function LeadGenerationView({
   searchQuery,
   niche,
   location
 }: LeadGenerationViewProps): React.JSX.Element {
-  const [stage, setStage] = useState<string>('searching')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [scrapedContents, setScrapedContents] = useState<Map<string, ScrapedContent>>(new Map())
-  const [currentScraping, setCurrentScraping] = useState<string>('')
-  const [currentAiUrl, setCurrentAiUrl] = useState<string>('')
-  const [aiResults, setAiResults] = useState<
-    Map<string, { email: string | null; decisionMaker: string | null }>
-  >(new Map())
-  const [serviceMatches, setServiceMatches] = useState<Map<string, ServiceMatchResult>>(new Map())
-  const [currentServiceMatch, setCurrentServiceMatch] = useState<string>('')
-  const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([])
-  const [expandedPanels, setExpandedPanels] = useState<Set<string>>(
-    new Set(['search', 'scrape', 'serviceMatch', 'emailFinding', 'verification'])
-  )
-  const [error, setError] = useState<string>('')
-  const [skippedCount, setSkippedCount] = useState(0)
-  const [currentEmailFinding, setCurrentEmailFinding] = useState<{
-    url: string
-    type: string
-  } | null>(null)
-  const [emailFindingResults, setEmailFindingResults] = useState<
-    Map<string, { email: string | null; source: string }>
-  >(new Map())
-  const [currentVerification, setCurrentVerification] = useState<string>('')
-  const [verificationResults, setVerificationResults] = useState<
-    Map<string, { verified: boolean }>
-  >(new Map())
-  // Track current service names for dynamic panel titles
-  const [currentEmailService, setCurrentEmailService] = useState<string>('Hunter.io')
-  const [currentVerificationService, setCurrentVerificationService] = useState<string>('Reoon')
-  const [currentScrapingService] = useState<string>('Jina')
-  const [currentSearchService] = useState<string>('Serper')
+  // State
+  const [logs, setLogs] = useState<{ id: string, type: string, message: string, detail?: string }[]>([])
+  const logsEndRef = useRef<HTMLDivElement>(null)
 
-  const togglePanel = (panel: string): void => {
-    setExpandedPanels((prev) => {
-      const next = new Set(prev)
-      if (next.has(panel)) {
-        next.delete(panel)
-      } else {
-        next.add(panel)
-      }
-      return next
-    })
+  // Data Stores
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [scrapedCount, setScrapedCount] = useState(0)
+  const [verifiedLeads, setVerifiedLeads] = useState<Lead[]>([])
+
+  // Current Activity Indicators
+  const [currentActivity, setCurrentActivity] = useState<string>('Initializing...')
+
+  const addLog = (type: string, message: string, detail?: string) => {
+    setLogs(prev => [...prev, { id: Date.now().toString() + Math.random(), type, message, detail }])
   }
+
+  // Scroll to bottom of logs
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logs])
 
   useEffect(() => {
     // Start lead generation
     window.api.generateLeads({ searchQuery, niche, location })
+    addLog('system', `Started search for: ${searchQuery}`)
+    setCurrentActivity('Searching the web...')
 
-    // Set up event listeners
+    // --- Event Listeners ---
+
     const unsubSearchStart = window.api.onLeadsSearchStart(() => {
-      setStage('searching')
+      setCurrentActivity('Querying Search Engines...')
     })
 
     const unsubSearchComplete = window.api.onLeadsSearchComplete((results) => {
-      setSearchResults(results as SearchResult[])
-      setStage('scraping')
-    })
-
-    const unsubServiceSwitched = window.api.onLeadsServiceSwitched((data) => {
-      toast.warning(`Service switched: ${data.from} → ${data.to}`, {
-        description: data.reason,
-        duration: 3000
-      })
-      // Update current service based on what switched
-      if (data.to.toLowerCase().includes('snov')) {
-        setCurrentEmailService('Snov.io')
-      } else if (data.to.toLowerCase().includes('hunter')) {
-        setCurrentEmailService('Hunter.io')
-      }
-    })
-
-    const unsubProtectedUrl = window.api.onLeadsProtectedUrl((data) => {
-      toast.info('Protected website detected', {
-        description: `${new URL(data.url).hostname} - treating as secure business`,
-        duration: 2000
-      })
-    })
-
-    // Key rotation notifications
-    const unsubKeyRotation = window.api.onLeadsKeyRotation((data) => {
-      toast.warning(`${data.service} API key rotated`, {
-        description: `Using key ${data.keyIndex}/${data.totalKeys} - ${data.reason}`,
-        duration: 3000
-      })
-      // Update current service name based on key rotation
-      if (data.service.toLowerCase().includes('hunter')) {
-        setCurrentEmailService('Hunter.io')
-      } else if (data.service.toLowerCase().includes('snov')) {
-        setCurrentEmailService('Snov.io')
-      } else if (data.service.toLowerCase().includes('reoon')) {
-        setCurrentVerificationService('Reoon')
-      }
-    })
-
-    const unsubCleanupComplete = window.api.onLeadsCleanupComplete(() => {
-      // No-op: cleanup stage removed, going directly to scraping
+      const res = results as SearchResult[]
+      setSearchResults(res)
+      addLog('search', `Found ${res.length} potential websites`)
+      setCurrentActivity(`Queueing ${res.length} sites for analysis...`)
     })
 
     const unsubScrapeStart = window.api.onLeadsScrapeStart((url) => {
-      setCurrentScraping(url)
+      setCurrentActivity(`Scraping: ${new URL(url).hostname}`)
     })
 
     const unsubScrapeComplete = window.api.onLeadsScrapeComplete((data) => {
-      const { url, content } = data as { url: string; content: ScrapedContent }
-      setScrapedContents((prev) => new Map(prev).set(url, content))
-      setCurrentScraping('')
+      const { url } = data as { url: string }
+      setScrapedCount(prev => prev + 1)
+      addLog('scrape', `Scraped content from ${new URL(url).hostname}`)
     })
 
     const unsubScrapeError = window.api.onLeadsScrapeError((data) => {
-      const { url } = data as { url: string; error: string }
-      setScrapedContents((prev) =>
-        new Map(prev).set(url, { url, content: 'Error scraping', title: 'Error' })
-      )
-      setCurrentScraping('')
+       const { url } = data as { url: string }
+       addLog('error', `Failed to scrape ${new URL(url).hostname}`)
     })
 
     const unsubAiStart = window.api.onLeadsAiStart((url) => {
-      setCurrentAiUrl(url)
-      setStage('analyzing')
+       setCurrentActivity(`Analyzing: ${new URL(url).hostname}`)
     })
 
-    const unsubAiResult = window.api.onLeadsAiResult((data) => {
-      const { url, email, decisionMaker } = data as {
-        url: string
-        email: string | null
-        decisionMaker: string | null
-      }
-      setAiResults((prev) => new Map(prev).set(url, { email, decisionMaker }))
-      setCurrentAiUrl('')
-    })
-
-    const unsubServiceMatchStart = window.api.onLeadsServiceMatchStart((url) => {
-      setCurrentServiceMatch(url)
-      setStage('serviceMatch')
+    const unsubAiResult = window.api.onLeadsAiResult(() => {
+      // Optional: Log granular AI results if needed
     })
 
     const unsubServiceMatchResult = window.api.onLeadsServiceMatchResult((data) => {
-      const { url, needsServices, reason } = data as {
-        url: string
-        needsServices: boolean
-        reason: string | null
-      }
-      setServiceMatches((prev) => new Map(prev).set(url, { url, needsServices, reason }))
-      setCurrentServiceMatch('')
-      if (!needsServices) {
-        setSkippedCount((prev) => prev + 1)
-      }
-    })
-
-    // Email Finding events (Hunter.io / Snov.io)
-    const unsubHunterStart = window.api.onLeadsHunterStart((data) => {
-      const { url, type } = data as { url: string; type: string }
-      setCurrentEmailFinding({ url, type })
-      setStage('emailFinding')
-      // Reset to Hunter.io when starting new email finding (it tries Hunter first)
-      setCurrentEmailService('Hunter.io')
-    })
-
-    const unsubHunterResult = window.api.onLeadsHunterResult((data) => {
-      const { url, email } = data as { url: string; email: string | null }
-      setEmailFindingResults((prev) =>
-        new Map(prev).set(url, { email, source: email ? 'hunter/snov' : 'none' })
-      )
-      setCurrentEmailFinding(null)
-      if (email) {
-        toast.success(`Email found: ${email}`, { duration: 2000 })
-      }
-    })
-
-    // Email Verification events (Reoon)
-    const unsubVerifyStart = window.api.onLeadsVerifyStart((email) => {
-      setCurrentVerification(email)
-      setStage('verification')
-      setCurrentVerificationService('Reoon')
-    })
-
-    const unsubVerifyResult = window.api.onLeadsVerifyResult((data) => {
-      const { email, verified } = data as { email: string; verified: boolean }
-      setVerificationResults((prev) => new Map(prev).set(email, { verified }))
-      setCurrentVerification('')
-      if (verified) {
-        toast.success(`Email verified: ${email}`, { duration: 2000 })
-      }
+       const { url, needsServices } = data as { url: string, needsServices: boolean }
+       if (needsServices) {
+         addLog('match', `Qualified lead detected: ${new URL(url).hostname}`)
+       }
     })
 
     const unsubLeadFound = window.api.onLeadFound((lead) => {
-      setVerifiedLeads((prev) => [...prev, lead as Lead])
+      const l = lead as Lead
+      setVerifiedLeads(prev => [...prev, l])
+      addLog('success', `Verified Contact: ${l.email}`, l.decisionMaker ? `Decision Maker: ${l.decisionMaker}` : undefined)
+      toast.success('New Verified Lead Found!')
     })
 
     const unsubComplete = window.api.onLeadsComplete(() => {
-      setStage('complete')
+      setCurrentActivity('Process Complete')
+      addLog('system', 'Lead generation finished successfully')
     })
 
     const unsubError = window.api.onLeadsError((err) => {
-      setError(err)
-      setStage('error')
+      setCurrentActivity('Error encountered')
+      addLog('error', err)
     })
+
+    // Other handlers (keeping minimal for now)
+    const noop = () => {}
+    const unsub1 = window.api.onLeadsServiceSwitched(noop)
+    const unsub2 = window.api.onLeadsProtectedUrl(noop)
+    const unsub3 = window.api.onLeadsKeyRotation(noop)
+    const unsub4 = window.api.onLeadsCleanupComplete(noop)
+    const unsub5 = window.api.onLeadsServiceMatchStart(noop)
+    const unsub6 = window.api.onLeadsHunterStart(noop)
+    const unsub7 = window.api.onLeadsHunterResult(noop)
+    const unsub8 = window.api.onLeadsVerifyStart(noop)
+    const unsub9 = window.api.onLeadsVerifyResult(noop)
+
 
     return () => {
       unsubSearchStart()
       unsubSearchComplete()
-      unsubServiceSwitched()
-      unsubProtectedUrl()
-      unsubKeyRotation()
-      unsubCleanupComplete()
       unsubScrapeStart()
       unsubScrapeComplete()
       unsubScrapeError()
       unsubAiStart()
       unsubAiResult()
-      unsubServiceMatchStart()
-      unsubServiceMatchResult()
-      unsubHunterStart()
-      unsubHunterResult()
-      unsubVerifyStart()
-      unsubVerifyResult()
       unsubLeadFound()
       unsubComplete()
       unsubError()
+      unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7(); unsub8(); unsub9(); unsubServiceMatchResult()
     }
   }, [searchQuery, niche, location])
 
   return (
-    <div className="h-full flex gap-10">
-      {/* Main Content - Progress Panels */}
-      <div className="flex-1 overflow-y-auto max-w-[60%] p-4 space-y-4">
-        {/* Search Query Panel */}
-        <div className="bg-slate-800 rounded-xl overflow-hidden">
-          <button
-            onClick={() => togglePanel('search')}
-            className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-          >
-            <FiSearch className="text-blue-400" size={20} />
-            <span className="font-medium text-white flex-1">
-              Web Search ({currentSearchService})
-            </span>
-            {stage === 'searching' && (
-              <span className="text-xs text-yellow-400 animate-pulse">Searching...</span>
-            )}
-            {searchResults.length > 0 && (
-              <span className="text-xs text-green-400">{searchResults.length} results</span>
-            )}
-            {expandedPanels.has('search') ? <FiChevronDown /> : <FiChevronRight />}
-          </button>
-          {expandedPanels.has('search') && (
-            <div className="px-4 pb-4 space-y-2">
-              <div className="text-xs text-white/60 bg-slate-700/50 p-2 rounded break-all">
-                {searchQuery}
-              </div>
-              {searchResults.length > 0 && (
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {searchResults.map((r, i) => (
-                    <div
-                      key={i}
-                      className="text-xs text-white/80 p-2 bg-slate-700/30 rounded truncate"
-                    >
-                      {r.link}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+    <div className="h-full w-full p-6 overflow-hidden flex flex-col">
+
+      {/* Top Header & Stats */}
+      <div className="flex flex-wrap items-end justify-between gap-6 mb-8 animate-in fade-in slide-in-from-top-4">
+        <div>
+           <div className="flex items-center gap-2 text-white/40 text-sm mb-1">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse"/>
+              Processing
+           </div>
+           <h1 className="text-2xl font-medium text-white tracking-tight">
+             {currentActivity}
+           </h1>
         </div>
 
-        {/* Scraping Panel */}
-        {(currentScraping || scrapedContents.size > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('scrape')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiFileText className="text-orange-400" size={20} />
-              <span className="font-medium text-white flex-1">
-                Content Scraping ({currentScrapingService})
-              </span>
-              {currentScraping && (
-                <span className="text-xs text-yellow-400 animate-pulse">Scraping...</span>
-              )}
-              <span className="text-xs text-green-400">{scrapedContents.size} scraped</span>
-              {expandedPanels.has('scrape') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('scrape') && (
-              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
-                {currentScraping && (
-                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
-                    Scraping: {currentScraping}
-                  </div>
-                )}
-                {Array.from(scrapedContents.entries()).map(([url, content]) => (
-                  <details key={url} className="bg-slate-700/30 rounded">
-                    <summary className="text-xs text-white/80 p-2 cursor-pointer truncate">
-                      {url}
-                    </summary>
-                    <div className="text-xs text-white/60 p-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
-                      {content.content.slice(0, 500)}...
-                    </div>
-                  </details>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* AI Analysis Panel */}
-        {(currentAiUrl || aiResults.size > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('ai')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiCpu className="text-cyan-400" size={20} />
-              <span className="font-medium text-white flex-1">AI Analysis</span>
-              {currentAiUrl && (
-                <span className="text-xs text-yellow-400 animate-pulse">Analyzing...</span>
-              )}
-              <span className="text-xs text-green-400">{aiResults.size} analyzed</span>
-              {expandedPanels.has('ai') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('ai') && (
-              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
-                {currentAiUrl && (
-                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
-                    Analyzing: {currentAiUrl}
-                  </div>
-                )}
-                {Array.from(aiResults.entries()).map(([url, result]) => (
-                  <div key={url} className="text-xs p-2 bg-slate-700/30 rounded">
-                    <div className="text-white/80 truncate">{url}</div>
-                    <div className="text-white/60 mt-1">
-                      Email: {result.email || 'Not found'} | DM:{' '}
-                      {result.decisionMaker || 'Not found'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Service Match Panel - Shows qualification based on your profile services */}
-        {(currentServiceMatch || serviceMatches.size > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('serviceMatch')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiTarget className="text-pink-400" size={20} />
-              <span className="font-medium text-white flex-1">Service Matching</span>
-              {currentServiceMatch && (
-                <span className="text-xs text-yellow-400 animate-pulse">Checking...</span>
-              )}
-              <span className="text-xs text-green-400">
-                {Array.from(serviceMatches.values()).filter((m) => m.needsServices).length}{' '}
-                qualified
-              </span>
-              <span className="text-xs text-red-400">{skippedCount} skipped</span>
-              {expandedPanels.has('serviceMatch') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('serviceMatch') && (
-              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
-                {currentServiceMatch && (
-                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
-                    Checking: {currentServiceMatch}
-                  </div>
-                )}
-                {Array.from(serviceMatches.entries()).map(([url, match]) => (
-                  <div
-                    key={url}
-                    className={`text-xs p-2 rounded ${
-                      match.needsServices ? 'bg-green-500/10' : 'bg-red-500/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {match.needsServices ? (
-                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
-                      ) : (
-                        <FiXCircle className="text-red-400 shrink-0" size={12} />
-                      )}
-                      <span
-                        className={`truncate ${match.needsServices ? 'text-green-400' : 'text-red-400'}`}
-                      >
-                        {match.needsServices ? 'QUALIFIED' : 'SKIPPED'}
-                      </span>
-                    </div>
-                    <div className="text-white/60 truncate mt-1">{url}</div>
-                    {match.reason && (
-                      <div className="text-white/50 mt-1 text-[10px]">{match.reason}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Email Finding Panel (Hunter.io / Snov.io) */}
-        {(currentEmailFinding || emailFindingResults.size > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('emailFinding')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiUserCheck className="text-indigo-400" size={20} />
-              <span className="font-medium text-white flex-1">
-                Email Finding ({currentEmailService})
-              </span>
-              {currentEmailFinding && (
-                <span className="text-xs text-yellow-400 animate-pulse">
-                  Finding via {currentEmailFinding.type}...
-                </span>
-              )}
-              <span className="text-xs text-green-400">
-                {Array.from(emailFindingResults.values()).filter((r) => r.email).length} found
-              </span>
-              {expandedPanels.has('emailFinding') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('emailFinding') && (
-              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
-                {currentEmailFinding && (
-                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
-                    <div className="font-medium">
-                      Finding email via{' '}
-                      {currentEmailFinding.type === 'name' ? 'Name Search' : 'Domain Search'}
-                    </div>
-                    <div className="text-white/60 truncate mt-1">{currentEmailFinding.url}</div>
-                  </div>
-                )}
-                {Array.from(emailFindingResults.entries()).map(([url, result]) => (
-                  <div
-                    key={url}
-                    className={`text-xs p-2 rounded ${result.email ? 'bg-green-500/10' : 'bg-slate-700/30'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {result.email ? (
-                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
-                      ) : (
-                        <FiXCircle className="text-red-400/50 shrink-0" size={12} />
-                      )}
-                      <span className={result.email ? 'text-green-400' : 'text-white/50'}>
-                        {result.email || 'Not found'}
-                      </span>
-                    </div>
-                    <div className="text-white/40 truncate mt-1">{url}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Email Verification Panel (Reoon) */}
-        {(currentVerification || verificationResults.size > 0) && (
-          <div className="bg-slate-800 rounded-xl overflow-hidden">
-            <button
-              onClick={() => togglePanel('verification')}
-              className="w-full p-4 flex items-center gap-3 text-left hover:bg-slate-700/50"
-            >
-              <FiShield className="text-emerald-400" size={20} />
-              <span className="font-medium text-white flex-1">
-                Email Verification ({currentVerificationService})
-              </span>
-              {currentVerification && (
-                <span className="text-xs text-yellow-400 animate-pulse">Verifying...</span>
-              )}
-              <span className="text-xs text-green-400">
-                {Array.from(verificationResults.values()).filter((r) => r.verified).length} verified
-              </span>
-              {expandedPanels.has('verification') ? <FiChevronDown /> : <FiChevronRight />}
-            </button>
-            {expandedPanels.has('verification') && (
-              <div className="px-4 pb-4 space-y-2 max-h-60 overflow-y-auto">
-                {currentVerification && (
-                  <div className="text-xs text-yellow-400 p-2 bg-yellow-500/10 rounded">
-                    Verifying: {currentVerification}
-                  </div>
-                )}
-                {Array.from(verificationResults.entries()).map(([email, result]) => (
-                  <div
-                    key={email}
-                    className={`text-xs p-2 rounded ${result.verified ? 'bg-green-500/10' : 'bg-red-500/10'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {result.verified ? (
-                        <FiCheckCircle className="text-green-400 shrink-0" size={12} />
-                      ) : (
-                        <FiXCircle className="text-red-400 shrink-0" size={12} />
-                      )}
-                      <span className={result.verified ? 'text-green-400' : 'text-red-400'}>
-                        {email}
-                      </span>
-                    </div>
-                    <div className="text-white/50 mt-1">
-                      {result.verified ? 'Valid & deliverable' : 'Invalid or undeliverable'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Status */}
-        {stage === 'complete' && (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
-            <FiCheckCircle className="text-green-400 mx-auto mb-2" size={24} />
-            <div className="text-green-400 font-medium">Process Complete!</div>
-            <div className="text-white/60 text-sm">Found {verifiedLeads.length} verified leads</div>
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
-            <div className="text-red-400">{error}</div>
-          </div>
-        )}
+        <div className="flex gap-4">
+           <StatCard
+             label="Found"
+             value={searchResults.length}
+             icon={FiGlobe}
+             colorClass="text-blue-400 bg-blue-400/10"
+           />
+           <StatCard
+             label="Scraped"
+             value={scrapedCount}
+             icon={FiFileText}
+             colorClass="text-orange-400 bg-orange-400/10"
+           />
+           <StatCard
+             label="Verified"
+             value={verifiedLeads.length}
+             icon={FiCheckCircle}
+             colorClass="text-green-400 bg-green-400/10"
+           />
+        </div>
       </div>
 
-      {/* Sidebar - Verified Leads */}
-      <div className="w-full max-w-[30%] border-l border-slate-700 bg-slate-900/50 flex flex-col">
-        <div className="p-4 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <FiMail className="text-green-400" size={18} />
-            <span className="font-medium text-white">Verified Leads</span>
-            <span className="ml-auto bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full">
-              {verifiedLeads.length}
-            </span>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {verifiedLeads.length === 0 ? (
-            <div className="text-white/40 text-sm text-center py-8">
-              Verified leads will appear here
-            </div>
-          ) : (
-            verifiedLeads.map((lead, i) => (
-              <div key={i} className="bg-slate-800 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-2">
-                  <FiCheckCircle className="text-green-400" size={14} />
-                  <span className="text-white text-sm font-medium">{lead.email}</span>
-                </div>
-                {lead.decisionMaker && (
-                  <div className="text-white/60 text-xs">Contact: {lead.decisionMaker}</div>
-                )}
-                <div className="text-white/40 text-xs truncate">{lead.url}</div>
-                <div className="text-xs text-primary/80">Source: {lead.source}</div>
-              </div>
-            ))
+      {/* Main Grid */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 min-h-0">
+
+        {/* Left Col: Activity Stream (7 cols) */}
+        <div className="md:col-span-7 flex flex-col gap-4 min-h-0">
+
+          {/* Active Search Results (Shown only when available) */}
+          {searchResults.length > 0 && (
+             <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-h-[200px] overflow-y-auto shrink-0">
+               <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3 sticky top-0 bg-[#161b22] py-1">
+                 Search Results
+               </h3>
+               <div className="grid grid-cols-1 gap-2">
+                 {searchResults.map((r, i) => (
+                   <div key={i} className="flex items-start gap-3 p-2 rounded hover:bg-white/5 transition-colors group">
+                     <div className="mt-1 text-white/20 group-hover:text-primary transition-colors">
+                        <FiGlobe size={14} />
+                     </div>
+                     <div className="min-w-0">
+                        <div className="text-sm text-white/90 truncate font-medium">{r.title}</div>
+                        <div className="text-xs text-white/40 truncate">{r.link}</div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
           )}
+
+          {/* Live Terminal / Logs */}
+          <div className="flex-1 bg-black/20 border border-white/10 rounded-xl p-4 overflow-hidden flex flex-col">
+            <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <FiCpu /> System Activity
+            </h3>
+            <div className="flex-1 overflow-y-auto space-y-3 font-mono text-sm">
+               {logs.length === 0 && (
+                 <div className="text-white/20 italic text-center mt-10">Waiting for process to start...</div>
+               )}
+               {logs.map((log) => (
+                 <div key={log.id} className="animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div className="flex items-start gap-3">
+                      <span className="text-white/20 text-xs mt-0.5">
+                        {new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}
+                      </span>
+                      <div className="flex-1">
+                        <span className={`
+                          ${log.type === 'error' ? 'text-red-400' : ''}
+                          ${log.type === 'success' ? 'text-green-400' : ''}
+                          ${log.type === 'match' ? 'text-pink-400' : ''}
+                          ${log.type === 'search' ? 'text-blue-400' : ''}
+                          ${['scrape', 'system'].includes(log.type) ? 'text-white/70' : ''}
+                        `}>
+                          {log.type === 'success' && '✓ '}
+                          {log.message}
+                        </span>
+                        {log.detail && (
+                          <div className="text-white/30 text-xs mt-1 pl-2 border-l-2 border-white/10">
+                            {log.detail}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                 </div>
+               ))}
+               <div ref={logsEndRef} />
+            </div>
+          </div>
+
         </div>
+
+        {/* Right Col: Success Stream (5 cols) */}
+        <div className="md:col-span-5 flex flex-col min-h-0 bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+           <div className="p-4 border-b border-white/5 bg-white/5">
+              <h2 className="font-medium text-white flex items-center gap-2">
+                 <FiTarget className="text-primary" />
+                 Verified Leads
+              </h2>
+           </div>
+
+           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {verifiedLeads.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
+                   <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                      <FiUserCheck size={32} />
+                   </div>
+                   <p className="text-sm">Verified leads will appear here as they are discovered.</p>
+                </div>
+              ) : (
+                verifiedLeads.map((lead, i) => (
+                  <div key={i} className="bg-slate-800/50 hover:bg-slate-800 border border-white/10 rounded-xl p-4 transition-all hover:scale-[1.02] group animate-in zoom-in-95 duration-300">
+                     <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                           <div className="p-1.5 rounded bg-green-500/10 text-green-400">
+                             <FiCheckCircle size={14} />
+                           </div>
+                           <span className="text-xs font-medium text-green-400 tracking-wide uppercase">Verified</span>
+                        </div>
+                        <a href={lead.url} target="_blank" rel="noreferrer" className="text-white/20 hover:text-white transition-colors">
+                           <FiArrowRight size={14} />
+                        </a>
+                     </div>
+
+                     <div className="font-mono text-white text-sm mb-1 break-all select-all">
+                        {lead.email}
+                     </div>
+
+                     {lead.decisionMaker && (
+                       <div className="flex items-center gap-2 text-white/50 text-xs mb-2">
+                         <FiUserCheck size={12} />
+                         {lead.decisionMaker}
+                       </div>
+                     )}
+
+                     <div className="pt-3 mt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-white/30">
+                        <span className="truncate max-w-[150px]">{new URL(lead.url).hostname}</span>
+                        <span>Source: {lead.source}</span>
+                     </div>
+                  </div>
+                ))
+              )}
+           </div>
+        </div>
+
       </div>
     </div>
   )

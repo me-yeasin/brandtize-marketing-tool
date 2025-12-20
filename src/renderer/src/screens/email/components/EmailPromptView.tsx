@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiSearch, FiEdit2, FiGlobe, FiMail, FiChevronDown, FiChevronUp } from 'react-icons/fi'
+import { FiSearch, FiGlobe, FiMail, FiChevronDown, FiChevronUp } from 'react-icons/fi'
 import { LeadGenerationView } from './LeadGenerationView'
 
 interface EmailPromptViewProps {
