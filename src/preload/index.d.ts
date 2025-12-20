@@ -139,6 +139,7 @@ interface Api {
     niche: string
     location: string
     tabId: string
+    page?: number
   }) => Promise<{ success: boolean; error?: string }>
   onLeadsSearchStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
   onLeadsSearchComplete: (cb: (data: { tabId: string; data: unknown[] }) => void) => () => void

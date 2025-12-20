@@ -80,6 +80,8 @@ function LeadGenerationView({
 
   // Current Activity Indicators
   const [currentActivity, setCurrentActivity] = useState<string>('Initializing...')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [isProcessComplete, setIsProcessComplete] = useState(false)
 
   const addLog = (type: string, message: string, detail?: string): void => {
     setLogs((prev) => [
@@ -98,7 +100,7 @@ function LeadGenerationView({
   useEffect(() => {
     // Start lead generation
     // Start lead generation
-    window.api.generateLeads({ searchQuery, niche, location, tabId })
+    window.api.generateLeads({ searchQuery, niche, location, tabId, page: currentPage })
 
     // Move initial UI updates to next tick to avoid "cascading render" warning
     setTimeout(() => {
@@ -111,6 +113,7 @@ function LeadGenerationView({
     const unsubSearchStart = window.api.onLeadsSearchStart((event) => {
       if (event.tabId !== tabId) return
       setCurrentActivity('Querying Search Engines...')
+      setIsProcessComplete(false)
     })
 
     const unsubSearchComplete = window.api.onLeadsSearchComplete((event) => {
@@ -174,6 +177,7 @@ function LeadGenerationView({
     const unsubComplete = window.api.onLeadsComplete((event) => {
       if (event.tabId !== tabId) return
       setCurrentActivity('Process Complete')
+      setIsProcessComplete(true)
       addLog('system', 'Lead generation finished successfully')
     })
 
@@ -262,7 +266,13 @@ function LeadGenerationView({
       unsubServiceMatchStart()
       unsubCleanupComplete()
     }
-  }, [searchQuery, niche, location, tabId])
+  }, [searchQuery, niche, location, tabId, currentPage])
+
+  const handleNextPage = (): void => {
+    setCurrentPage((prev) => prev + 1)
+    setIsProcessComplete(false)
+    setSearchResults([]) // Clear previous results to show loading state better
+  }
 
   return (
     <div className="h-full w-full p-6 overflow-hidden flex flex-col">
@@ -270,8 +280,10 @@ function LeadGenerationView({
       <div className="flex flex-wrap items-end justify-between gap-6 mb-8 animate-in fade-in slide-in-from-top-4">
         <div>
           <div className="flex items-center gap-2 text-white/40 text-sm mb-1">
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            Processing
+            {!isProcessComplete && (
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            )}
+            {isProcessComplete ? 'Idle' : 'Processing'}
           </div>
           <h1 className="text-2xl font-medium text-white tracking-tight">{currentActivity}</h1>
         </div>
@@ -304,10 +316,20 @@ function LeadGenerationView({
         <div className="md:col-span-7 flex flex-col gap-4 min-h-0">
           {/* Active Search Results (Shown only when available) */}
           {searchResults.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-h-[200px] overflow-y-auto shrink-0">
-              <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3 sticky top-0 bg-[#161b22] py-1">
-                Search Results
-              </h3>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 max-h-[300px] overflow-y-auto shrink-0 flex flex-col">
+              <div className="flex items-center justify-between mb-3 sticky top-0 bg-[#161b22] py-1 z-10">
+                <h3 className="text-xs font-medium text-white/40 uppercase tracking-wider">
+                  Search Results (Page {currentPage})
+                </h3>
+                {isProcessComplete && (
+                  <button
+                    onClick={handleNextPage}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-white text-xs font-medium rounded-lg transition-colors animate-in fade-in slide-in-from-right-4"
+                  >
+                    Next Page <FiArrowRight />
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-2">
                 {searchResults.map((r, i) => (
                   <div

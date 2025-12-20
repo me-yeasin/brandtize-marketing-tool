@@ -1,17 +1,17 @@
 import {
-  getApiKeys,
-  getAgencyProfile,
-  getSerperApiKeys,
-  getJinaApiKeys,
-  getHunterApiKeys,
-  getSnovApiKeys,
-  getReoonApiKeys,
-  addProcessedDomain,
-  isDomainProcessed,
   addFoundLead,
+  addProcessedDomain,
+  getAgencyProfile,
+  getApiKeys,
+  getHunterApiKeys,
+  getJinaApiKeys,
+  getReoonApiKeys,
+  getSerperApiKeys,
+  getSnovApiKeys,
+  isDomainProcessed,
   type ApiKeyEntry,
-  type ProcessedDomain,
-  type FoundLead
+  type FoundLead,
+  type ProcessedDomain
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
 
@@ -72,6 +72,7 @@ export interface LeadGenerationInput {
   searchQuery: string
   niche: string
   location: string
+  page?: number
 }
 
 export interface SearchResult {
@@ -116,7 +117,7 @@ export interface LeadGenerationCallbacks {
   onError: (error: string) => void
 }
 
-async function searchWithSerper(query: string): Promise<SearchResult[]> {
+async function searchWithSerper(query: string, page: number = 1): Promise<SearchResult[]> {
   const multiKeys = getSerperApiKeys()
   const singleKey = getApiKeys().serperApiKey
 
@@ -139,7 +140,7 @@ async function searchWithSerper(query: string): Promise<SearchResult[]> {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ q: query, num: 10 })
+      body: JSON.stringify({ q: query, num: 10, page })
     })
   }
 
@@ -1037,7 +1038,7 @@ export async function generateLeads(
   try {
     // Step 1: Web Search with Serper - get 10 organic results
     callbacks.onSearchStart(input.searchQuery)
-    const searchResults = await searchWithSerper(input.searchQuery)
+    const searchResults = await searchWithSerper(input.searchQuery, input.page || 1)
     callbacks.onSearchComplete(searchResults)
 
     if (searchResults.length === 0) {
