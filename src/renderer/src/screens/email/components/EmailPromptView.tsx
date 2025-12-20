@@ -32,7 +32,7 @@ function EmailPromptView({ tabId }: EmailPromptViewProps): React.JSX.Element {
   const [editableQuery, setEditableQuery] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const updateQuery = (formulaId: string, nicheVal: string, locVal: string) => {
+  const updateQuery = (formulaId: string, nicheVal: string, locVal: string): void => {
     if (formulaId && nicheVal.trim() && locVal.trim()) {
       const formula = SEARCH_FORMULAS.find((f) => f.id === formulaId)
       if (formula) {
@@ -81,7 +81,7 @@ function EmailPromptView({ tabId }: EmailPromptViewProps): React.JSX.Element {
   }
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center p-6 overflow-y-auto bg-gradient-to-b from-background to-background/50">
+    <div className="h-full w-full flex flex-col items-center justify-center p-6 overflow-y-auto bg-linear-to-b from-background to-background/50">
       <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* Header Section */}
         <div className="text-center mb-10">
@@ -195,7 +195,7 @@ function EmailPromptView({ tabId }: EmailPromptViewProps): React.JSX.Element {
               }`}
             >
               {isFormValid && (
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-primary to-purple-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-linear-to-r from-blue-600 via-primary to-purple-600 opacity-90 group-hover:opacity-100 transition-opacity" />
               )}
               <div className="relative flex items-center justify-center gap-2">
                 <FiSearch className={isFormValid ? 'animate-pulse' : ''} />

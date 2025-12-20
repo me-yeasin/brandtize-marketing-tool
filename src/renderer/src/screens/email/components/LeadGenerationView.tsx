@@ -45,9 +45,9 @@ const StatCard = ({
 }: {
   label: string
   value: number
-  icon: any
+  icon: React.ElementType
   colorClass: string
-}) => (
+}): React.JSX.Element => (
   <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-4">
     <div className={`p-3 rounded-full bg-white/5 ${colorClass}`}>
       <Icon size={20} />
@@ -81,7 +81,7 @@ function LeadGenerationView({
   // Current Activity Indicators
   const [currentActivity, setCurrentActivity] = useState<string>('Initializing...')
 
-  const addLog = (type: string, message: string, detail?: string) => {
+  const addLog = (type: string, message: string, detail?: string): void => {
     setLogs((prev) => [
       ...prev,
       { id: Date.now().toString() + Math.random(), type, message, detail }
@@ -97,9 +97,14 @@ function LeadGenerationView({
 
   useEffect(() => {
     // Start lead generation
+    // Start lead generation
     window.api.generateLeads({ searchQuery, niche, location, tabId })
-    addLog('system', `Started search for: ${searchQuery}`)
-    setCurrentActivity('Searching the web...')
+
+    // Move initial UI updates to next tick to avoid "cascading render" warning
+    setTimeout(() => {
+      addLog('system', `Started search for: ${searchQuery}`)
+      setCurrentActivity('Searching the web...')
+    }, 0)
 
     // --- Event Listeners ---
 
