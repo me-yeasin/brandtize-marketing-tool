@@ -95,30 +95,31 @@ const api = {
   },
 
   // Lead Generation
-  generateLeads: (input: { searchQuery: string; niche: string; location: string }) =>
-    ipcRenderer.invoke('leads:generate', input),
-  onLeadsSearchStart: (cb: (query: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, q: string): void => cb(q)
+  generateLeads: (input: {
+    searchQuery: string
+    niche: string
+    location: string
+    tabId: string
+  }) => ipcRenderer.invoke('leads:generate', input),
+  onLeadsSearchStart: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:searchStart', handler)
     return () => ipcRenderer.removeListener('leads:searchStart', handler)
   },
-  onLeadsSearchComplete: (cb: (results: unknown[]) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, r: unknown[]): void => cb(r)
+  onLeadsSearchComplete: (cb: (data: { tabId: string; data: unknown[] }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: unknown[] }
+    ): void => cb(d)
     ipcRenderer.on('leads:searchComplete', handler)
     return () => ipcRenderer.removeListener('leads:searchComplete', handler)
   },
   onLeadsCleanupProgress: (
     cb: (data: {
-      current: number
-      total: number
-      url: string
-      status: 'processing' | 'blocked' | 'allowed'
-      service?: string
-      category?: string
-    }) => void
-  ) => {
-    const handler = (
-      _e: Electron.IpcRendererEvent,
+      tabId: string
       data: {
         current: number
         total: number
@@ -127,124 +128,204 @@ const api = {
         service?: string
         category?: string
       }
-    ): void => cb(data)
+    }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: {
+        tabId: string
+        data: {
+          current: number
+          total: number
+          url: string
+          status: 'processing' | 'blocked' | 'allowed'
+          service?: string
+          category?: string
+        }
+      }
+    ): void => cb(d)
     ipcRenderer.on('leads:cleanupProgress', handler)
     return () => ipcRenderer.removeListener('leads:cleanupProgress', handler)
   },
-  onLeadsServiceSwitched: (cb: (data: { from: string; to: string; reason: string }) => void) => {
+  onLeadsServiceSwitched: (
+    cb: (data: { tabId: string; data: { from: string; to: string; reason: string } }) => void
+  ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      data: { from: string; to: string; reason: string }
-    ): void => cb(data)
+      d: { tabId: string; data: { from: string; to: string; reason: string } }
+    ): void => cb(d)
     ipcRenderer.on('leads:serviceSwitched', handler)
     return () => ipcRenderer.removeListener('leads:serviceSwitched', handler)
   },
   onLeadsKeyRotation: (
-    cb: (data: { service: string; keyIndex: number; totalKeys: number; reason: string }) => void
+    cb: (data: {
+      tabId: string
+      data: { service: string; keyIndex: number; totalKeys: number; reason: string }
+    }) => void
   ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      data: { service: string; keyIndex: number; totalKeys: number; reason: string }
-    ): void => cb(data)
+      d: {
+        tabId: string
+        data: { service: string; keyIndex: number; totalKeys: number; reason: string }
+      }
+    ): void => cb(d)
     ipcRenderer.on('leads:keyRotation', handler)
     return () => ipcRenderer.removeListener('leads:keyRotation', handler)
   },
-  onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, data: { url: string; reason: string }): void =>
-      cb(data)
+  onLeadsProtectedUrl: (
+    cb: (data: { tabId: string; data: { url: string; reason: string } }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: { url: string; reason: string } }
+    ): void => cb(d)
     ipcRenderer.on('leads:protectedUrl', handler)
     return () => ipcRenderer.removeListener('leads:protectedUrl', handler)
   },
-  onLeadsCleanupComplete: (cb: (urls: string[]) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, u: string[]): void => cb(u)
+  onLeadsCleanupComplete: (cb: (data: { tabId: string; data: string[] }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string[] }
+    ): void => cb(d)
     ipcRenderer.on('leads:cleanupComplete', handler)
     return () => ipcRenderer.removeListener('leads:cleanupComplete', handler)
   },
-  onLeadsScrapeStart: (cb: (url: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+  onLeadsScrapeStart: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:scrapeStart', handler)
     return () => ipcRenderer.removeListener('leads:scrapeStart', handler)
   },
-  onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; content: unknown }): void =>
-      cb(d)
+  onLeadsScrapeComplete: (
+    cb: (data: { tabId: string; data: { url: string; content: unknown } }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: { url: string; content: unknown } }
+    ): void => cb(d)
     ipcRenderer.on('leads:scrapeComplete', handler)
     return () => ipcRenderer.removeListener('leads:scrapeComplete', handler)
   },
-  onLeadsScrapeError: (cb: (data: { url: string; error: string }) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; error: string }): void =>
-      cb(d)
+  onLeadsScrapeError: (
+    cb: (data: { tabId: string; data: { url: string; error: string } }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: { url: string; error: string } }
+    ): void => cb(d)
     ipcRenderer.on('leads:scrapeError', handler)
     return () => ipcRenderer.removeListener('leads:scrapeError', handler)
   },
-  onLeadsAiStart: (cb: (url: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+  onLeadsAiStart: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:aiStart', handler)
     return () => ipcRenderer.removeListener('leads:aiStart', handler)
   },
   onLeadsAiResult: (
-    cb: (data: { url: string; email: string | null; decisionMaker: string | null }) => void
+    cb: (data: {
+      tabId: string
+      data: { url: string; email: string | null; decisionMaker: string | null }
+    }) => void
   ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      d: { url: string; email: string | null; decisionMaker: string | null }
+      d: {
+        tabId: string
+        data: { url: string; email: string | null; decisionMaker: string | null }
+      }
     ): void => cb(d)
     ipcRenderer.on('leads:aiResult', handler)
     return () => ipcRenderer.removeListener('leads:aiResult', handler)
   },
-  onLeadsServiceMatchStart: (cb: (url: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, u: string): void => cb(u)
+  onLeadsServiceMatchStart: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:serviceMatchStart', handler)
     return () => ipcRenderer.removeListener('leads:serviceMatchStart', handler)
   },
   onLeadsServiceMatchResult: (
-    cb: (data: { url: string; needsServices: boolean; reason: string | null }) => void
+    cb: (data: {
+      tabId: string
+      data: { url: string; needsServices: boolean; reason: string | null }
+    }) => void
   ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      d: { url: string; needsServices: boolean; reason: string | null }
+      d: {
+        tabId: string
+        data: { url: string; needsServices: boolean; reason: string | null }
+      }
     ): void => cb(d)
     ipcRenderer.on('leads:serviceMatchResult', handler)
     return () => ipcRenderer.removeListener('leads:serviceMatchResult', handler)
   },
-  onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, d: { url: string; type: string }): void => cb(d)
+  onLeadsHunterStart: (
+    cb: (data: { tabId: string; data: { url: string; type: string } }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: { url: string; type: string } }
+    ): void => cb(d)
     ipcRenderer.on('leads:hunterStart', handler)
     return () => ipcRenderer.removeListener('leads:hunterStart', handler)
   },
-  onLeadsHunterResult: (cb: (data: { url: string; email: string | null }) => void) => {
+  onLeadsHunterResult: (
+    cb: (data: { tabId: string; data: { url: string; email: string | null } }) => void
+  ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      d: { url: string; email: string | null }
+      d: { tabId: string; data: { url: string; email: string | null } }
     ): void => cb(d)
     ipcRenderer.on('leads:hunterResult', handler)
     return () => ipcRenderer.removeListener('leads:hunterResult', handler)
   },
-  onLeadsVerifyStart: (cb: (email: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
+  onLeadsVerifyStart: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:verifyStart', handler)
     return () => ipcRenderer.removeListener('leads:verifyStart', handler)
   },
-  onLeadsVerifyResult: (cb: (data: { email: string; verified: boolean }) => void) => {
+  onLeadsVerifyResult: (
+    cb: (data: { tabId: string; data: { email: string; verified: boolean } }) => void
+  ) => {
     const handler = (
       _e: Electron.IpcRendererEvent,
-      d: { email: string; verified: boolean }
+      d: { tabId: string; data: { email: string; verified: boolean } }
     ): void => cb(d)
     ipcRenderer.on('leads:verifyResult', handler)
     return () => ipcRenderer.removeListener('leads:verifyResult', handler)
   },
-  onLeadFound: (cb: (lead: unknown) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, l: unknown): void => cb(l)
+  onLeadFound: (cb: (data: { tabId: string; data: unknown }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: unknown }
+    ): void => cb(d)
     ipcRenderer.on('leads:found', handler)
     return () => ipcRenderer.removeListener('leads:found', handler)
   },
-  onLeadsComplete: (cb: (leads: unknown[]) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, l: unknown[]): void => cb(l)
+  onLeadsComplete: (cb: (data: { tabId: string; data: unknown[] }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: unknown[] }
+    ): void => cb(d)
     ipcRenderer.on('leads:complete', handler)
     return () => ipcRenderer.removeListener('leads:complete', handler)
   },
-  onLeadsError: (cb: (error: string) => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
+  onLeadsError: (cb: (data: { tabId: string; data: string }) => void) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      d: { tabId: string; data: string }
+    ): void => cb(d)
     ipcRenderer.on('leads:error', handler)
     return () => ipcRenderer.removeListener('leads:error', handler)
   },

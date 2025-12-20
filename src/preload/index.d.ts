@@ -138,45 +138,72 @@ interface Api {
     searchQuery: string
     niche: string
     location: string
+    tabId: string
   }) => Promise<{ success: boolean; error?: string }>
-  onLeadsSearchStart: (cb: (query: string) => void) => () => void
-  onLeadsSearchComplete: (cb: (results: unknown[]) => void) => () => void
+  onLeadsSearchStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
+  onLeadsSearchComplete: (
+    cb: (data: { tabId: string; data: unknown[] }) => void
+  ) => () => void
   onLeadsCleanupProgress: (
     cb: (data: {
-      current: number
-      total: number
-      url: string
-      status: 'processing' | 'blocked' | 'allowed'
-      service?: string
-      category?: string
+      tabId: string
+      data: {
+        current: number
+        total: number
+        url: string
+        status: 'processing' | 'blocked' | 'allowed'
+        service?: string
+        category?: string
+      }
     }) => void
   ) => () => void
   onLeadsServiceSwitched: (
-    cb: (data: { from: string; to: string; reason: string }) => void
+    cb: (data: { tabId: string; data: { from: string; to: string; reason: string } }) => void
   ) => () => void
   onLeadsKeyRotation: (
-    cb: (data: { service: string; keyIndex: number; totalKeys: number; reason: string }) => void
+    cb: (data: {
+      tabId: string
+      data: { service: string; keyIndex: number; totalKeys: number; reason: string }
+    }) => void
   ) => () => void
-  onLeadsProtectedUrl: (cb: (data: { url: string; reason: string }) => void) => () => void
-  onLeadsCleanupComplete: (cb: (urls: string[]) => void) => () => void
-  onLeadsScrapeStart: (cb: (url: string) => void) => () => void
-  onLeadsScrapeComplete: (cb: (data: { url: string; content: unknown }) => void) => () => void
-  onLeadsScrapeError: (cb: (data: { url: string; error: string }) => void) => () => void
-  onLeadsAiStart: (cb: (url: string) => void) => () => void
+  onLeadsProtectedUrl: (
+    cb: (data: { tabId: string; data: { url: string; reason: string } }) => void
+  ) => () => void
+  onLeadsCleanupComplete: (cb: (data: { tabId: string; data: string[] }) => void) => () => void
+  onLeadsScrapeStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
+  onLeadsScrapeComplete: (
+    cb: (data: { tabId: string; data: { url: string; content: unknown } }) => void
+  ) => () => void
+  onLeadsScrapeError: (
+    cb: (data: { tabId: string; data: { url: string; error: string } }) => void
+  ) => () => void
+  onLeadsAiStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
   onLeadsAiResult: (
-    cb: (data: { url: string; email: string | null; decisionMaker: string | null }) => void
+    cb: (data: {
+      tabId: string
+      data: { url: string; email: string | null; decisionMaker: string | null }
+    }) => void
   ) => () => void
-  onLeadsServiceMatchStart: (cb: (url: string) => void) => () => void
+  onLeadsServiceMatchStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
   onLeadsServiceMatchResult: (
-    cb: (data: { url: string; needsServices: boolean; reason: string | null }) => void
+    cb: (data: {
+      tabId: string
+      data: { url: string; needsServices: boolean; reason: string | null }
+    }) => void
   ) => () => void
-  onLeadsHunterStart: (cb: (data: { url: string; type: string }) => void) => () => void
-  onLeadsHunterResult: (cb: (data: { url: string; email: string | null }) => void) => () => void
-  onLeadsVerifyStart: (cb: (email: string) => void) => () => void
-  onLeadsVerifyResult: (cb: (data: { email: string; verified: boolean }) => void) => () => void
-  onLeadFound: (cb: (lead: unknown) => void) => () => void
-  onLeadsComplete: (cb: (leads: unknown[]) => void) => () => void
-  onLeadsError: (cb: (error: string) => void) => () => void
+  onLeadsHunterStart: (
+    cb: (data: { tabId: string; data: { url: string; type: string } }) => void
+  ) => () => void
+  onLeadsHunterResult: (
+    cb: (data: { tabId: string; data: { url: string; email: string | null } }) => void
+  ) => () => void
+  onLeadsVerifyStart: (cb: (data: { tabId: string; data: string }) => void) => () => void
+  onLeadsVerifyResult: (
+    cb: (data: { tabId: string; data: { email: string; verified: boolean } }) => void
+  ) => () => void
+  onLeadFound: (cb: (data: { tabId: string; data: unknown }) => void) => () => void
+  onLeadsComplete: (cb: (data: { tabId: string; data: unknown[] }) => void) => () => void
+  onLeadsError: (cb: (data: { tabId: string; data: string }) => void) => () => void
 
   // Auto-Update API
   checkForUpdates: () => Promise<boolean>
