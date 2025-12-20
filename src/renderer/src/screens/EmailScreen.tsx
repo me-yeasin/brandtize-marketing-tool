@@ -17,8 +17,19 @@ function EmailScreen(): React.JSX.Element {
       />
 
       {/* Tab Content Area */}
-      <div className="flex-1 overflow-hidden">
-        <EmailPromptView activeTabId={activeTabId} />
+      <div className="flex-1 overflow-hidden relative">
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            style={{
+              display: tab.id === activeTabId ? 'block' : 'none',
+              height: '100%',
+              width: '100%'
+            }}
+          >
+            <EmailPromptView tabId={tab.id} />
+          </div>
+        ))}
       </div>
     </div>
   )

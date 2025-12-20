@@ -344,42 +344,62 @@ export function setupIpcHandlers(): void {
   })
 
   // Lead generation handler
-  ipcMain.handle('leads:generate', async (_event, input: LeadGenerationInput) => {
-    const window = BrowserWindow.getFocusedWindow()
-    if (!window) {
-      return { success: false, error: 'No active window' }
-    }
+  ipcMain.handle(
+    'leads:generate',
+    async (_event, input: LeadGenerationInput & { tabId: string }) => {
+      const window = BrowserWindow.getFocusedWindow()
+      if (!window) {
+        return { success: false, error: 'No active window' }
+      }
 
-    const callbacks: LeadGenerationCallbacks = {
-      onSearchStart: (query) => window.webContents.send('leads:searchStart', query),
-      onSearchComplete: (results) => window.webContents.send('leads:searchComplete', results),
-      onCleanupComplete: (urls) => window.webContents.send('leads:cleanupComplete', urls),
-      onScrapeStart: (url) => window.webContents.send('leads:scrapeStart', url),
-      onScrapeComplete: (url, content) =>
-        window.webContents.send('leads:scrapeComplete', { url, content }),
-      onScrapeError: (url, error) => window.webContents.send('leads:scrapeError', { url, error }),
-      onAiAnalysisStart: (url) => window.webContents.send('leads:aiStart', url),
-      onAiAnalysisResult: (url, email, decisionMaker) =>
-        window.webContents.send('leads:aiResult', { url, email, decisionMaker }),
-      onServiceMatchStart: (url) => window.webContents.send('leads:serviceMatchStart', url),
-      onServiceMatchResult: (url, needsServices, reason) =>
-        window.webContents.send('leads:serviceMatchResult', { url, needsServices, reason }),
-      onHunterStart: (url, type) => window.webContents.send('leads:hunterStart', { url, type }),
-      onHunterResult: (url, email) => window.webContents.send('leads:hunterResult', { url, email }),
-      onVerificationStart: (email) => window.webContents.send('leads:verifyStart', email),
-      onVerificationResult: (email, verified) =>
-        window.webContents.send('leads:verifyResult', { email, verified }),
-      onLeadFound: (lead) => window.webContents.send('leads:found', lead),
-      onComplete: (leads) => window.webContents.send('leads:complete', leads),
-      onError: (error) => window.webContents.send('leads:error', error)
-    }
+      const { tabId, ...genInput } = input
 
-    try {
-      await generateLeads(input, callbacks, window)
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      return { success: false, error: errorMessage }
+      const callbacks: LeadGenerationCallbacks = {
+        onSearchStart: (query) =>
+          window.webContents.send('leads:searchStart', { tabId, data: query }),
+        onSearchComplete: (results) =>
+          window.webContents.send('leads:searchComplete', { tabId, data: results }),
+        onCleanupComplete: (urls) =>
+          window.webContents.send('leads:cleanupComplete', { tabId, data: urls }),
+        onScrapeStart: (url) => window.webContents.send('leads:scrapeStart', { tabId, data: url }),
+        onScrapeComplete: (url, content) =>
+          window.webContents.send('leads:scrapeComplete', { tabId, data: { url, content } }),
+        onScrapeError: (url, error) =>
+          window.webContents.send('leads:scrapeError', { tabId, data: { url, error } }),
+        onAiAnalysisStart: (url) =>
+          window.webContents.send('leads:aiStart', { tabId, data: url }),
+        onAiAnalysisResult: (url, email, decisionMaker) =>
+          window.webContents.send('leads:aiResult', {
+            tabId,
+            data: { url, email, decisionMaker }
+          }),
+        onServiceMatchStart: (url) =>
+          window.webContents.send('leads:serviceMatchStart', { tabId, data: url }),
+        onServiceMatchResult: (url, needsServices, reason) =>
+          window.webContents.send('leads:serviceMatchResult', {
+            tabId,
+            data: { url, needsServices, reason }
+          }),
+        onHunterStart: (url, type) =>
+          window.webContents.send('leads:hunterStart', { tabId, data: { url, type } }),
+        onHunterResult: (url, email) =>
+          window.webContents.send('leads:hunterResult', { tabId, data: { url, email } }),
+        onVerificationStart: (email) =>
+          window.webContents.send('leads:verifyStart', { tabId, data: email }),
+        onVerificationResult: (email, verified) =>
+          window.webContents.send('leads:verifyResult', { tabId, data: { email, verified } }),
+        onLeadFound: (lead) => window.webContents.send('leads:found', { tabId, data: lead }),
+        onComplete: (leads) => window.webContents.send('leads:complete', { tabId, data: leads }),
+        onError: (error) => window.webContents.send('leads:error', { tabId, data: error })
+      }
+
+      try {
+        await generateLeads(genInput, callbacks, window)
+        return { success: true }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        return { success: false, error: errorMessage }
+      }
     }
-  })
+  )
 }

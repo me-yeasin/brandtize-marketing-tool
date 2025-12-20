@@ -3,7 +3,7 @@ import { FiSearch, FiEdit2 } from 'react-icons/fi'
 import { LeadGenerationView } from './LeadGenerationView'
 
 interface EmailPromptViewProps {
-  activeTabId: string
+  tabId: string
 }
 
 const SEARCH_FORMULAS = [
@@ -21,7 +21,7 @@ const SEARCH_FORMULAS = [
   }
 ]
 
-function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Element {
+function EmailPromptView({ tabId }: EmailPromptViewProps): React.JSX.Element {
   const [niche, setNiche] = useState('')
   const [location, setLocation] = useState('')
   const [selectedFormula, setSelectedFormula] = useState<string>('')
@@ -85,6 +85,7 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
   if (isProcessing && searchQuery) {
     return (
       <LeadGenerationView
+        tabId={tabId}
         searchQuery={searchQuery}
         niche={niche.trim()}
         location={location.trim()}
@@ -101,12 +102,12 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
       <div className="w-full max-w-[500px] space-y-4">
         {/* Niche Input */}
         <div className="bg-slate-800 rounded-xl p-4">
-          <label htmlFor={`niche-${activeTabId}`} className="text-white/60 text-sm mb-2 block">
+          <label htmlFor={`niche-${tabId}`} className="text-white/60 text-sm mb-2 block">
             Niche
           </label>
           <input
             type="text"
-            id={`niche-${activeTabId}`}
+            id={`niche-${tabId}`}
             value={niche}
             onChange={(e) => handleNicheChange(e.target.value)}
             className="bg-transparent text-white placeholder-white/40 text-lg focus:outline-none w-full"
@@ -116,12 +117,12 @@ function EmailPromptView({ activeTabId }: EmailPromptViewProps): React.JSX.Eleme
 
         {/* Location Input */}
         <div className="bg-slate-800 rounded-xl p-4">
-          <label htmlFor={`location-${activeTabId}`} className="text-white/60 text-sm mb-2 block">
+          <label htmlFor={`location-${tabId}`} className="text-white/60 text-sm mb-2 block">
             City or Country
           </label>
           <input
             type="text"
-            id={`location-${activeTabId}`}
+            id={`location-${tabId}`}
             value={location}
             onChange={(e) => handleLocationChange(e.target.value)}
             className="bg-transparent text-white placeholder-white/40 text-lg focus:outline-none w-full"

@@ -46,12 +46,14 @@ interface LeadGenerationViewProps {
   searchQuery: string
   niche: string
   location: string
+  tabId: string
 }
 
 function LeadGenerationView({
   searchQuery,
   niche,
-  location
+  location,
+  tabId
 }: LeadGenerationViewProps): React.JSX.Element {
   const [stage, setStage] = useState<string>('searching')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -100,19 +102,23 @@ function LeadGenerationView({
 
   useEffect(() => {
     // Start lead generation
-    window.api.generateLeads({ searchQuery, niche, location })
+    window.api.generateLeads({ searchQuery, niche, location, tabId })
 
     // Set up event listeners
-    const unsubSearchStart = window.api.onLeadsSearchStart(() => {
+    const unsubSearchStart = window.api.onLeadsSearchStart((event) => {
+      if (event.tabId !== tabId) return
       setStage('searching')
     })
 
-    const unsubSearchComplete = window.api.onLeadsSearchComplete((results) => {
-      setSearchResults(results as SearchResult[])
+    const unsubSearchComplete = window.api.onLeadsSearchComplete((event) => {
+      if (event.tabId !== tabId) return
+      setSearchResults(event.data as SearchResult[])
       setStage('scraping')
     })
 
-    const unsubServiceSwitched = window.api.onLeadsServiceSwitched((data) => {
+    const unsubServiceSwitched = window.api.onLeadsServiceSwitched((event) => {
+      if (event.tabId !== tabId) return
+      const data = event.data
       toast.warning(`Service switched: ${data.from} → ${data.to}`, {
         description: data.reason,
         duration: 3000
@@ -125,7 +131,9 @@ function LeadGenerationView({
       }
     })
 
-    const unsubProtectedUrl = window.api.onLeadsProtectedUrl((data) => {
+    const unsubProtectedUrl = window.api.onLeadsProtectedUrl((event) => {
+      if (event.tabId !== tabId) return
+      const data = event.data
       toast.info('Protected website detected', {
         description: `${new URL(data.url).hostname} - treating as secure business`,
         duration: 2000
@@ -133,7 +141,9 @@ function LeadGenerationView({
     })
 
     // Key rotation notifications
-    const unsubKeyRotation = window.api.onLeadsKeyRotation((data) => {
+    const unsubKeyRotation = window.api.onLeadsKeyRotation((event) => {
+      if (event.tabId !== tabId) return
+      const data = event.data
       toast.warning(`${data.service} API key rotated`, {
         description: `Using key ${data.keyIndex}/${data.totalKeys} - ${data.reason}`,
         duration: 3000
@@ -148,54 +158,54 @@ function LeadGenerationView({
       }
     })
 
-    const unsubCleanupComplete = window.api.onLeadsCleanupComplete(() => {
+    const unsubCleanupComplete = window.api.onLeadsCleanupComplete((event) => {
+      if (event.tabId !== tabId) return
       // No-op: cleanup stage removed, going directly to scraping
     })
 
-    const unsubScrapeStart = window.api.onLeadsScrapeStart((url) => {
-      setCurrentScraping(url)
+    const unsubScrapeStart = window.api.onLeadsScrapeStart((event) => {
+      if (event.tabId !== tabId) return
+      setCurrentScraping(event.data)
     })
 
-    const unsubScrapeComplete = window.api.onLeadsScrapeComplete((data) => {
-      const { url, content } = data as { url: string; content: ScrapedContent }
-      setScrapedContents((prev) => new Map(prev).set(url, content))
+    const unsubScrapeComplete = window.api.onLeadsScrapeComplete((event) => {
+      if (event.tabId !== tabId) return
+      const { url, content } = event.data
+      setScrapedContents((prev) => new Map(prev).set(url, content as ScrapedContent))
       setCurrentScraping('')
     })
 
-    const unsubScrapeError = window.api.onLeadsScrapeError((data) => {
-      const { url } = data as { url: string; error: string }
+    const unsubScrapeError = window.api.onLeadsScrapeError((event) => {
+      if (event.tabId !== tabId) return
+      const { url } = event.data
       setScrapedContents((prev) =>
         new Map(prev).set(url, { url, content: 'Error scraping', title: 'Error' })
       )
       setCurrentScraping('')
     })
 
-    const unsubAiStart = window.api.onLeadsAiStart((url) => {
-      setCurrentAiUrl(url)
+    const unsubAiStart = window.api.onLeadsAiStart((event) => {
+      if (event.tabId !== tabId) return
+      setCurrentAiUrl(event.data)
       setStage('analyzing')
     })
 
-    const unsubAiResult = window.api.onLeadsAiResult((data) => {
-      const { url, email, decisionMaker } = data as {
-        url: string
-        email: string | null
-        decisionMaker: string | null
-      }
+    const unsubAiResult = window.api.onLeadsAiResult((event) => {
+      if (event.tabId !== tabId) return
+      const { url, email, decisionMaker } = event.data
       setAiResults((prev) => new Map(prev).set(url, { email, decisionMaker }))
       setCurrentAiUrl('')
     })
 
-    const unsubServiceMatchStart = window.api.onLeadsServiceMatchStart((url) => {
-      setCurrentServiceMatch(url)
+    const unsubServiceMatchStart = window.api.onLeadsServiceMatchStart((event) => {
+      if (event.tabId !== tabId) return
+      setCurrentServiceMatch(event.data)
       setStage('serviceMatch')
     })
 
-    const unsubServiceMatchResult = window.api.onLeadsServiceMatchResult((data) => {
-      const { url, needsServices, reason } = data as {
-        url: string
-        needsServices: boolean
-        reason: string | null
-      }
+    const unsubServiceMatchResult = window.api.onLeadsServiceMatchResult((event) => {
+      if (event.tabId !== tabId) return
+      const { url, needsServices, reason } = event.data
       setServiceMatches((prev) => new Map(prev).set(url, { url, needsServices, reason }))
       setCurrentServiceMatch('')
       if (!needsServices) {
@@ -204,16 +214,18 @@ function LeadGenerationView({
     })
 
     // Email Finding events (Hunter.io / Snov.io)
-    const unsubHunterStart = window.api.onLeadsHunterStart((data) => {
-      const { url, type } = data as { url: string; type: string }
+    const unsubHunterStart = window.api.onLeadsHunterStart((event) => {
+      if (event.tabId !== tabId) return
+      const { url, type } = event.data
       setCurrentEmailFinding({ url, type })
       setStage('emailFinding')
       // Reset to Hunter.io when starting new email finding (it tries Hunter first)
       setCurrentEmailService('Hunter.io')
     })
 
-    const unsubHunterResult = window.api.onLeadsHunterResult((data) => {
-      const { url, email } = data as { url: string; email: string | null }
+    const unsubHunterResult = window.api.onLeadsHunterResult((event) => {
+      if (event.tabId !== tabId) return
+      const { url, email } = event.data
       setEmailFindingResults((prev) =>
         new Map(prev).set(url, { email, source: email ? 'hunter/snov' : 'none' })
       )
@@ -224,14 +236,16 @@ function LeadGenerationView({
     })
 
     // Email Verification events (Reoon)
-    const unsubVerifyStart = window.api.onLeadsVerifyStart((email) => {
-      setCurrentVerification(email)
+    const unsubVerifyStart = window.api.onLeadsVerifyStart((event) => {
+      if (event.tabId !== tabId) return
+      setCurrentVerification(event.data)
       setStage('verification')
       setCurrentVerificationService('Reoon')
     })
 
-    const unsubVerifyResult = window.api.onLeadsVerifyResult((data) => {
-      const { email, verified } = data as { email: string; verified: boolean }
+    const unsubVerifyResult = window.api.onLeadsVerifyResult((event) => {
+      if (event.tabId !== tabId) return
+      const { email, verified } = event.data
       setVerificationResults((prev) => new Map(prev).set(email, { verified }))
       setCurrentVerification('')
       if (verified) {
@@ -239,16 +253,19 @@ function LeadGenerationView({
       }
     })
 
-    const unsubLeadFound = window.api.onLeadFound((lead) => {
-      setVerifiedLeads((prev) => [...prev, lead as Lead])
+    const unsubLeadFound = window.api.onLeadFound((event) => {
+      if (event.tabId !== tabId) return
+      setVerifiedLeads((prev) => [...prev, event.data as Lead])
     })
 
-    const unsubComplete = window.api.onLeadsComplete(() => {
+    const unsubComplete = window.api.onLeadsComplete((event) => {
+      if (event.tabId !== tabId) return
       setStage('complete')
     })
 
-    const unsubError = window.api.onLeadsError((err) => {
-      setError(err)
+    const unsubError = window.api.onLeadsError((event) => {
+      if (event.tabId !== tabId) return
+      setError(event.data)
       setStage('error')
     })
 
@@ -274,7 +291,7 @@ function LeadGenerationView({
       unsubComplete()
       unsubError()
     }
-  }, [searchQuery, niche, location])
+  }, [searchQuery, niche, location, tabId])
 
   return (
     <div className="h-full flex gap-10">
