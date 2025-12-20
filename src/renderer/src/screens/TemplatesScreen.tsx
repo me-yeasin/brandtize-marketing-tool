@@ -15,7 +15,11 @@ function TemplatesScreen(): React.JSX.Element {
   return (
     <div className="h-full w-full flex flex-col bg-background p-4">
       <div className="flex-1 bg-white rounded-lg overflow-hidden border border-slate-700">
-        <EmailEditor ref={emailEditorRef} onReady={onReady} options={{ appearance: { theme: 'dark' } }} />
+        <EmailEditor
+          ref={emailEditorRef}
+          onReady={onReady}
+          options={{ appearance: { theme: 'dark' } }}
+        />
       </div>
     </div>
   )

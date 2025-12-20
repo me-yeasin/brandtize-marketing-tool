@@ -366,8 +366,7 @@ export function setupIpcHandlers(): void {
           window.webContents.send('leads:scrapeComplete', { tabId, data: { url, content } }),
         onScrapeError: (url, error) =>
           window.webContents.send('leads:scrapeError', { tabId, data: { url, error } }),
-        onAiAnalysisStart: (url) =>
-          window.webContents.send('leads:aiStart', { tabId, data: url }),
+        onAiAnalysisStart: (url) => window.webContents.send('leads:aiStart', { tabId, data: url }),
         onAiAnalysisResult: (url, email, decisionMaker) =>
           window.webContents.send('leads:aiResult', {
             tabId,
