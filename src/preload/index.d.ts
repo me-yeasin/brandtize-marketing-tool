@@ -274,6 +274,81 @@ interface Api {
     }
     error?: string
   }>
+
+  // Strategy Management
+  // Strategy Management
+  getNicheStrategy: () => Promise<{
+    niche: string
+    targetAudience: string
+    serviceAnalysis: {
+      painPoints: string[]
+      valuePropositions: string[]
+      industryJargon: string[]
+    }
+    personaAnalysis: {
+      dailyFears: string[]
+      secretDesires: string[]
+      commonObjections: string[]
+    }
+    offerStrategy: {
+      grandSlamHooks: string[]
+      riskReversals: string[]
+      bonuses: string[]
+    }
+    marketingAngles: string[]
+    winningFrameworks: string[]
+  } | null>
+
+  saveNicheStrategy: (strategy: {
+    niche: string
+    targetAudience: string
+    serviceAnalysis: {
+      painPoints: string[]
+      valuePropositions: string[]
+      industryJargon: string[]
+    }
+    personaAnalysis: {
+      dailyFears: string[]
+      secretDesires: string[]
+      commonObjections: string[]
+    }
+    offerStrategy: {
+      grandSlamHooks: string[]
+      riskReversals: string[]
+      bonuses: string[]
+    }
+    marketingAngles: string[]
+    winningFrameworks: string[]
+  }) => Promise<boolean>
+
+  researchNicheStrategy: (
+    niche: string,
+    targetAudience: string
+  ) => Promise<{
+    success: boolean
+    data?: {
+      niche: string
+      targetAudience: string
+      serviceAnalysis: {
+        painPoints: string[]
+        valuePropositions: string[]
+        industryJargon: string[]
+      }
+      personaAnalysis: {
+        dailyFears: string[]
+        secretDesires: string[]
+        commonObjections: string[]
+      }
+      offerStrategy: {
+        grandSlamHooks: string[]
+        riskReversals: string[]
+        bonuses: string[]
+      }
+      marketingAngles: string[]
+      winningFrameworks: string[]
+    }
+    error?: string
+  }>
 }
 
 declare global {

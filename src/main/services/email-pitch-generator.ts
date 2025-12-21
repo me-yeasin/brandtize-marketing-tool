@@ -1,5 +1,7 @@
 import { getAgencyProfile, type AgencyProfile, type FoundLead, type ScrapedContent } from '../store'
 import { executeWithAiRotation } from './ai-rotation-manager'
+import { getNicheStrategy } from './strategy-manager'
+import type { NicheStrategy } from './strategy-types'
 
 export interface EmailPitchResult {
   subject: string
@@ -15,22 +17,77 @@ export interface EmailPitchInput {
 }
 
 // System prompt for the persona
-const SYSTEM_PROMPT = `You are a world-class Direct Response Copywriter and B2B Sales Expert.
-You rely on psychology-based frameworks (like AIDA, PAS) to write cold emails that convert.
-You HATE fluff, generic intros ("I hope this finds you well"), and robotic language.
-You write like a human talking to another human: punchy, concise, and value-driven.
+// We upgrade the persona to be a "Data-Driven Strategist"
+const SYSTEM_PROMPT = `You are a World-Class Direct Response Copywriter and B2B Sales Strategist.
+You do NOT write generic emails. You write "sniper-like" pitches that are impossible to ignore.
 
-Your goal is to write a highly personalized cold email pitch.`
+Your secret weapon is your "Strategy Playbook" which gives you deep insider knowledge about the industry.
+You combine this insider knowledge with psychological frameworks (PAS, AIDA, BAB) to write high-converting emails.
 
-// Helper to construct the analysis prompt
-function createAnalysisAndDraftPrompt(
+Your Tone:
+- Professional but conversational.
+- Confident, not arrogant.
+- Concise. You respect the reader's time.
+- No fluff. No "I hope this finds you well".
+`
+
+// Helper to construct the advanced prompt
+function createSmartPrompt(
   input: EmailPitchInput,
-  agencyProfile: AgencyProfile
+  agencyProfile: AgencyProfile,
+  strategy: NicheStrategy | null
 ): string {
   const { lead, scrapedContent, userInstructions } = input
-
-  // Safely extract relevant parts of scraped content (limit length to avoid token limits)
   const websiteContext = scrapedContent.content.slice(0, 8000)
+
+  // Inject Strategy Context if available
+  let strategyContext = ''
+  if (strategy) {
+    // Handle potential legacy data structure gracefully by casting to any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const legacy = strategy as any
+    const service = strategy.serviceAnalysis || {
+      painPoints: legacy.painPoints || [],
+      valuePropositions: legacy.valuePropositions || [],
+      industryJargon: legacy.industryJargon || []
+    }
+    const persona = strategy.personaAnalysis || {
+      dailyFears: [],
+      secretDesires: [],
+      commonObjections: []
+    }
+    const offer = strategy.offerStrategy || {
+      grandSlamHooks: strategy.marketingAngles || [],
+      riskReversals: [],
+      bonuses: []
+    }
+
+    strategyContext = `
+### 🧠 STRATEGY PLAYBOOK ACTIVATED
+**Target Audience**: ${strategy.targetAudience || 'General'}
+**Service Niche**: ${strategy.niche}
+
+#### 1. SERVICE INTEL (The "Expertise")
+- **Technical Pain Points**: ${service.painPoints.join(', ')}
+- **Value Propositions**: ${service.valuePropositions.join(', ')}
+- **Insider Jargon**: ${service.industryJargon.join(', ')}
+
+#### 2. PERSONA PSYCHOLOGY (The "Emotion")
+- **Deepest Fears**: ${persona.dailyFears.join(', ')}
+- **Secret Desires**: ${persona.secretDesires.join(', ')}
+- **Likely Objections**: ${persona.commonObjections.join(', ')}
+
+#### 3. GRAND SLAM OFFER (The "Irresistible Deal")
+- **Hooks**: ${offer.grandSlamHooks.join(', ')}
+- **Risk Reversals**: ${offer.riskReversals.join(', ')}
+- **Bonuses**: ${offer.bonuses.join(', ')}
+`
+  } else {
+    strategyContext = `
+### STRATEGY:
+(No specific niche strategy found. Rely on general B2B best practices and analysis of the website content.)
+`
+  }
 
   return `${SYSTEM_PROMPT}
 
@@ -44,35 +101,40 @@ ${websiteContext}
 """
 
 ### STEP 2: ANALYZE THE SENDER (ME)
-**My Agency Name**: ${agencyProfile.name}
-**My Services**: ${agencyProfile.services.join(', ')}
-**My Portfolio Highlights**: ${agencyProfile.portfolio.map((p) => p.title).join(', ')}
-**My Skills**: ${agencyProfile.skills.join(', ')}
-**My Bio/Tone**: ${agencyProfile.bio}
+**My Agency**: ${agencyProfile.name}
+**My Offer**: ${agencyProfile.services.join(', ')}
+**Portfolio**: ${agencyProfile.portfolio.map((p) => p.title).join(', ')}
+**Key Skills**: ${agencyProfile.skills.join(', ')}
+**Bio**: ${agencyProfile.bio}
 
-### STEP 3: THE TASK
-Write a high-conversion cold email pitch from ME to the PROSPECT.
+${strategyContext}
+
+### STEP 3: THE STRATEGIC SELECTION (Internal Thought Process)
+Before writing, think:
+1. **Analyze the Persona**: Based on the website, which "Deep Fear" or "Secret Desire" from the Playbook applies here?
+2. **Select the Grand Slam Offer**: Which "Hook" + "Risk Reversal" makes saying 'No' feel stupid?
+3. **Bridge the Gap**: Use "Insider Jargon" to connect their problem to your solution.
+
+### STEP 4: THE TASK
+Write a "Grand Slam" Cold Email.
 
 ${userInstructions ? `**USER SPECIAL INSTRUCTIONS**: ${userInstructions}` : ''}
 
 ### GUIDELINES:
-1. **Analyze First**: Identify a specific problem or opportunity based on their website content. DO NOT guess. Use actual info (e.g., "I noticed you're using X tech," "I saw your recent case study on Y").
-2. **Select the Angle**: Choose ONE of my services that best solves their specific problem.
-3. **Draft the Email**:
-   - **Subject Line**: Max 6 words. Curiosity-inducing. Lowercase (optional but looks natural). NO "Salesy" caps.
-   - **Salutation**: "Hi ${lead.decisionMaker ? lead.decisionMaker.split(' ')[0] : 'there'},"
-   - **The Hook**: Mention the specific thing you found on their site immediately.
-   - **The Value**: Connect their problem to my solution. Mention a relevant portfolio item if it fits.
-   - **The CTA**: Low friction (e.g., "Worth a quick chat?", "Mind if I send a video audit?").
-   - **Formatting**: Short paragraphs. Plain text style.
+- **Subject**: Use a "Grand Slam Hook" or a "Deep Fear" (curiosity gap). Max 4 words.
+- **Opening**: Acknowledge a specific observation from their site (The Icebreaker) OR hit a "Daily Fear".
+- **The "Meat"**: Present the **Grand Slam Offer** (Hook + Risk Reversal). Do NOT just list services.
+- **The "Bone"**: Offer a specific high-value "Bonus" (e.g. "Free Audit") as the CTA.
+- **CTA**: Soft ask ("Worth a generic 'no'?", "Open to seeing how?").
+- **Tone**: Peer-to-peer. High status.
 
-### STEP 4: OUTPUT FORMAT
-Return valid JSON only. No markdown formatting. Structure:
+### STEP 5: OUTPUT FORMAT
+Return valid JSON only.
 {
   "subject": "The subject line",
   "body": "The full email body (use \\n for line breaks)",
-  "strategy_explanation": "One sentence explaining why you chose this angle.",
-  "target_audience_analysis": "One sentence description of who they are and their vibe."
+  "strategy_explanation": "Explain: 'I targeted the [Fear] of [Audience]. I used the [Offer Hook] to eliminate risk.'",
+  "target_audience_analysis": "Profile of this specific lead based on their site."
 }
 `
 }
@@ -80,20 +142,22 @@ Return valid JSON only. No markdown formatting. Structure:
 export async function generateEmailPitch(input: EmailPitchInput): Promise<EmailPitchResult> {
   const agencyProfile = getAgencyProfile()
 
-  // Validation: Ensure we have enough info to pitch
   if (!agencyProfile.services || agencyProfile.services.length === 0) {
     throw new Error('Agency services not defined. Please complete your profile in Settings.')
   }
 
-  const prompt = createAnalysisAndDraftPrompt(input, agencyProfile)
+  // 1. Try to load the niche strategy
+  // In the future, we could pass the 'niche' from the UI.
+  // For now, we load the global strategy if it exists.
+  const strategy = getNicheStrategy()
+
+  const prompt = createSmartPrompt(input, agencyProfile, strategy)
 
   try {
     const result = await executeWithAiRotation(
       prompt,
       (response) => {
-        // Cleaning the response to ensure it is valid JSON
         let cleanJson = response.trim()
-        // Remove markdown code blocks if present
         if (cleanJson.startsWith('```json')) {
           cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
         } else if (cleanJson.startsWith('```')) {

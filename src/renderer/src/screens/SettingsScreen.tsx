@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import { FiCpu, FiSearch, FiUser, FiMail } from 'react-icons/fi'
-
+import { FiCpu, FiMail, FiSearch, FiTarget, FiUser } from 'react-icons/fi'
 import { SettingsTabs } from './settings/components/SettingsTabs'
+import { StrategyTab } from './settings/components/StrategyTab'
+
 import { AiProviderTab } from './settings/components/AiProviderTab'
+import { EmailTab } from './settings/components/EmailTab'
 import { ProfileTab } from './settings/components/ProfileTab'
 import { SearchApiTab } from './settings/components/SearchApiTab'
-import { EmailTab } from './settings/components/EmailTab'
-import { DEFAULT_PROFILE, GROQ_MODELS, MISTRAL_MODELS, GOOGLE_MODELS } from './settings/constants'
-import { isProfileComplete } from './settings/utils'
+import { DEFAULT_PROFILE, GOOGLE_MODELS, GROQ_MODELS, MISTRAL_MODELS } from './settings/constants'
 import type {
+  AgencyProfile,
   AiProvider,
   GoogleMode,
-  AgencyProfile,
   MessageState,
   SettingsTab
 } from './settings/types'
+import { isProfileComplete } from './settings/utils'
 
 const MESSAGE_TIMEOUT = 3000
 
@@ -317,6 +318,7 @@ function SettingsScreen(): JSX.Element {
   const tabs = useMemo(
     () => [
       { id: 'profile' as const, label: 'Agency Profile', icon: <FiUser size={16} /> },
+      { id: 'strategy' as const, label: 'Strategy Playbook', icon: <FiTarget size={16} /> },
       { id: 'ai-provider' as const, label: 'AI Provider', icon: <FiCpu size={16} /> },
       { id: 'search-api' as const, label: 'Web Search', icon: <FiSearch size={16} /> },
       { id: 'email' as const, label: 'Email', icon: <FiMail size={16} /> }
@@ -431,6 +433,7 @@ function SettingsScreen(): JSX.Element {
               onSaveReoonKeys={(keys) => saveMultiKeys('reoon', keys)}
             />
           )}
+          {activeTab === 'strategy' && <StrategyTab />}
         </div>
       </div>
     </div>

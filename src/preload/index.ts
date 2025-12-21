@@ -360,7 +360,13 @@ const api = {
   // Email Pitch Generator
   generateEmailPitch: (input: unknown) => ipcRenderer.invoke('email:generate-pitch', input),
   generateEmailPitchForLead: (lead: unknown) =>
-    ipcRenderer.invoke('email:generate-pitch-for-lead', lead)
+    ipcRenderer.invoke('email:generate-pitch-for-lead', lead),
+
+  // Strategy Management
+  getNicheStrategy: () => ipcRenderer.invoke('strategy:get'),
+  saveNicheStrategy: (strategy: unknown) => ipcRenderer.invoke('strategy:save', strategy),
+  researchNicheStrategy: (niche: string, targetAudience: string) =>
+    ipcRenderer.invoke('strategy:research', { niche, targetAudience })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

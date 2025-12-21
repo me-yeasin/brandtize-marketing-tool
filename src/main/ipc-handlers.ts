@@ -6,6 +6,11 @@ import {
   type LeadGenerationCallbacks,
   type LeadGenerationInput
 } from './services/lead-generation'
+import {
+  getNicheStrategy,
+  researchNicheStrategy,
+  saveNicheStrategy
+} from './services/strategy-manager'
 import { templateManager, type EmailTemplate } from './services/template-manager'
 import {
   addFoundLead,
@@ -63,7 +68,7 @@ import {
   type ProcessedDomain
 } from './store'
 
-export function setupIpcHandlers(): void {
+export async function setupIpcHandlers(): Promise<void> {
   // Settings handlers
   ipcMain.handle('settings:getApiKeys', () => {
     const keys = getApiKeys()
@@ -453,4 +458,33 @@ export function setupIpcHandlers(): void {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   })
+  // Strategy Management Handlers
+  // Strategy Management Handlers
+
+  ipcMain.handle('strategy:get', () => {
+    return getNicheStrategy()
+  })
+
+  ipcMain.handle('strategy:save', (_event, strategy) => {
+    try {
+      saveNicheStrategy(strategy)
+      return true
+    } catch (e) {
+      console.error('Failed to save strategy', e)
+      return false
+    }
+  })
+
+  ipcMain.handle(
+    'strategy:research',
+    async (_event, { niche, targetAudience }: { niche: string; targetAudience: string }) => {
+      try {
+        const result = await researchNicheStrategy(niche, targetAudience)
+        return { success: true, data: result }
+      } catch (error) {
+        console.error('Strategy Research Error:', error)
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    }
+  )
 }
