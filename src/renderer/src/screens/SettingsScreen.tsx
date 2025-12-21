@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import { FiCpu, FiMail, FiSearch, FiTarget, FiUser } from 'react-icons/fi'
+import { FiCpu, FiMail, FiMic, FiSearch, FiTarget, FiUser } from 'react-icons/fi'
 import { SettingsTabs } from './settings/components/SettingsTabs'
 import { StrategyTab } from './settings/components/StrategyTab'
 
@@ -7,6 +7,7 @@ import { AiProviderTab } from './settings/components/AiProviderTab'
 import { EmailTab } from './settings/components/EmailTab'
 import { ProfileTab } from './settings/components/ProfileTab'
 import { SearchApiTab } from './settings/components/SearchApiTab'
+import { VoiceTab } from './settings/components/VoiceTab'
 import { DEFAULT_PROFILE, GOOGLE_MODELS, GROQ_MODELS, MISTRAL_MODELS } from './settings/constants'
 import type {
   AgencyProfile,
@@ -319,6 +320,7 @@ function SettingsScreen(): JSX.Element {
     () => [
       { id: 'profile' as const, label: 'Agency Profile', icon: <FiUser size={16} /> },
       { id: 'strategy' as const, label: 'Strategy Playbook', icon: <FiTarget size={16} /> },
+      { id: 'voice' as const, label: 'My Voice', icon: <FiMic size={16} /> },
       { id: 'ai-provider' as const, label: 'AI Provider', icon: <FiCpu size={16} /> },
       { id: 'search-api' as const, label: 'Web Search', icon: <FiSearch size={16} /> },
       { id: 'email' as const, label: 'Email', icon: <FiMail size={16} /> }
@@ -434,6 +436,7 @@ function SettingsScreen(): JSX.Element {
             />
           )}
           {activeTab === 'strategy' && <StrategyTab />}
+          {activeTab === 'voice' && <VoiceTab />}
         </div>
       </div>
     </div>

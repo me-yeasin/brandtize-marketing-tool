@@ -79,6 +79,18 @@ interface AgencyProfile {
   }
 }
 
+// Voice/Tone Profile for personalized AI writing
+interface VoiceProfile {
+  toneDescription: string
+  wordsToUse: string[]
+  wordsToAvoid: string[]
+  sampleEmails: string[]
+  emailLength: 'short' | 'medium' | 'long'
+  greetingStyle: string
+  signOff: string
+  ctaStyle: 'soft' | 'direct' | 'question'
+}
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -110,6 +122,10 @@ interface Api {
   getProfile: () => Promise<AgencyProfile>
   setProfile: (profile: AgencyProfile) => Promise<{ success: boolean }>
   hasProfile: () => Promise<boolean>
+  // Voice Profile (My Writing Voice)
+  getVoiceProfile: () => Promise<VoiceProfile>
+  setVoiceProfile: (profile: VoiceProfile) => Promise<{ success: boolean }>
+  hasVoiceProfile: () => Promise<boolean>
   // Multi-key API methods
   getMultiKeys: () => Promise<MultiKeys>
   setMultiKeys: (

@@ -33,8 +33,11 @@ import {
   getSelectedAiProvider,
   getSelectedGoogleMode,
   getSelectedModel,
+  // Voice profile functions
+  getVoiceProfile,
   hasAgencyProfile,
   hasRequiredApiKeys,
+  hasVoiceProfile,
   removeFoundLead,
   removeProcessedDomain,
   setAgencyProfile,
@@ -60,12 +63,14 @@ import {
   setSnovApiKeys,
   setSnovClientId,
   setSnovClientSecret,
+  setVoiceProfile,
   type AgencyProfile,
   type AiProvider,
   type ApiKeyEntry,
   type FoundLead,
   type GoogleMode,
-  type ProcessedDomain
+  type ProcessedDomain,
+  type VoiceProfile
 } from './store'
 
 export async function setupIpcHandlers(): Promise<void> {
@@ -199,6 +204,20 @@ export async function setupIpcHandlers(): Promise<void> {
 
   ipcMain.handle('profile:hasProfile', () => {
     return hasAgencyProfile()
+  })
+
+  // Voice Profile handlers
+  ipcMain.handle('voice:get', () => {
+    return getVoiceProfile()
+  })
+
+  ipcMain.handle('voice:set', (_event, profile: VoiceProfile) => {
+    setVoiceProfile(profile)
+    return { success: true }
+  })
+
+  ipcMain.handle('voice:hasVoiceProfile', () => {
+    return hasVoiceProfile()
   })
 
   // Multi-key API handlers

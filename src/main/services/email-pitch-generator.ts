@@ -1,4 +1,11 @@
-import { getAgencyProfile, type AgencyProfile, type FoundLead, type ScrapedContent } from '../store'
+import {
+  getAgencyProfile,
+  getVoiceProfile,
+  type AgencyProfile,
+  type FoundLead,
+  type ScrapedContent,
+  type VoiceProfile
+} from '../store'
 import { executeWithAiRotation } from './ai-rotation-manager'
 import { getNicheStrategy } from './strategy-manager'
 import type { NicheStrategy } from './strategy-types'
@@ -18,7 +25,7 @@ export interface EmailPitchInput {
 }
 
 /**
- * STRATEGIC 4-PILLAR EMAIL PITCH GENERATOR
+ * STRATEGIC 5-PILLAR EMAIL PITCH GENERATOR
  *
  * This system uses each pillar for a SPECIFIC STRATEGIC PURPOSE:
  *
@@ -33,13 +40,17 @@ export interface EmailPitchInput {
  *
  * PILLAR 3 - GRAND SLAM OFFER (Conversion Trigger)
  * → Makes them reply: irresistible hooks, risk reversals, bonuses
+ *
+ * PILLAR 5 - MY VOICE (Your Unique Writing Style) ⭐ NEW
+ * → Makes the AI write EXACTLY like you: tone, phrases, examples
  */
 
-// Build the strategic prompt using all 4 pillars in their specific roles
+// Build the strategic prompt using all 5 pillars in their specific roles
 function createStrategicPrompt(
   input: EmailPitchInput,
   agencyProfile: AgencyProfile,
-  strategy: NicheStrategy | null
+  strategy: NicheStrategy | null,
+  voiceProfile: VoiceProfile
 ): string {
   const { lead, scrapedContent, userInstructions } = input
   const websiteContext = scrapedContent.content.slice(0, 10000)
@@ -243,12 +254,62 @@ ${userInstructions ? `**SPECIAL INSTRUCTIONS FROM USER**: ${userInstructions}\n`
 - Include a Risk Reversal
 - End with a Value Drop (free bonus) as CTA
 
+═══════════════════════════════════════════════════════════════════════════════
+                    🎤 PILLAR 5: MY VOICE (WRITE LIKE ME!)
+═══════════════════════════════════════════════════════════════════════════════
+
+CRITICAL: THE EMAIL MUST SOUND LIKE THE SENDER WROTE IT PERSONALLY.
+This is NOT an AI writing. This is ${agencyProfile.name} writing.
+
+${
+  voiceProfile.toneDescription
+    ? `### MY TONE & PERSONALITY:
+"${voiceProfile.toneDescription}"
+
+→ INSTRUCTION: Match this tone EXACTLY. Read it carefully and mimic it.`
+    : ''
+}
+
+${
+  voiceProfile.wordsToUse.length > 0
+    ? `### WORDS & PHRASES I USE (Incorporate these naturally):
+${voiceProfile.wordsToUse.map((w) => `• "${w}"`).join('\n')}
+
+→ INSTRUCTION: Use 1-2 of these in the email to sound like me.`
+    : ''
+}
+
+${
+  voiceProfile.wordsToAvoid.length > 0
+    ? `### WORDS & PHRASES I ***NEVER*** USE (DO NOT USE THESE UNDER ANY CIRCUMSTANCES):
+${voiceProfile.wordsToAvoid.map((w) => `❌ "${w}" - BANNED`).join('\n')}
+
+→ INSTRUCTION: If you write any of these words, the email is REJECTED.`
+    : ''
+}
+
+${
+  voiceProfile.sampleEmails.length > 0
+    ? `### SAMPLE EMAILS I'VE WRITTEN (Learn my style from these):
+${voiceProfile.sampleEmails.map((email, i) => `--- EXAMPLE ${i + 1} ---\n${email}`).join('\n\n')}
+
+→ INSTRUCTION: Study these examples. Notice my sentence length, word choice, 
+   rhythm, and personality. Write the new email in this EXACT style.`
+    : ''
+}
+
+### EMAIL PREFERENCES:
+- Preferred length: ${voiceProfile.emailLength === 'short' ? '~50 words (very concise)' : voiceProfile.emailLength === 'long' ? '150+ words (detailed)' : '~100 words (balanced)'}
+${voiceProfile.greetingStyle ? `- Greeting style: "${voiceProfile.greetingStyle}"` : '- Greeting: Skip or keep minimal'}
+${voiceProfile.signOff ? `- Sign-off: "${voiceProfile.signOff}"` : '- Sign-off: Keep casual or skip'}
+- CTA style: ${voiceProfile.ctaStyle === 'soft' ? 'Soft (e.g., "Worth a look?")' : voiceProfile.ctaStyle === 'direct' ? 'Direct (e.g., "Let\'s chat Tuesday")' : 'Question-based (e.g., "Open to a 15-min call?")'}
+
 ### RULES:
-1. NEVER start with "I" or "Hi [Name]"
-2. MAX 75 words total (excluding subject)
+1. ${voiceProfile.greetingStyle ? `Start with "${voiceProfile.greetingStyle}" style greeting` : 'NEVER start with "I" or generic "Hi [Name]"'}
+2. MAX ${voiceProfile.emailLength === 'short' ? '50' : voiceProfile.emailLength === 'long' ? '150' : '75'} words total (excluding subject)
 3. Sound like a helpful peer, not a salesperson
 4. Use short paragraphs (2-3 sentences max)
-5. End with a soft CTA (e.g., "Worth a look?" or "Open to it?")
+5. End with a ${voiceProfile.ctaStyle} CTA
 
 ═══════════════════════════════════════════════════════════════════════════════
                               📤 OUTPUT FORMAT
@@ -282,7 +343,16 @@ export async function generateEmailPitch(input: EmailPitchInput): Promise<EmailP
     )
   }
 
-  const prompt = createStrategicPrompt(input, agencyProfile, strategy)
+  // Load the voice profile (Pillar 5 - My Voice)
+  const voiceProfile = getVoiceProfile()
+
+  if (!voiceProfile.toneDescription && voiceProfile.sampleEmails.length === 0) {
+    console.log(
+      '[Email Pitch] Info: No Voice Profile found. Configure your voice in Settings > My Voice for more personalized emails.'
+    )
+  }
+
+  const prompt = createStrategicPrompt(input, agencyProfile, strategy, voiceProfile)
 
   try {
     const result = await executeWithAiRotation(

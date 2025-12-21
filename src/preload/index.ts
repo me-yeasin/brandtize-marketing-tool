@@ -45,6 +45,11 @@ const api = {
   setProfile: (profile: unknown) => ipcRenderer.invoke('profile:set', profile),
   hasProfile: () => ipcRenderer.invoke('profile:hasProfile'),
 
+  // Voice Profile (My Writing Voice)
+  getVoiceProfile: () => ipcRenderer.invoke('voice:get'),
+  setVoiceProfile: (profile: unknown) => ipcRenderer.invoke('voice:set', profile),
+  hasVoiceProfile: () => ipcRenderer.invoke('voice:hasVoiceProfile'),
+
   // Multi-key API management
   getMultiKeys: () => ipcRenderer.invoke('settings:getMultiKeys'),
   setMultiKeys: (service: string, keys: { key: string; userId?: string; label?: string }[]) =>

@@ -100,6 +100,29 @@ export interface ScrapedContent {
   title: string
 }
 
+// Voice/Tone Profile for personalized AI writing
+export interface VoiceProfile {
+  toneDescription: string // Free-form description of their voice
+  wordsToUse: string[] // Signature phrases they always use
+  wordsToAvoid: string[] // Words to never use (AI-sounding, corporate)
+  sampleEmails: string[] // 2-3 example emails they've written
+  emailLength: 'short' | 'medium' | 'long' // Preferred email length
+  greetingStyle: string // "Hey [Name]", "Hi there", etc.
+  signOff: string // "Cheers", "Best", "Talk soon", etc.
+  ctaStyle: 'soft' | 'direct' | 'question' // CTA preference
+}
+
+const DEFAULT_VOICE_PROFILE: VoiceProfile = {
+  toneDescription: '',
+  wordsToUse: [],
+  wordsToAvoid: [],
+  sampleEmails: [],
+  emailLength: 'medium',
+  greetingStyle: '',
+  signOff: '',
+  ctaStyle: 'soft'
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -128,6 +151,7 @@ interface StoreSchema {
   googleProjectId: string
   googleLocation: string
   agencyProfile: AgencyProfile
+  voiceProfile: VoiceProfile
   // Results storage for deduplication
   processedDomains: ProcessedDomain[]
   foundLeads: FoundLead[]
@@ -162,6 +186,7 @@ const store = new Store<StoreSchema>({
     googleProjectId: '',
     googleLocation: 'us-central1',
     agencyProfile: DEFAULT_PROFILE,
+    voiceProfile: DEFAULT_VOICE_PROFILE,
     // Results storage (empty by default)
     processedDomains: [],
     foundLeads: []
@@ -463,6 +488,21 @@ export function removeFoundLead(id: string): void {
 
 export function clearFoundLeads(): void {
   store.set('foundLeads', [])
+}
+
+// Voice Profile functions
+export function getVoiceProfile(): VoiceProfile {
+  return store.get('voiceProfile', DEFAULT_VOICE_PROFILE)
+}
+
+export function setVoiceProfile(profile: VoiceProfile): void {
+  store.set('voiceProfile', profile)
+}
+
+export function hasVoiceProfile(): boolean {
+  const profile = getVoiceProfile()
+  // Consider voice profile "set" if at least tone description or sample emails are provided
+  return profile.toneDescription.trim().length > 0 || profile.sampleEmails.length > 0
 }
 
 export { store }
