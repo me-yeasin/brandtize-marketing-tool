@@ -328,7 +328,7 @@ function ResultsScreen(): React.JSX.Element {
         {hasPitch && isExpanded && pitch && (
           <div className="border-t border-white/10 bg-slate-900/50 animate-fade-in">
             {/* Psychological Triggers Header */}
-            <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-b border-white/5">
+            <div className="p-4 bg-linear-to-r from-purple-500/10 to-pink-500/10 border-b border-white/5">
               <h4 className="text-xs font-semibold text-purple-400 uppercase mb-1 flex items-center gap-2">
                 <FiZap size={12} />
                 Psychological Triggers Used
