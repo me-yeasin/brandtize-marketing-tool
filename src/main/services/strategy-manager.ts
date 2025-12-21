@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { executeWithAiRotation } from './ai-rotation-manager'
+import { scrapeWithJina, searchWithSerper } from './lead-generation'
 import type { NicheResearchResult, NicheStrategy } from './strategy-types'
 
 const STRATEGY_FILE = 'niche-strategy.json'
@@ -40,128 +41,178 @@ export function getNicheStrategy(): NicheStrategy | null {
   }
 }
 
-// The prompt to generate the strategy
-function createStrategyResearchPrompt(niche: string, targetAudience: string): string {
-  return `
-You are a World-Class B2B Marketing Strategist and Sales Psychologist (Alex Hormozi style).
-Your task is to build a "Grand Slam" Cold Email Strategy by analyzing the Service "${niche}" and the Target Audience "${targetAudience}".
+/**
+ * DEEP DIVE SCOUT
+ * 1. Searches multiple queries in parallel (with Key Rotation)
+ * 2. Scrapes top URLs in parallel (with Key Rotation)
+ * 3. Uses AI to synthesize a specific JSON fragment for the pillar
+ */
+async function scoutPillar<T>(
+  pillarName: string,
+  queries: string[],
+  aiPromptInstruction: string,
+  jsonStructure: string
+): Promise<T | null> {
+  console.log(`[Deep Dive] Scouting Pillar: ${pillarName}...`)
 
-We need 4 Pillars of Deep Analysis to ensure 100% response potential.
+  // Step 1: Parallel Search
+  const searchPromises = queries.map((q) => searchWithSerper(q).catch(() => []))
+  const searchResults = await Promise.all(searchPromises)
+  const allLinks = searchResults.flat()
 
-### 1. SERVICE ANALYSIS (The "Expertise")
-Analyze "${niche}" to identify:
-- **Pain Points**: What specific technical problems do users of this service face?
-- **Value Props**: deeply financial or strategic benefits.
-- **Jargon**: Insider terms that prove we are experts.
+  // Deduplicate and take Top 5
+  const uniqueLinks = Array.from(new Set(allLinks.map((l) => l.link))).slice(0, 5)
+  console.log(`[Deep Dive] Found ${uniqueLinks.length} unique sources for ${pillarName}`)
 
-### 2. PERSONA ANALYSIS (The "Psychology")
-Analyze the "Target Audience: ${targetAudience}":
-- **Daily Fears**: What keeps them up at night? (e.g., getting sued, losing status, bankruptcy).
-- **Secret Desires**: What do they want but won't say aloud? (e.g., "work 4 hours a week").
-- **Objections**: Why do they say "No"? (e.g., "Vendor lock-in", "Too expensive").
+  // Step 2: Parallel Scrape
+  const scrapePromises = uniqueLinks.map((url) => scrapeWithJina(url).catch(() => null))
+  const scrapedContents = await Promise.all(scrapePromises)
+  const validContent = scrapedContents
+    .filter((c) => c !== null)
+    .map((c) => `Source: ${c!.title}\n${c!.content}\n---\n`)
+    .join('\n')
+    .slice(0, 25000) // Context limit safety
 
-### 3. THE GRAND SLAM OFFER (The "Hook")
-Construct an irresistible offer structure:
-- **Grand Slam Hook**: A one-liner that solves a big pain with low effort/risk (e.g., "I'll double your leads or pay you $1k").
-- **Risk Reversal**: A guarantee that removes fear.
-- **Bonuses**: High-value, low-cost add-ons (e.g., "Free Audit").
+  // Step 3: AI Synthesis
+  const prompt = `
+  You are a World-Class B2B Strategist.
+  I have scraped REAL data from the web regarding: "${pillarName}".
 
-### 4. OUTREACH TACTICS (The "Delivery")
-Research the highest converting *style* for selling "${niche}" in 2025:
-- **Subject Lines**: 5 specific subject lines that work for this niche (mix of direct, curiosity, and value).
-- **Openers**: 3 strong first sentences that hook this specific audience.
-- **Structure**: Formatting rules (e.g., "Use 3 bullets", "Keep under 75 words").
-- **Value Drops**: What "free sample" works best? (e.g. "Loom video review", "Speed test result", "Mockup").
+  ### RAW RESEARCH DATA:
+  ${validContent}
 
-### OUTPUT FORMAT:
-Return ONLY valid JSON with this exact structure:
-{
-  "niche": "${niche}",
-  "targetAudience": "${targetAudience}",
-  "serviceAnalysis": {
-    "painPoints": ["5 specific technical pains..."],
-    "valuePropositions": ["5 high-value outcomes..."],
-    "industryJargon": ["10 insider terms..."]
-  },
-  "personaAnalysis": {
-    "dailyFears": ["5 deep fears..."],
-    "secretDesires": ["5 hidden desires..."],
-    "commonObjections": ["3 major objections..."]
-  },
-  "offerStrategy": {
-    "grandSlamHooks": ["3 specific irresistible hooks..."],
-    "riskReversals": ["3 confident guarantees..."],
-    "bonuses": ["3 high-perceived-value bonuses..."]
-  },
-  "outreachTactics": {
-    "winningSubjectLines": ["5 high-converting subject lines..."],
-    "bestOpeners": ["3 killer opening lines..."],
-    "structureRules": ["3 formatting rules..."],
-    "valueDropMethods": ["3 best value-add ideas..."]
-  },
-  "marketingAngles": ["3 creative angles..."],
-  "winningFrameworks": ["PAS", "AIDA"]
+  ### INSTRUCTION:
+  Analyze the data above and extract the specific details requested below.
+  ${aiPromptInstruction}
+
+  ### OUTPUT FORMAT:
+  Return ONLY valid JSON matching this structure exactly (no markdown):
+  ${jsonStructure}
+  `
+
+  return executeWithAiRotation(
+    prompt,
+    (response) => {
+      let cleanJson = response.trim()
+      if (cleanJson.startsWith('```json')) {
+        cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
+      } else if (cleanJson.startsWith('```')) {
+        cleanJson = cleanJson.replace(/```/g, '')
+      }
+      return JSON.parse(cleanJson) as T
+    },
+    null as T // Default to null if fails
+  )
 }
-`
-}
 
-// Main function to perform the research (simulate research via AI knowledge)
-// In a full "Agentic" version, this would actually browse the web.
-// For now, we rely on the LLM's vast training data which acts as a search engine.
+// Main function to perform Deep Dive Research
 export async function researchNicheStrategy(
   niche: string,
   targetAudience: string = 'Potential Clients'
 ): Promise<NicheStrategy> {
-  const prompt = createStrategyResearchPrompt(niche, targetAudience)
+  console.log(`[Strategy] Starting Deep Dive for: ${niche} -> ${targetAudience}`)
 
-  try {
-    // We use the AI Service to "Research" based on its internal knowledge base
-    const result = await executeWithAiRotation(
-      prompt,
-      (response) => {
-        let cleanJson = response.trim()
-        if (cleanJson.startsWith('```json')) {
-          cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
-        } else if (cleanJson.startsWith('```')) {
-          cleanJson = cleanJson.replace(/```/g, '')
-        }
-        return JSON.parse(cleanJson) as NicheStrategy
-      },
-      // Fallback if AI fails completely
-      {
-        niche,
-        targetAudience,
-        serviceAnalysis: {
-          painPoints: ['Inefficiency', 'High Costs', 'Low Conversions'],
-          valuePropositions: ['Save Time', 'Reduce Cost', 'Increase Revenue'],
-          industryJargon: ['ROI', 'Scalability']
-        },
-        personaAnalysis: {
-          dailyFears: ['Losing Money', 'Wasted Time'],
-          secretDesires: ['Market Dominance', 'Less Work'],
-          commonObjections: ['Too Expensive']
-        },
-        offerStrategy: {
-          grandSlamHooks: ['I will double your ROI in 30 days'],
-          riskReversals: ['Money-back guarantee'],
-          bonuses: ['Free Audit']
-        },
-        outreachTactics: {
-          winningSubjectLines: [`Quick question about ${niche}`, 'Your website'],
-          bestOpeners: ['I was researching your site and...'],
-          structureRules: ['Keep it under 100 words'],
-          valueDropMethods: ['Free Audit PDF']
-        },
-        marketingAngles: ['Direct Offer', 'Free Audit'],
-        winningFrameworks: ['PAS', 'AIDA']
-      }
-    )
+  // Define Parallel Scouts
+  const servicePromise = scoutPillar<NicheStrategy['serviceAnalysis']>(
+    'Service Analysis',
+    [
+      `"${niche}" technical pain points and challenges`,
+      `"${niche}" benefits and value proposition ROI`,
+      `"${niche}" industry jargon glossary terms`
+    ],
+    `Identify technical pain points, financial value props, and insider jargon for ${niche}.`,
+    `{
+      "painPoints": ["5 specific technical pains..."],
+      "valuePropositions": ["5 high-value outcomes..."],
+      "industryJargon": ["10 insider terms..."]
+    }`
+  )
 
-    // Save the result for future use
-    saveNicheStrategy(result)
-    return result
-  } catch (error) {
-    console.error('Error researching niche strategy:', error)
-    throw error
+  const personaPromise = scoutPillar<NicheStrategy['personaAnalysis']>(
+    'Persona Analysis',
+    [
+      `"${targetAudience}" biggest business fears and nightmares`,
+      `"${targetAudience}" deep desires and business goals`,
+      `common objections to buying "${niche}" services`
+    ],
+    `Analyze the psychology of ${targetAudience}. Find their daily fears, secret desires, and why they say 'No' to ${niche}.`,
+    `{
+      "dailyFears": ["5 deep fears..."],
+      "secretDesires": ["5 hidden desires..."],
+      "commonObjections": ["3 major objections..."]
+    }`
+  )
+
+  const offerPromise = scoutPillar<NicheStrategy['offerStrategy']>(
+    'Offer Strategy',
+    [
+      `best risk reversal guarantee for ${niche} services`,
+      `grand slam offer examples for ${niche} agency`,
+      `high value bonuses to add to ${niche} offer`
+    ],
+    `Construct a Grand Slam Offer for ${niche}. Find the best guarantees/risk reversals, and creative bonuses found in the research.`,
+    `{
+      "grandSlamHooks": ["3 specific irresistible hooks..."],
+      "riskReversals": ["3 confident guarantees..."],
+      "bonuses": ["3 high-perceived-value bonuses..."]
+    }`
+  )
+
+  const tacticsPromise = scoutPillar<NicheStrategy['outreachTactics']>(
+    'Outreach Tactics',
+    [
+      `best cold email subject lines for ${niche} 2024 2025`,
+      `cold email opening lines for ${targetAudience}`,
+      `cold email copy structure best practices 2025`
+    ],
+    `Identify the highest converting outreach tactics for ${niche} in 2025. Subject lines, openers, and rules.`,
+    `{
+      "winningSubjectLines": ["5 high-converting subject lines..."],
+      "bestOpeners": ["3 killer opening lines..."],
+      "structureRules": ["3 formatting rules..."],
+      "valueDropMethods": ["3 best value-add ideas..."]
+    }`
+  )
+
+  // Execute All in Parallel
+  const [service, persona, offer, tactics] = await Promise.all([
+    servicePromise,
+    personaPromise,
+    offerPromise,
+    tacticsPromise
+  ])
+
+  // Construct Final Strategy
+  const finalStrategy: NicheStrategy = {
+    niche,
+    targetAudience,
+    serviceAnalysis: service || {
+      painPoints: ['Inefficiency', 'High Costs'],
+      valuePropositions: ['Save Time', 'Increase Revenue'],
+      industryJargon: ['ROI', 'Scalability']
+    },
+    personaAnalysis: persona || {
+      dailyFears: ['Losing Money'],
+      secretDesires: ['Market Dominance'],
+      commonObjections: ['Too Expensive']
+    },
+    offerStrategy: offer || {
+      grandSlamHooks: ['Double your ROI guarantee'],
+      riskReversals: ['Money-back guarantee'],
+      bonuses: ['Free Audit']
+    },
+    outreachTactics: tactics || {
+      winningSubjectLines: ['Quick question'],
+      bestOpeners: ['I saw your website...'],
+      structureRules: ['Keep it short'],
+      valueDropMethods: ['Loom Video']
+    },
+    // We can infer these or run a mini-synthesis if needed, but hardcoding reasonable defaults/simple logic is fine for now
+    marketingAngles: ['Direct Offer', 'Free Audit', 'Case Study'],
+    winningFrameworks: ['PAS', 'AIDA', 'Spear']
   }
+
+  saveNicheStrategy(finalStrategy)
+  console.log('[Strategy] Deep Dive Complete!')
+  return finalStrategy
 }

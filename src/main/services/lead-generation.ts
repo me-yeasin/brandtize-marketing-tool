@@ -112,7 +112,7 @@ export interface LeadGenerationCallbacks {
   onError: (error: string) => void
 }
 
-async function searchWithSerper(query: string, page: number = 1): Promise<SearchResult[]> {
+export async function searchWithSerper(query: string, page: number = 1): Promise<SearchResult[]> {
   const multiKeys = getSerperApiKeys()
   const singleKey = getApiKeys().serperApiKey
 
