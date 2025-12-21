@@ -301,17 +301,38 @@ export async function generateEmailPitch(input: EmailPitchInput): Promise<EmailP
         cleanJson = cleanJson.trim()
 
         try {
-          const parsed = JSON.parse(cleanJson) as EmailPitchResult
+          const parsed = JSON.parse(cleanJson)
 
-          // Ensure all required fields exist
+          // Helper to safely convert any value to string
+          const safeString = (value: unknown, fallback: string): string => {
+            if (typeof value === 'string') return value
+            if (value === null || value === undefined) return fallback
+            if (typeof value === 'object') {
+              try {
+                return JSON.stringify(value)
+              } catch {
+                return fallback
+              }
+            }
+            return String(value)
+          }
+
+          // Ensure all required fields exist and are strings
           return {
-            subject: parsed.subject || 'Quick question',
-            body: parsed.body || 'Unable to generate email body.',
-            strategy_explanation: parsed.strategy_explanation || 'Strategic analysis not provided.',
-            target_audience_analysis:
-              parsed.target_audience_analysis || 'Prospect analysis not provided.',
-            psychological_triggers_used:
-              parsed.psychological_triggers_used || 'Trigger analysis not provided.'
+            subject: safeString(parsed.subject, 'Quick question'),
+            body: safeString(parsed.body, 'Unable to generate email body.'),
+            strategy_explanation: safeString(
+              parsed.strategy_explanation,
+              'Strategic analysis not provided.'
+            ),
+            target_audience_analysis: safeString(
+              parsed.target_audience_analysis,
+              'Prospect analysis not provided.'
+            ),
+            psychological_triggers_used: safeString(
+              parsed.psychological_triggers_used,
+              'Trigger analysis not provided.'
+            )
           }
         } catch (e) {
           console.error('Failed to parse AI response as JSON:', cleanJson, e)
