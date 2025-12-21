@@ -72,6 +72,13 @@ function initializeKeyRotationServices(): void {
   registerService(SERVICE_NAMES.REOON, reoonKeyEntries)
 }
 
+// Auto-initialize services when module loads
+// This ensures key rotation works even if called from strategy-manager or other modules
+initializeKeyRotationServices()
+
+// Export for other modules that need to refresh keys (e.g., after settings change)
+export { initializeKeyRotationServices }
+
 // Legacy helper for backward compatibility - reinitializes services and resets rotation
 function resetKeyRotation(): void {
   initializeKeyRotationServices()
