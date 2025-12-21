@@ -366,7 +366,35 @@ const api = {
   getNicheStrategy: () => ipcRenderer.invoke('strategy:get'),
   saveNicheStrategy: (strategy: unknown) => ipcRenderer.invoke('strategy:save', strategy),
   researchNicheStrategy: (niche: string, targetAudience: string) =>
-    ipcRenderer.invoke('strategy:research', { niche, targetAudience })
+    ipcRenderer.invoke('strategy:research', { niche, targetAudience }),
+  onStrategyProgress: (
+    cb: (data: {
+      pillarId: 'service' | 'persona' | 'offer' | 'tactics'
+      pillarName: string
+      step: 'waiting' | 'searching' | 'scraping' | 'analyzing' | 'complete' | 'error'
+      message: string
+      searchQueries?: number
+      urlsFound?: number
+      urlsScraped?: number
+      error?: string
+    }) => void
+  ) => {
+    const handler = (
+      _e: Electron.IpcRendererEvent,
+      data: {
+        pillarId: 'service' | 'persona' | 'offer' | 'tactics'
+        pillarName: string
+        step: 'waiting' | 'searching' | 'scraping' | 'analyzing' | 'complete' | 'error'
+        message: string
+        searchQueries?: number
+        urlsFound?: number
+        urlsScraped?: number
+        error?: string
+      }
+    ): void => cb(data)
+    ipcRenderer.on('strategy:progress', handler)
+    return () => ipcRenderer.removeListener('strategy:progress', handler)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

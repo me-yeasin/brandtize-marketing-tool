@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { executeWithAiRotation } from './ai-rotation-manager'
@@ -6,6 +6,21 @@ import { scrapeWithJina, searchWithSerper } from './lead-generation'
 import type { NicheResearchResult, NicheStrategy } from './strategy-types'
 
 const STRATEGY_FILE = 'niche-strategy.json'
+
+// Progress types for strategy research
+export type PillarId = 'service' | 'persona' | 'offer' | 'tactics'
+export type PillarStep = 'waiting' | 'searching' | 'scraping' | 'analyzing' | 'complete' | 'error'
+
+export interface PillarProgress {
+  pillarId: PillarId
+  pillarName: string
+  step: PillarStep
+  message: string
+  searchQueries?: number
+  urlsFound?: number
+  urlsScraped?: number
+  error?: string
+}
 
 // Get the path to the strategy file
 function getStrategyPath(): string {
@@ -41,40 +56,75 @@ export function getNicheStrategy(): NicheStrategy | null {
   }
 }
 
+// Emit progress to renderer
+function emitProgress(window: BrowserWindow | null, progress: PillarProgress): void {
+  if (window) {
+    window.webContents.send('strategy:progress', progress)
+  }
+  console.log(`[Strategy Progress] ${progress.pillarName}: ${progress.step} - ${progress.message}`)
+}
+
 /**
- * DEEP DIVE SCOUT
+ * DEEP DIVE SCOUT with Progress Tracking
  * 1. Searches multiple queries in parallel (with Key Rotation)
  * 2. Scrapes top URLs in parallel (with Key Rotation)
  * 3. Uses AI to synthesize a specific JSON fragment for the pillar
  */
 async function scoutPillar<T>(
+  pillarId: PillarId,
   pillarName: string,
   queries: string[],
   aiPromptInstruction: string,
-  jsonStructure: string
+  jsonStructure: string,
+  window: BrowserWindow | null
 ): Promise<T | null> {
-  console.log(`[Deep Dive] Scouting Pillar: ${pillarName}...`)
+  try {
+    // Step 1: Searching
+    emitProgress(window, {
+      pillarId,
+      pillarName,
+      step: 'searching',
+      message: `Searching ${queries.length} queries...`,
+      searchQueries: queries.length
+    })
 
-  // Step 1: Parallel Search
-  const searchPromises = queries.map((q) => searchWithSerper(q).catch(() => []))
-  const searchResults = await Promise.all(searchPromises)
-  const allLinks = searchResults.flat()
+    const searchPromises = queries.map((q) => searchWithSerper(q).catch(() => []))
+    const searchResults = await Promise.all(searchPromises)
+    const allLinks = searchResults.flat()
 
-  // Deduplicate and take Top 5
-  const uniqueLinks = Array.from(new Set(allLinks.map((l) => l.link))).slice(0, 5)
-  console.log(`[Deep Dive] Found ${uniqueLinks.length} unique sources for ${pillarName}`)
+    // Deduplicate and take Top 5
+    const uniqueLinks = Array.from(new Set(allLinks.map((l) => l.link))).slice(0, 5)
 
-  // Step 2: Parallel Scrape
-  const scrapePromises = uniqueLinks.map((url) => scrapeWithJina(url).catch(() => null))
-  const scrapedContents = await Promise.all(scrapePromises)
-  const validContent = scrapedContents
-    .filter((c) => c !== null)
-    .map((c) => `Source: ${c!.title}\n${c!.content}\n---\n`)
-    .join('\n')
-    .slice(0, 25000) // Context limit safety
+    emitProgress(window, {
+      pillarId,
+      pillarName,
+      step: 'scraping',
+      message: `Scraping ${uniqueLinks.length} sources...`,
+      searchQueries: queries.length,
+      urlsFound: uniqueLinks.length
+    })
 
-  // Step 3: AI Synthesis
-  const prompt = `
+    // Step 2: Parallel Scrape
+    const scrapePromises = uniqueLinks.map((url) => scrapeWithJina(url).catch(() => null))
+    const scrapedContents = await Promise.all(scrapePromises)
+    const validContents = scrapedContents.filter((c) => c !== null)
+    const validContent = validContents
+      .map((c) => `Source: ${c!.title}\n${c!.content}\n---\n`)
+      .join('\n')
+      .slice(0, 25000)
+
+    emitProgress(window, {
+      pillarId,
+      pillarName,
+      step: 'analyzing',
+      message: `AI analyzing ${validContents.length} sources...`,
+      searchQueries: queries.length,
+      urlsFound: uniqueLinks.length,
+      urlsScraped: validContents.length
+    })
+
+    // Step 3: AI Synthesis
+    const prompt = `
   You are a World-Class B2B Strategist.
   I have scraped REAL data from the web regarding: "${pillarName}".
 
@@ -90,30 +140,75 @@ async function scoutPillar<T>(
   ${jsonStructure}
   `
 
-  return executeWithAiRotation(
-    prompt,
-    (response) => {
-      let cleanJson = response.trim()
-      if (cleanJson.startsWith('```json')) {
-        cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
-      } else if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson.replace(/```/g, '')
-      }
-      return JSON.parse(cleanJson) as T
-    },
-    null as T // Default to null if fails
-  )
+    const result = await executeWithAiRotation(
+      prompt,
+      (response) => {
+        let cleanJson = response.trim()
+        if (cleanJson.startsWith('```json')) {
+          cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
+        } else if (cleanJson.startsWith('```')) {
+          cleanJson = cleanJson.replace(/```/g, '')
+        }
+        return JSON.parse(cleanJson) as T
+      },
+      null as T
+    )
+
+    emitProgress(window, {
+      pillarId,
+      pillarName,
+      step: 'complete',
+      message: 'Analysis complete!',
+      searchQueries: queries.length,
+      urlsFound: uniqueLinks.length,
+      urlsScraped: validContents.length
+    })
+
+    return result
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+    emitProgress(window, {
+      pillarId,
+      pillarName,
+      step: 'error',
+      message: `Error: ${errorMsg}`,
+      error: errorMsg
+    })
+    return null
+  }
 }
 
-// Main function to perform Deep Dive Research
+// Main function to perform Deep Dive Research with Progress Tracking
 export async function researchNicheStrategy(
   niche: string,
-  targetAudience: string = 'Potential Clients'
+  targetAudience: string = 'Potential Clients',
+  mainWindow: BrowserWindow | null = null
 ): Promise<NicheStrategy> {
   console.log(`[Strategy] Starting Deep Dive for: ${niche} -> ${targetAudience}`)
 
-  // Define Parallel Scouts
+  // Get window for progress updates
+  const window = mainWindow || BrowserWindow.getFocusedWindow()
+
+  // Initialize all pillars as waiting
+  const pillars: { id: PillarId; name: string }[] = [
+    { id: 'service', name: 'Service Analysis' },
+    { id: 'persona', name: 'Persona Psychology' },
+    { id: 'offer', name: 'Grand Slam Offer' },
+    { id: 'tactics', name: 'Outreach Tactics' }
+  ]
+
+  pillars.forEach((p) => {
+    emitProgress(window, {
+      pillarId: p.id,
+      pillarName: p.name,
+      step: 'waiting',
+      message: 'Queued...'
+    })
+  })
+
+  // Define Parallel Scouts with progress tracking
   const servicePromise = scoutPillar<NicheStrategy['serviceAnalysis']>(
+    'service',
     'Service Analysis',
     [
       `"${niche}" technical pain points and challenges`,
@@ -125,11 +220,13 @@ export async function researchNicheStrategy(
       "painPoints": ["5 specific technical pains..."],
       "valuePropositions": ["5 high-value outcomes..."],
       "industryJargon": ["10 insider terms..."]
-    }`
+    }`,
+    window
   )
 
   const personaPromise = scoutPillar<NicheStrategy['personaAnalysis']>(
-    'Persona Analysis',
+    'persona',
+    'Persona Psychology',
     [
       `"${targetAudience}" biggest business fears and nightmares`,
       `"${targetAudience}" deep desires and business goals`,
@@ -140,11 +237,13 @@ export async function researchNicheStrategy(
       "dailyFears": ["5 deep fears..."],
       "secretDesires": ["5 hidden desires..."],
       "commonObjections": ["3 major objections..."]
-    }`
+    }`,
+    window
   )
 
   const offerPromise = scoutPillar<NicheStrategy['offerStrategy']>(
-    'Offer Strategy',
+    'offer',
+    'Grand Slam Offer',
     [
       `best risk reversal guarantee for ${niche} services`,
       `grand slam offer examples for ${niche} agency`,
@@ -155,10 +254,12 @@ export async function researchNicheStrategy(
       "grandSlamHooks": ["3 specific irresistible hooks..."],
       "riskReversals": ["3 confident guarantees..."],
       "bonuses": ["3 high-perceived-value bonuses..."]
-    }`
+    }`,
+    window
   )
 
   const tacticsPromise = scoutPillar<NicheStrategy['outreachTactics']>(
+    'tactics',
     'Outreach Tactics',
     [
       `best cold email subject lines for ${niche} 2024 2025`,
@@ -171,7 +272,8 @@ export async function researchNicheStrategy(
       "bestOpeners": ["3 killer opening lines..."],
       "structureRules": ["3 formatting rules..."],
       "valueDropMethods": ["3 best value-add ideas..."]
-    }`
+    }`,
+    window
   )
 
   // Execute All in Parallel
@@ -207,7 +309,6 @@ export async function researchNicheStrategy(
       structureRules: ['Keep it short'],
       valueDropMethods: ['Loom Video']
     },
-    // We can infer these or run a mini-synthesis if needed, but hardcoding reasonable defaults/simple logic is fine for now
     marketingAngles: ['Direct Offer', 'Free Audit', 'Case Study'],
     winningFrameworks: ['PAS', 'AIDA', 'Spear']
   }

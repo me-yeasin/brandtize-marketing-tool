@@ -367,6 +367,19 @@ interface Api {
     }
     error?: string
   }>
+
+  onStrategyProgress: (
+    cb: (data: {
+      pillarId: 'service' | 'persona' | 'offer' | 'tactics'
+      pillarName: string
+      step: 'waiting' | 'searching' | 'scraping' | 'analyzing' | 'complete' | 'error'
+      message: string
+      searchQueries?: number
+      urlsFound?: number
+      urlsScraped?: number
+      error?: string
+    }) => void
+  ) => () => void
 }
 
 declare global {
