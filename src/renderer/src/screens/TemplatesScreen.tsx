@@ -14,11 +14,13 @@ function TemplatesScreen(): React.JSX.Element {
 
   return (
     <div className="h-full w-full flex flex-col bg-background p-4">
-      <div className="flex-1 bg-white rounded-lg overflow-hidden border border-slate-700">
+      <div className="flex-1 bg-white rounded-lg overflow-hidden border border-slate-700 flex flex-col">
         <EmailEditor
           ref={emailEditorRef}
           onReady={onReady}
           options={{ appearance: { theme: 'dark' } }}
+          style={{ height: '100%', width: '100%' }}
+          minHeight="100%"
         />
       </div>
     </div>
