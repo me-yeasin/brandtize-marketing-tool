@@ -94,6 +94,12 @@ export interface FoundLead {
   location?: string
 }
 
+export interface ScrapedContent {
+  url: string
+  content: string
+  title: string
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string

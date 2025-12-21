@@ -218,6 +218,62 @@ interface Api {
   ) => () => void
   onUpdateDownloaded: (cb: (data: { version: string; releaseNotes?: string }) => void) => () => void
   onUpdateError: (cb: (error: string) => void) => () => void
+
+  // Template Management
+  getTemplates: () => Promise<
+    Array<{ id: string; name: string; lastModified: number; createdAt: number; thumbnail?: string }>
+  >
+  getTemplate: (id: string) => Promise<{
+    id: string
+    name: string
+    thumbnail?: string
+    json: Record<string, unknown>
+    html?: string
+    lastModified: number
+    createdAt: number
+  } | null>
+  saveTemplate: (template: {
+    id?: string
+    name: string
+    thumbnail?: string
+    json: Record<string, unknown>
+    html?: string
+  }) => Promise<{
+    id: string
+    name: string
+    thumbnail?: string
+    json: Record<string, unknown>
+    html?: string
+    lastModified: number
+    createdAt: number
+  }>
+  deleteTemplate: (id: string) => Promise<boolean>
+
+  // Email Pitch Generator
+  generateEmailPitch: (input: {
+    lead: unknown
+    scrapedContent: unknown
+    userInstructions?: string
+  }) => Promise<{
+    success: boolean
+    data?: {
+      subject: string
+      body: string
+      strategy_explanation: string
+      target_audience_analysis: string
+    }
+    error?: string
+  }>
+  generateEmailPitchForLead: (lead: unknown) => Promise<{
+    success: boolean
+    data?: {
+      subject: string
+      body: string
+      strategy_explanation: string
+      target_audience_analysis: string
+    }
+    error?: string
+  }>
 }
 
 declare global {

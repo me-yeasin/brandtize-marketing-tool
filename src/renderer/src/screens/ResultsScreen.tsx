@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  FiTrash2,
-  FiMail,
-  FiGlobe,
-  FiUser,
   FiCalendar,
+  FiCheck,
+  FiCopy,
+  FiCpu,
+  FiGlobe,
+  FiMail,
+  FiRefreshCw,
   FiSearch,
-  FiRefreshCw
+  FiTrash2,
+  FiUser,
+  FiX
 } from 'react-icons/fi'
 
 interface ProcessedDomain {
@@ -35,12 +39,25 @@ interface FoundLead {
   location?: string
 }
 
+interface EmailPitchResult {
+  subject: string
+  body: string
+  strategy_explanation: string
+  target_audience_analysis: string
+}
+
 function ResultsScreen(): React.JSX.Element {
   const [activeView, setActiveView] = useState<'leads' | 'domains'>('leads')
   const [leads, setLeads] = useState<FoundLead[]>([])
   const [domains, setDomains] = useState<ProcessedDomain[]>([])
   const [searchFilter, setSearchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+
+  // Pitch Generation State
+  const [generatingForId, setGeneratingForId] = useState<string | null>(null)
+  const [pitchResult, setPitchResult] = useState<EmailPitchResult | null>(null)
+  const [showPitchModal, setShowPitchModal] = useState(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -109,6 +126,30 @@ function ResultsScreen(): React.JSX.Element {
     }
   }
 
+  const handleGeneratePitch = async (lead: FoundLead): Promise<void> => {
+    setGeneratingForId(lead.id)
+    try {
+      const result = await window.api.generateEmailPitchForLead(lead)
+      if (result.success && result.data) {
+        setPitchResult(result.data)
+        setShowPitchModal(true)
+      } else {
+        alert('Failed to generate pitch: ' + (result.error || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('Error generating pitch:', error)
+      alert('Error generating pitch. Check console for details.')
+    } finally {
+      setGeneratingForId(null)
+    }
+  }
+
+  const copyToClipboard = (text: string, field: string): void => {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
   const formatDate = (timestamp: number): string => {
     return new Date(timestamp).toLocaleDateString('en-US', {
       month: 'short',
@@ -134,7 +175,7 @@ function ResultsScreen(): React.JSX.Element {
   )
 
   return (
-    <div className="h-full w-full flex flex-col bg-background">
+    <div className="h-full w-full flex flex-col bg-background relative">
       {/* Header */}
       <div className="p-6 border-b border-white/10">
         <h1 className="text-2xl font-semibold text-white mb-4">Results</h1>
@@ -251,13 +292,37 @@ function ResultsScreen(): React.JSX.Element {
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleDeleteLead(lead.id)}
-                      className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                      title="Delete lead"
-                    >
-                      <FiTrash2 size={18} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleGeneratePitch(lead)}
+                        disabled={generatingForId === lead.id}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          generatingForId === lead.id
+                            ? 'bg-primary/50 text-white/50 cursor-not-allowed'
+                            : 'bg-primary text-white hover:bg-primary/90'
+                        }`}
+                        title="Generate personalized email pitch using AI"
+                      >
+                        {generatingForId === lead.id ? (
+                          <>
+                            <FiRefreshCw className="animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <FiCpu />
+                            Generate Pitch
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLead(lead.id)}
+                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                        title="Delete lead"
+                      >
+                        <FiTrash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -333,6 +398,107 @@ function ResultsScreen(): React.JSX.Element {
           </p>
         )}
       </div>
+
+      {/* Pitch Result Modal */}
+      {showPitchModal && pitchResult && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-800">
+              <div className="flex items-center gap-2">
+                <FiCpu className="text-primary" size={20} />
+                <h2 className="text-lg font-semibold text-white">AI Generated Pitch</h2>
+              </div>
+              <button
+                onClick={() => setShowPitchModal(false)}
+                className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Analysis Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
+                  <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
+                    Strategy Explanation
+                  </h3>
+                  <p className="text-sm text-white/80">{pitchResult.strategy_explanation}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
+                  <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
+                    Audience Analysis
+                  </h3>
+                  <p className="text-sm text-white/80">{pitchResult.target_audience_analysis}</p>
+                </div>
+              </div>
+
+              {/* Subject Line */}
+              <div>
+                <label className="text-xs font-semibold text-white/40 uppercase block mb-2">
+                  Subject Line
+                </label>
+                <div className="relative">
+                  <div className="bg-slate-950 p-3 rounded-lg border border-white/10 text-white font-medium pr-10">
+                    {pitchResult.subject}
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(pitchResult.subject, 'subject')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-white/40 hover:text-white transition-colors"
+                  >
+                    {copiedField === 'subject' ? (
+                      <FiCheck className="text-green-400" />
+                    ) : (
+                      <FiCopy />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Email Body */}
+              <div className="flex-1 min-h-[200px]">
+                <label className="text-xs font-semibold text-white/40 uppercase block mb-2">
+                  Email Body
+                </label>
+                <div className="relative h-full">
+                  <textarea
+                    readOnly
+                    className="w-full h-full min-h-[300px] bg-slate-950 p-4 rounded-lg border border-white/10 text-white font-mono text-sm resize-none focus:outline-none focus:border-primary/50"
+                    value={pitchResult.body}
+                  />
+                  <button
+                    onClick={() => copyToClipboard(pitchResult.body, 'body')}
+                    className="absolute right-4 top-4 p-2 bg-slate-800/80 rounded-lg text-white/40 hover:text-white transition-colors border border-white/10"
+                  >
+                    {copiedField === 'body' ? <FiCheck className="text-green-400" /> : <FiCopy />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 bg-slate-800 flex justify-end gap-3">
+              <button
+                onClick={() => setShowPitchModal(false)}
+                className="px-4 py-2 rounded-lg text-white/60 hover:bg-white/5 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  copyToClipboard(`Subject: ${pitchResult.subject}\n\n${pitchResult.body}`, 'full')
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+              >
+                {copiedField === 'full' ? <FiCheck /> : <FiCopy />}
+                Copy Full Email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

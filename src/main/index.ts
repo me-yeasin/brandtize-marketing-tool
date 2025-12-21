@@ -1,6 +1,6 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { setupIpcHandlers } from './ipc-handlers'
 import { setupAutoUpdater } from './services/auto-updater'
@@ -26,6 +26,22 @@ function createWindow(): BrowserWindow {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  // Prevent internal navigation to external sites (e.g. clicking a link)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // If it's a dev server URL or local file, allow it.
+    // Otherwise, treat as external link.
+    const isDevUrl =
+      is.dev &&
+      process.env['ELECTRON_RENDERER_URL'] &&
+      url.startsWith(process.env['ELECTRON_RENDERER_URL'])
+    const isFileUrl = url.startsWith('file://')
+
+    if (!isDevUrl && !isFileUrl) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
   })
 
   // HMR for renderer base on electron-vite cli.

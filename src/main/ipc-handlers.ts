@@ -1,65 +1,67 @@
-import { ipcMain, BrowserWindow } from 'electron'
-import {
-  getApiKeys,
-  setGroqApiKey,
-  setMistralApiKey,
-  setGoogleApiKey,
-  setSerperApiKey,
-  setHunterApiKey,
-  setReoonApiKey,
-  setJinaApiKey,
-  setSnovClientId,
-  setSnovClientSecret,
-  hasRequiredApiKeys,
-  getSelectedModel,
-  setSelectedModel,
-  getSelectedAiProvider,
-  setSelectedAiProvider,
-  getSelectedGoogleMode,
-  setSelectedGoogleMode,
-  getGoogleProjectId,
-  setGoogleProjectId,
-  getGoogleLocation,
-  setGoogleLocation,
-  getAgencyProfile,
-  setAgencyProfile,
-  hasAgencyProfile,
-  // Multi-key functions
-  getAllMultiKeys,
-  setSerperApiKeys,
-  setJinaApiKeys,
-  setHunterApiKeys,
-  setReoonApiKeys,
-  setSnovApiKeys,
-  // AI Provider multi-key functions
-  getGroqApiKeys,
-  setGroqApiKeys,
-  getMistralApiKeys,
-  setMistralApiKeys,
-  getGoogleApiKeys,
-  setGoogleApiKeys,
-  // Results storage functions
-  getProcessedDomains,
-  addProcessedDomain,
-  removeProcessedDomain,
-  clearProcessedDomains,
-  getFoundLeads,
-  addFoundLead,
-  removeFoundLead,
-  clearFoundLeads,
-  type AgencyProfile,
-  type AiProvider,
-  type GoogleMode,
-  type ApiKeyEntry,
-  type ProcessedDomain,
-  type FoundLead
-} from './store'
+import { BrowserWindow, ipcMain } from 'electron'
 import { streamAgentResponse, type ChatMessage } from './services'
+import { generateEmailPitch, type EmailPitchInput } from './services/email-pitch-generator'
 import {
   generateLeads,
-  type LeadGenerationInput,
-  type LeadGenerationCallbacks
+  type LeadGenerationCallbacks,
+  type LeadGenerationInput
 } from './services/lead-generation'
+import { templateManager, type EmailTemplate } from './services/template-manager'
+import {
+  addFoundLead,
+  addProcessedDomain,
+  clearFoundLeads,
+  clearProcessedDomains,
+  getAgencyProfile,
+  // Multi-key functions
+  getAllMultiKeys,
+  getApiKeys,
+  getFoundLeads,
+  getGoogleApiKeys,
+  getGoogleLocation,
+  getGoogleProjectId,
+  // AI Provider multi-key functions
+  getGroqApiKeys,
+  getMistralApiKeys,
+  // Results storage functions
+  getProcessedDomains,
+  getSelectedAiProvider,
+  getSelectedGoogleMode,
+  getSelectedModel,
+  hasAgencyProfile,
+  hasRequiredApiKeys,
+  removeFoundLead,
+  removeProcessedDomain,
+  setAgencyProfile,
+  setGoogleApiKey,
+  setGoogleApiKeys,
+  setGoogleLocation,
+  setGoogleProjectId,
+  setGroqApiKey,
+  setGroqApiKeys,
+  setHunterApiKey,
+  setHunterApiKeys,
+  setJinaApiKey,
+  setJinaApiKeys,
+  setMistralApiKey,
+  setMistralApiKeys,
+  setReoonApiKey,
+  setReoonApiKeys,
+  setSelectedAiProvider,
+  setSelectedGoogleMode,
+  setSelectedModel,
+  setSerperApiKey,
+  setSerperApiKeys,
+  setSnovApiKeys,
+  setSnovClientId,
+  setSnovClientSecret,
+  type AgencyProfile,
+  type AiProvider,
+  type ApiKeyEntry,
+  type FoundLead,
+  type GoogleMode,
+  type ProcessedDomain
+} from './store'
 
 export function setupIpcHandlers(): void {
   // Settings handlers
@@ -401,4 +403,54 @@ export function setupIpcHandlers(): void {
       }
     }
   )
+
+  // Template Management Handlers
+  ipcMain.handle('templates:getAll', () => {
+    return templateManager.getAllMetadata()
+  })
+
+  ipcMain.handle('templates:get', (_event, id: string) => {
+    return templateManager.getTemplate(id)
+  })
+
+  ipcMain.handle('templates:save', (_event, template: EmailTemplate) => {
+    return templateManager.saveTemplate(template)
+  })
+
+  ipcMain.handle('templates:delete', (_event, id: string) => {
+    return templateManager.deleteTemplate(id)
+  })
+
+  // Email Pitch Generator Handler
+  ipcMain.handle('email:generate-pitch', async (_event, input: EmailPitchInput) => {
+    try {
+      const result = await generateEmailPitch(input)
+      return { success: true, data: result }
+    } catch (error) {
+      console.error('Email Pitch Handler Error:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  // Auto-scrape and generate Pitch Handler
+  ipcMain.handle('email:generate-pitch-for-lead', async (_event, lead: FoundLead) => {
+    try {
+      // 1. Scrape content
+      const { scrapeWithJina } = await import('./services/lead-generation')
+      console.log(`[Email Pitch] Scraping content for ${lead.url}...`)
+      const scrapedContent = await scrapeWithJina(lead.url)
+
+      // 2. Generate Pitch
+      console.log(`[Email Pitch] Generating pitch for ${lead.email}...`)
+      const result = await generateEmailPitch({
+        lead,
+        scrapedContent
+      })
+
+      return { success: true, data: result }
+    } catch (error) {
+      console.error('Email Pitch For Lead Handler Error:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
 }

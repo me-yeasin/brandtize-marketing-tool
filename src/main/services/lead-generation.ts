@@ -11,7 +11,8 @@ import {
   isDomainProcessed,
   type ApiKeyEntry,
   type FoundLead,
-  type ProcessedDomain
+  type ProcessedDomain,
+  type ScrapedContent
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
 
@@ -79,12 +80,6 @@ export interface SearchResult {
   title: string
   link: string
   snippet: string
-}
-
-export interface ScrapedContent {
-  url: string
-  content: string
-  title: string
 }
 
 export interface LeadResult {
@@ -213,7 +208,7 @@ async function searchWithSerper(query: string, page: number = 1): Promise<Search
 }
 
 // Jina Reader API - Content Scraping with key rotation on rate limit
-async function scrapeWithJina(url: string): Promise<ScrapedContent> {
+export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
   const multiKeys = getJinaApiKeys()
   const singleKey = getApiKeys().jinaApiKey
 

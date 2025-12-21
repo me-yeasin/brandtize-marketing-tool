@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer } from 'electron'
 
 interface ChatMessage {
   id: string
@@ -344,7 +344,23 @@ const api = {
     const handler = (_e: Electron.IpcRendererEvent, e: string): void => cb(e)
     ipcRenderer.on('update:error', handler)
     return () => ipcRenderer.removeListener('update:error', handler)
-  }
+  },
+
+  // Template Management
+  getTemplates: () => ipcRenderer.invoke('templates:getAll'),
+  getTemplate: (id: string) => ipcRenderer.invoke('templates:get', id),
+  saveTemplate: (template: {
+    id?: string
+    name: string
+    json: Record<string, unknown>
+    thumbnail?: string
+  }) => ipcRenderer.invoke('templates:save', template),
+  deleteTemplate: (id: string) => ipcRenderer.invoke('templates:delete', id),
+
+  // Email Pitch Generator
+  generateEmailPitch: (input: unknown) => ipcRenderer.invoke('email:generate-pitch', input),
+  generateEmailPitchForLead: (lead: unknown) =>
+    ipcRenderer.invoke('email:generate-pitch-for-lead', lead)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
