@@ -15,56 +15,85 @@ import {
   type ScrapedContent
 } from '../store'
 import { executeWithAiRotation, resetAiRotationState } from './ai-rotation-manager'
+import {
+  clearExhaustedState,
+  getExhaustedKeyCount,
+  getNextKey,
+  markKeyExhausted,
+  registerService,
+  resetAllKeyRotation,
+  SERVICE_NAMES,
+  type KeyEntry
+} from './key-rotation-manager'
 
-// Key Rotation State Manager
-interface KeyRotationState {
-  currentIndex: number
-  exhaustedKeys: Set<number>
-  lastError: string
+// Initialize key rotation services on module load
+function initializeKeyRotationServices(): void {
+  const serperKeys = getSerperApiKeys()
+  const singleSerperKey = getApiKeys().serperApiKey
+  const serperKeyEntries: KeyEntry[] = serperKeys.map((k) => ({ key: k.key }))
+  if (singleSerperKey && serperKeys.length === 0) {
+    serperKeyEntries.push({ key: singleSerperKey })
+  }
+  registerService(SERVICE_NAMES.SERPER, serperKeyEntries)
+
+  const jinaKeys = getJinaApiKeys()
+  const singleJinaKey = getApiKeys().jinaApiKey
+  const jinaKeyEntries: KeyEntry[] = jinaKeys.map((k) => ({ key: k.key }))
+  if (singleJinaKey && jinaKeys.length === 0) {
+    jinaKeyEntries.push({ key: singleJinaKey })
+  }
+  registerService(SERVICE_NAMES.JINA, jinaKeyEntries)
+
+  const hunterKeys = getHunterApiKeys()
+  const singleHunterKey = getApiKeys().hunterApiKey
+  const hunterKeyEntries: KeyEntry[] = hunterKeys.map((k) => ({ key: k.key }))
+  if (singleHunterKey && hunterKeys.length === 0) {
+    hunterKeyEntries.push({ key: singleHunterKey })
+  }
+  registerService(SERVICE_NAMES.HUNTER, hunterKeyEntries)
+
+  const snovKeys = getSnovApiKeys()
+  const { snovClientId, snovClientSecret } = getApiKeys()
+  const snovKeyEntries: KeyEntry[] = snovKeys.map((k) => ({
+    key: k.key,
+    userId: k.userId || ''
+  }))
+  if (snovClientId && snovClientSecret && snovKeys.length === 0) {
+    snovKeyEntries.push({ key: snovClientId, userId: snovClientSecret })
+  }
+  registerService(SERVICE_NAMES.SNOV, snovKeyEntries)
+
+  const reoonKeys = getReoonApiKeys()
+  const singleReoonKey = getApiKeys().reoonApiKey
+  const reoonKeyEntries: KeyEntry[] = reoonKeys.map((k) => ({ key: k.key }))
+  if (singleReoonKey && reoonKeys.length === 0) {
+    reoonKeyEntries.push({ key: singleReoonKey })
+  }
+  registerService(SERVICE_NAMES.REOON, reoonKeyEntries)
 }
 
-const keyRotationState: Record<string, KeyRotationState> = {
-  serper: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  jina: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  hunter: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  snov: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' },
-  reoon: { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
-}
-
+// Legacy helper for backward compatibility - reinitializes services and resets rotation
 function resetKeyRotation(): void {
-  Object.keys(keyRotationState).forEach((key) => {
-    keyRotationState[key] = { currentIndex: 0, exhaustedKeys: new Set(), lastError: '' }
-  })
+  initializeKeyRotationServices()
+  resetAllKeyRotation()
 }
 
-function getNextKey(
+// Helper to get next key in ApiKeyEntry format
+function getNextKeyForService(
   service: string,
-  keys: ApiKeyEntry[]
+  totalKeys: number
 ): { key: ApiKeyEntry | null; index: number; allExhausted: boolean } {
-  const state = keyRotationState[service]
-  if (!state || keys.length === 0) {
-    return { key: null, index: -1, allExhausted: true }
+  const result = getNextKey(service)
+  if (!result.key) {
+    return { key: null, index: -1, allExhausted: result.allExhausted }
   }
-
-  // Find next available key
-  for (let i = 0; i < keys.length; i++) {
-    const index = (state.currentIndex + i) % keys.length
-    if (!state.exhaustedKeys.has(index)) {
-      return { key: keys[index], index, allExhausted: false }
-    }
-  }
-
-  // All keys exhausted - reset and try first key (maybe it's reset)
-  state.exhaustedKeys.clear()
-  return { key: keys[0], index: 0, allExhausted: true }
-}
-
-function markKeyExhausted(service: string, index: number, error: string): void {
-  const state = keyRotationState[service]
-  if (state) {
-    state.exhaustedKeys.add(index)
-    state.lastError = error
-    state.currentIndex = (index + 1) % 100 // Move to next
+  // Check if all keys are exhausted based on count
+  const allExhausted = result.allExhausted || getExhaustedKeyCount(service) >= totalKeys
+  // Map KeyEntry to ApiKeyEntry format
+  return {
+    key: { key: result.key.key, userId: result.key.userId },
+    index: result.index,
+    allExhausted
   }
 }
 
@@ -141,14 +170,7 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
 
   // Try each key with rotation
   for (let attempt = 0; attempt < allKeys.length; attempt++) {
-    const {
-      key: keyEntry,
-      index,
-      allExhausted
-    } = getNextKey(
-      'serper',
-      allKeys.map((k) => ({ key: k.key }))
-    )
+    const { key: keyEntry, index, allExhausted } = getNextKeyForService('serper', allKeys.length)
 
     if (!keyEntry) break
 
@@ -173,15 +195,14 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
       markKeyExhausted('serper', index, `HTTP ${response.status}`)
 
       // If all keys exhausted, try first key again to check if reset
-      if (allExhausted || keyRotationState.serper.exhaustedKeys.size >= allKeys.length) {
+      if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
         console.log('[Serper] All keys exhausted, checking if first key has reset...')
         const firstKeyResponse = await makeSerperRequest(allKeys[0].key)
 
         if (firstKeyResponse.ok) {
           // First key reset! Clear exhausted state and use it
           console.log('[Serper] First key has reset! Continuing...')
-          keyRotationState.serper.exhaustedKeys.clear()
-          keyRotationState.serper.currentIndex = 0
+          clearExhaustedState('serper')
           const data = await firstKeyResponse.json()
           return (data.organic || []).map(
             (item: { title: string; link: string; snippet: string }) => ({
@@ -246,14 +267,7 @@ export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
 
   // Try each key with rotation
   for (let attempt = 0; attempt < allKeys.length; attempt++) {
-    const {
-      key: keyEntry,
-      index,
-      allExhausted
-    } = getNextKey(
-      'jina',
-      allKeys.map((k) => ({ key: k.key }))
-    )
+    const { key: keyEntry, index, allExhausted } = getNextKeyForService('jina', allKeys.length)
 
     if (!keyEntry) break
 
@@ -270,15 +284,14 @@ export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
       markKeyExhausted('jina', index, 'rate_limit')
 
       // If all keys exhausted, try first key again to check if reset
-      if (allExhausted || keyRotationState.jina.exhaustedKeys.size >= allKeys.length) {
+      if (allExhausted || getExhaustedKeyCount('jina') >= allKeys.length) {
         console.log('[Jina] All keys exhausted, checking if first key has reset...')
         const firstKeyResponse = await makeJinaRequest(allKeys[0].key)
 
         if (firstKeyResponse.ok) {
           // First key reset! Clear exhausted state and use it
           console.log('[Jina] First key has reset! Continuing...')
-          keyRotationState.jina.exhaustedKeys.clear()
-          keyRotationState.jina.currentIndex = 0
+          clearExhaustedState('jina')
           return parseResponse(firstKeyResponse)
         }
 
@@ -339,14 +352,7 @@ async function findEmailByDomainWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const {
-    key: keyEntry,
-    index,
-    allExhausted
-  } = getNextKey(
-    'hunter',
-    allKeys.map((k) => ({ key: k.key }))
-  )
+  const { key: keyEntry, index, allExhausted } = getNextKeyForService('hunter', allKeys.length)
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -395,14 +401,7 @@ async function findEmailByNameWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const {
-    key: keyEntry,
-    index,
-    allExhausted
-  } = getNextKey(
-    'hunter',
-    allKeys.map((k) => ({ key: k.key }))
-  )
+  const { key: keyEntry, index, allExhausted } = getNextKeyForService('hunter', allKeys.length)
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -483,14 +482,7 @@ async function findEmailByDomainSnovWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const {
-    key: keyEntry,
-    index,
-    allExhausted
-  } = getNextKey(
-    'snov',
-    allKeys.map((k) => ({ key: k.clientId }))
-  )
+  const { key: keyEntry, index, allExhausted } = getNextKeyForService('snov', allKeys.length)
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -585,14 +577,7 @@ async function findEmailByNameSnovWithRotation(
     return { email: null, rateLimited: false, keyIndex: -1 }
   }
 
-  const {
-    key: keyEntry,
-    index,
-    allExhausted
-  } = getNextKey(
-    'snov',
-    allKeys.map((k) => ({ key: k.clientId }))
-  )
+  const { key: keyEntry, index, allExhausted } = getNextKeyForService('snov', allKeys.length)
   if (!keyEntry || allExhausted) {
     return { email: null, rateLimited: true, keyIndex: -1 }
   }
@@ -758,8 +743,7 @@ async function findEmailWithFallback(
     isReset: boolean
   }> => {
     // Clear Hunter exhausted state to test first key
-    keyRotationState.hunter.exhaustedKeys.clear()
-    keyRotationState.hunter.currentIndex = 0
+    clearExhaustedState('hunter')
 
     if (firstName && lastName) {
       const result = await findEmailByNameWithRotation(firstName, lastName, domain)
@@ -808,8 +792,7 @@ async function findEmailWithFallback(
       if (!hunterResult.allExhausted) return { email: null, source: 'none' }
 
       // Then try Snov again
-      keyRotationState.snov.exhaustedKeys.clear()
-      keyRotationState.snov.currentIndex = 0
+      clearExhaustedState('snov')
       const snovResult = await trySnovWithAllKeys()
       if (snovResult.email) return { email: snovResult.email, source: snovResult.source }
     }
@@ -878,8 +861,7 @@ async function verifyEmailWithReoon(
 
   if (!firstKeyResult.rateLimited && !firstKeyResult.error) {
     // First key works! Clear exhausted state and return result
-    keyRotationState.reoon.exhaustedKeys.clear()
-    keyRotationState.reoon.currentIndex = 0
+    clearExhaustedState('reoon')
     return { verified: firstKeyResult.verified, rateLimited: false, allKeysExhausted: false }
   }
 
