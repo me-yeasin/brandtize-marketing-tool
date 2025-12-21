@@ -8,133 +8,260 @@ export interface EmailPitchResult {
   body: string
   strategy_explanation: string
   target_audience_analysis: string
+  psychological_triggers_used: string
 }
 
 export interface EmailPitchInput {
   lead: FoundLead
   scrapedContent: ScrapedContent
-  userInstructions?: string // Optional specific instructions from user
+  userInstructions?: string
 }
 
-// System prompt for the persona
-// We upgrade the persona to be a "Data-Driven Strategist"
-const SYSTEM_PROMPT = `You are a World-Class Direct Response Copywriter and B2B Sales Strategist.
-You do NOT write generic emails. You write "sniper-like" pitches that are impossible to ignore.
+/**
+ * STRATEGIC 4-PILLAR EMAIL PITCH GENERATOR
+ *
+ * This system uses each pillar for a SPECIFIC STRATEGIC PURPOSE:
+ *
+ * PILLAR 4 - OUTREACH TACTICS (Training Manual)
+ * → Teaches the AI HOW to write: structure, format, subject lines, CTAs
+ *
+ * PILLAR 2 - PERSONA PSYCHOLOGY (Most Important!)
+ * → The psychological triggers: fears to relieve, desires to promise, objections to kill
+ *
+ * PILLAR 1 - SERVICE EXPERTISE (Credibility)
+ * → Positions you as the expert: pain points, value props, industry jargon
+ *
+ * PILLAR 3 - GRAND SLAM OFFER (Conversion Trigger)
+ * → Makes them reply: irresistible hooks, risk reversals, bonuses
+ */
 
-Your secret weapon is your "Strategy Playbook" which gives you deep insider knowledge about the industry.
-You combine this insider knowledge with psychological frameworks (PAS, AIDA, BAB) to write high-converting emails.
-
-Your Tone:
-- Professional but conversational.
-- Confident, not arrogant.
-- Concise. You respect the reader's time.
-- No fluff. No "I hope this finds you well".
-`
-
-// Helper to construct the advanced prompt
-function createSmartPrompt(
+// Build the strategic prompt using all 4 pillars in their specific roles
+function createStrategicPrompt(
   input: EmailPitchInput,
   agencyProfile: AgencyProfile,
   strategy: NicheStrategy | null
 ): string {
   const { lead, scrapedContent, userInstructions } = input
-  const websiteContext = scrapedContent.content.slice(0, 8000)
+  const websiteContext = scrapedContent.content.slice(0, 10000)
 
-  // Inject Strategy Context if available
-  let strategyContext = ''
-  if (strategy) {
-    // Handle potential legacy data structure gracefully by casting to any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const legacy = strategy as any
-    const service = strategy.serviceAnalysis || {
-      painPoints: legacy.painPoints || [],
-      valuePropositions: legacy.valuePropositions || [],
-      industryJargon: legacy.industryJargon || []
-    }
-    const persona = strategy.personaAnalysis || {
-      dailyFears: [],
-      secretDesires: [],
-      commonObjections: []
-    }
-    const offer = strategy.offerStrategy || {
-      grandSlamHooks: strategy.marketingAngles || [],
-      riskReversals: [],
-      bonuses: []
-    }
-
-    strategyContext = `
-### 🧠 STRATEGY PLAYBOOK ACTIVATED
-**Target Audience**: ${strategy.targetAudience || 'General'}
-**Service Niche**: ${strategy.niche}
-
-#### 1. SERVICE INTEL (The "Expertise")
-- **Technical Pain Points**: ${service.painPoints.join(', ')}
-- **Value Propositions**: ${service.valuePropositions.join(', ')}
-- **Insider Jargon**: ${service.industryJargon.join(', ')}
-
-#### 2. PERSONA PSYCHOLOGY (The "Emotion")
-- **Deepest Fears**: ${persona.dailyFears.join(', ')}
-- **Secret Desires**: ${persona.secretDesires.join(', ')}
-- **Likely Objections**: ${persona.commonObjections.join(', ')}
-
-#### 3. GRAND SLAM OFFER (The "Irresistible Deal")
-- **Hooks**: ${offer.grandSlamHooks.join(', ')}
-- **Risk Reversals**: ${offer.riskReversals.join(', ')}
-- **Bonuses**: ${offer.bonuses.join(', ')}
-`
-  } else {
-    strategyContext = `
-### STRATEGY:
-(No specific niche strategy found. Rely on general B2B best practices and analysis of the website content.)
-`
+  // Extract pillar data with fallbacks
+  const outreachTactics = strategy?.outreachTactics || {
+    winningSubjectLines: ['Quick question', 'Saw your website...'],
+    bestOpeners: ['I noticed something on your site...'],
+    structureRules: ['Keep it under 100 words', 'Use short paragraphs'],
+    valueDropMethods: ['Free audit', 'Loom video walkthrough']
   }
 
-  return `${SYSTEM_PROMPT}
+  const personaPsychology = strategy?.personaAnalysis || {
+    dailyFears: ['Losing customers to competitors', 'Wasting money on bad marketing'],
+    secretDesires: ['More leads', 'Predictable revenue'],
+    commonObjections: ['Too expensive', 'Already have a provider', 'Not the right time']
+  }
 
-### STEP 1: ANALYZE THE PROSPECT
+  const serviceExpertise = strategy?.serviceAnalysis || {
+    painPoints: ['Poor online presence', 'Low conversion rates'],
+    valuePropositions: ['Increase leads by 30%', 'Save 10+ hours per week'],
+    industryJargon: ['ROI', 'conversion rate', 'lead gen']
+  }
+
+  const grandSlamOffer = strategy?.offerStrategy || {
+    grandSlamHooks: ['Double your leads in 30 days or it is free'],
+    riskReversals: ['100% money-back guarantee'],
+    bonuses: ['Free website audit', 'Free strategy call']
+  }
+
+  const niche = strategy?.niche || agencyProfile.services[0] || 'Digital Services'
+  const targetAudience = strategy?.targetAudience || 'Business Owners'
+
+  return `
+═══════════════════════════════════════════════════════════════════════════════
+                    STRATEGIC COLD EMAIL COPYWRITING SYSTEM
+                         "The 4-Pillar Conversion Machine"
+═══════════════════════════════════════════════════════════════════════════════
+
+You are an ELITE B2B Cold Email Copywriter. You don't write generic emails.
+You write psychologically-targeted, conversion-optimized pitches that get replies.
+
+Your secret weapon: The 4-Pillar Strategy Playbook trained specifically for this niche.
+
+═══════════════════════════════════════════════════════════════════════════════
+                    📘 PILLAR 4: YOUR TRAINING MANUAL
+                       (Outreach Tactics - HOW to Write)
+═══════════════════════════════════════════════════════════════════════════════
+
+Before you write, STUDY these proven tactics for ${niche}:
+
+### SUBJECT LINE TRAINING (Use these as inspiration):
+${outreachTactics.winningSubjectLines.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Rules: Max 4 words. Create curiosity. No spam words. Lowercase often works.
+
+### FIRST LINE/OPENER TRAINING (Use these as inspiration):
+${outreachTactics.bestOpeners.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Rules: Reference something SPECIFIC from their website. Make it personal.
+
+### EMAIL STRUCTURE RULES (Follow these strictly):
+${outreachTactics.structureRules.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+### VALUE DROP / CTA OPTIONS (Use one of these):
+${outreachTactics.valueDropMethods.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+→ Rules: Always offer something valuable for FREE. Low friction CTA.
+
+═══════════════════════════════════════════════════════════════════════════════
+                ⭐ PILLAR 2: PSYCHOLOGICAL TARGETING (MOST IMPORTANT)
+                      (Persona Psychology - The Trigger Points)
+═══════════════════════════════════════════════════════════════════════════════
+
+This is YOUR SECRET WEAPON. The ${targetAudience} you're targeting have these:
+
+### 😨 DAILY FEARS (Write sentences that RELIEVE these):
+${personaPsychology.dailyFears.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Your Mission: Address ONE of these fears in your email. Show you understand it.
+  Make them feel: "Finally, someone who gets what I'm dealing with!"
+
+### ✨ SECRET DESIRES (Write sentences that PROMISE these):
+${personaPsychology.secretDesires.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Your Mission: Connect your solution to ONE of their deep desires.
+  Make them think: "This could actually give me what I've been wanting!"
+
+### 🛡️ COMMON OBJECTIONS (Write sentences that KILL these):
+${personaPsychology.commonObjections.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Your Mission: Pre-emptively address the objection they're MOST likely to have.
+  Make them think: "Hmm, they've already thought about my concern..."
+
+**PSYCHOLOGY STRATEGY:**
+- Subject Line → Trigger CURIOSITY using a fear or desire
+- First Line → Create RELEVANCE by referencing their specific situation
+- Body → Build TRUST by showing you understand their psychology
+- CTA → Reduce FRICTION by making the next step risk-free
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🎯 PILLAR 1: YOUR CREDIBILITY TOOLKIT
+                      (Service Expertise - Position Yourself)
+═══════════════════════════════════════════════════════════════════════════════
+
+Use these to position yourself as THE expert in ${niche}:
+
+### PAIN POINTS (Connect their problem to your solution):
+${serviceExpertise.painPoints.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+→ Your Mission: Identify which pain point matches their website situation.
+
+### VALUE PROPOSITIONS (What outcomes you deliver):
+${serviceExpertise.valuePropositions.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+→ Your Mission: Mention ONE specific result you can deliver for them.
+
+### INDUSTRY JARGON (Speak their insider language):
+${serviceExpertise.industryJargon.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+→ Your Mission: Use 1-2 insider terms to show you know their world.
+
+═══════════════════════════════════════════════════════════════════════════════
+                    🏆 PILLAR 3: THE CONVERSION TRIGGER
+                   (Grand Slam Offer - Make Them Reply)
+═══════════════════════════════════════════════════════════════════════════════
+
+This is how you get the reply. Use these elements strategically:
+
+### GRAND SLAM HOOKS (Headlines that make "NO" feel stupid):
+${grandSlamOffer.grandSlamHooks.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Your Mission: Use one of these concepts in your value proposition.
+
+### RISK REVERSALS (Eliminate their fear of saying yes):
+${grandSlamOffer.riskReversals.map((s, i) => `${i + 1}. "${s}"`).join('\n')}
+
+→ Your Mission: Include a subtle guarantee or risk-free element.
+
+### IRRESISTIBLE BONUSES (Sweeten the deal):
+${grandSlamOffer.bonuses.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+→ Your Mission: Offer one of these as your CTA (the "value drop").
+
+═══════════════════════════════════════════════════════════════════════════════
+                         📊 THE PROSPECT TO ANALYZE
+═══════════════════════════════════════════════════════════════════════════════
+
 **Prospect URL**: ${lead.url}
-**Prospect Email Source**: ${lead.source}
+**Email Source**: ${lead.source}
 **Decision Maker**: ${lead.decisionMaker || 'Unknown'}
-**Website Content Snippet**:
+
+### THEIR WEBSITE CONTENT (Analyze this carefully):
 """
 ${websiteContext}
 """
 
-### STEP 2: ANALYZE THE SENDER (ME)
+→ Find 1-2 SPECIFIC things to reference (shows you did research)
+→ Identify which FEAR/DESIRE from Pillar 2 applies to their situation
+→ Connect their current state to the SOLUTION from Pillar 1
+
+═══════════════════════════════════════════════════════════════════════════════
+                              👤 ABOUT ME (The Sender)
+═══════════════════════════════════════════════════════════════════════════════
+
 **My Agency**: ${agencyProfile.name}
-**My Offer**: ${agencyProfile.services.join(', ')}
-**Portfolio**: ${agencyProfile.portfolio.map((p) => p.title).join(', ')}
-**Key Skills**: ${agencyProfile.skills.join(', ')}
-**Bio**: ${agencyProfile.bio}
+**My Tagline**: ${agencyProfile.tagline}
+**My Services**: ${agencyProfile.services.join(', ')}
+**My Key Skills**: ${agencyProfile.skills.slice(0, 5).join(', ')}
+**Portfolio Highlights**: ${agencyProfile.portfolio
+    .slice(0, 3)
+    .map((p) => p.title)
+    .join(', ')}
 
-${strategyContext}
+═══════════════════════════════════════════════════════════════════════════════
+                           🎯 YOUR MISSION: WRITE THE EMAIL
+═══════════════════════════════════════════════════════════════════════════════
 
-### STEP 3: THE STRATEGIC SELECTION (Internal Thought Process)
-Before writing, think:
-1. **Analyze the Persona**: Based on the website, which "Deep Fear" or "Secret Desire" from the Playbook applies here?
-2. **Select the Grand Slam Offer**: Which "Hook" + "Risk Reversal" makes saying 'No' feel stupid?
-3. **Bridge the Gap**: Use "Insider Jargon" to connect their problem to your solution.
+${userInstructions ? `**SPECIAL INSTRUCTIONS FROM USER**: ${userInstructions}\n` : ''}
 
-### STEP 4: THE TASK
-Write a "Grand Slam" Cold Email.
+### THE EMAIL FORMULA (Follow this structure):
 
-${userInstructions ? `**USER SPECIAL INSTRUCTIONS**: ${userInstructions}` : ''}
+**SUBJECT LINE** (Max 4 words)
+- Use curiosity gap from Pillar 2 (fear or desire)
+- Style from Pillar 4 training
 
-### GUIDELINES:
-- **Subject**: Use a "Grand Slam Hook" or a "Deep Fear" (curiosity gap). Max 4 words.
-- **Opening**: Acknowledge a specific observation from their site (The Icebreaker) OR hit a "Daily Fear".
-- **The "Meat"**: Present the **Grand Slam Offer** (Hook + Risk Reversal). Do NOT just list services.
-- **The "Bone"**: Offer a specific high-value "Bonus" (e.g. "Free Audit") as the CTA.
-- **CTA**: Soft ask ("Worth a generic 'no'?", "Open to seeing how?").
-- **Tone**: Peer-to-peer. High status.
+**FIRST LINE** (The Hook)
+- Personal observation from their website
+- Style from Pillar 4 best openers
 
-### STEP 5: OUTPUT FORMAT
-Return valid JSON only.
+**LINE 2-3** (The Psychology Trigger)
+- Address their FEAR or DESIRE from Pillar 2
+- Make them feel understood
+
+**LINE 4-5** (The Bridge)
+- Connect their situation to your expertise from Pillar 1
+- Use industry jargon subtly
+
+**FINAL LINES** (The Conversion)
+- Present the Grand Slam Offer from Pillar 3
+- Include a Risk Reversal
+- End with a Value Drop (free bonus) as CTA
+
+### RULES:
+1. NEVER start with "I" or "Hi [Name]"
+2. MAX 75 words total (excluding subject)
+3. Sound like a helpful peer, not a salesperson
+4. Use short paragraphs (2-3 sentences max)
+5. End with a soft CTA (e.g., "Worth a look?" or "Open to it?")
+
+═══════════════════════════════════════════════════════════════════════════════
+                              📤 OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════════════════════
+
+Return ONLY valid JSON (no markdown, no code blocks):
+
 {
-  "subject": "The subject line",
-  "body": "The full email body (use \\n for line breaks)",
-  "strategy_explanation": "Explain: 'I targeted the [Fear] of [Audience]. I used the [Offer Hook] to eliminate risk.'",
-  "target_audience_analysis": "Profile of this specific lead based on their site."
+  "subject": "Your subject line here",
+  "body": "The full email body with \\n for line breaks",
+  "strategy_explanation": "Explain which psychological trigger you used and why",
+  "target_audience_analysis": "Brief analysis of this specific prospect",
+  "psychological_triggers_used": "Which fear/desire/objection you targeted and how"
 }
 `
 }
@@ -146,26 +273,46 @@ export async function generateEmailPitch(input: EmailPitchInput): Promise<EmailP
     throw new Error('Agency services not defined. Please complete your profile in Settings.')
   }
 
-  // 1. Try to load the niche strategy
-  // In the future, we could pass the 'niche' from the UI.
-  // For now, we load the global strategy if it exists.
+  // Load the niche strategy (contains all 4 pillars)
   const strategy = getNicheStrategy()
 
-  const prompt = createSmartPrompt(input, agencyProfile, strategy)
+  if (!strategy) {
+    console.log(
+      '[Email Pitch] Warning: No Strategy Playbook found. Using default values. Generate a Strategy Playbook in Settings for better results.'
+    )
+  }
+
+  const prompt = createStrategicPrompt(input, agencyProfile, strategy)
 
   try {
     const result = await executeWithAiRotation(
       prompt,
       (response) => {
         let cleanJson = response.trim()
+
+        // Remove markdown code blocks if present
         if (cleanJson.startsWith('```json')) {
           cleanJson = cleanJson.replace(/```json/g, '').replace(/```/g, '')
         } else if (cleanJson.startsWith('```')) {
           cleanJson = cleanJson.replace(/```/g, '')
         }
 
+        // Trim again after removing code blocks
+        cleanJson = cleanJson.trim()
+
         try {
-          return JSON.parse(cleanJson) as EmailPitchResult
+          const parsed = JSON.parse(cleanJson) as EmailPitchResult
+
+          // Ensure all required fields exist
+          return {
+            subject: parsed.subject || 'Quick question',
+            body: parsed.body || 'Unable to generate email body.',
+            strategy_explanation: parsed.strategy_explanation || 'Strategic analysis not provided.',
+            target_audience_analysis:
+              parsed.target_audience_analysis || 'Prospect analysis not provided.',
+            psychological_triggers_used:
+              parsed.psychological_triggers_used || 'Trigger analysis not provided.'
+          }
         } catch (e) {
           console.error('Failed to parse AI response as JSON:', cleanJson, e)
           throw new Error('AI response was not in the expected JSON format.')
@@ -174,10 +321,14 @@ export async function generateEmailPitch(input: EmailPitchInput): Promise<EmailP
       {
         subject: 'Quick question',
         body: "Hi,\n\nI saw your website and thought we could help. Let's chat.\n\nThanks.",
-        strategy_explanation: 'Fallback due to error.',
-        target_audience_analysis: 'Unknown'
+        strategy_explanation: 'Fallback due to parsing error.',
+        target_audience_analysis: 'Unknown',
+        psychological_triggers_used: 'None - fallback response.'
       }
     )
+
+    console.log('[Email Pitch] Successfully generated strategic pitch')
+    console.log(`[Email Pitch] Triggers used: ${result.psychological_triggers_used}`)
 
     return result
   } catch (error) {

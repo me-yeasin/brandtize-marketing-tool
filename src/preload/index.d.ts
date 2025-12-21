@@ -261,6 +261,7 @@ interface Api {
       body: string
       strategy_explanation: string
       target_audience_analysis: string
+      psychological_triggers_used: string
     }
     error?: string
   }>
@@ -271,6 +272,7 @@ interface Api {
       body: string
       strategy_explanation: string
       target_audience_analysis: string
+      psychological_triggers_used: string
     }
     error?: string
   }>

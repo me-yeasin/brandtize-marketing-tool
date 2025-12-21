@@ -44,6 +44,7 @@ interface EmailPitchResult {
   body: string
   strategy_explanation: string
   target_audience_analysis: string
+  psychological_triggers_used: string
 }
 
 function ResultsScreen(): React.JSX.Element {
@@ -420,18 +421,28 @@ function ResultsScreen(): React.JSX.Element {
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-6">
               {/* Analysis Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
-                  <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
-                    Strategy Explanation
+              <div className="space-y-4">
+                {/* Psychological Triggers - NEW */}
+                <div className="bg-linear-to-r from-purple-500/10 to-pink-500/10 p-4 rounded-lg border border-purple-500/20">
+                  <h3 className="text-xs font-semibold text-purple-400 uppercase mb-2 flex items-center gap-2">
+                    ⭐ Psychological Triggers Used
                   </h3>
-                  <p className="text-sm text-white/80">{pitchResult.strategy_explanation}</p>
+                  <p className="text-sm text-white/90">{pitchResult.psychological_triggers_used}</p>
                 </div>
-                <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
-                  <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
-                    Audience Analysis
-                  </h3>
-                  <p className="text-sm text-white/80">{pitchResult.target_audience_analysis}</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
+                    <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
+                      Strategy Explanation
+                    </h3>
+                    <p className="text-sm text-white/80">{pitchResult.strategy_explanation}</p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-lg border border-white/5">
+                    <h3 className="text-xs font-semibold text-white/40 uppercase mb-2">
+                      Audience Analysis
+                    </h3>
+                    <p className="text-sm text-white/80">{pitchResult.target_audience_analysis}</p>
+                  </div>
                 </div>
               </div>
 
