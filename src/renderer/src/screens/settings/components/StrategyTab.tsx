@@ -6,6 +6,7 @@ import {
   FiEdit2,
   FiSave,
   FiSearch,
+  FiSend,
   FiTarget,
   FiUser
 } from 'react-icons/fi'
@@ -14,7 +15,6 @@ import { Button } from '../../../components/ui/Button'
 import { Card } from '../../../components/ui/Card'
 import { Input } from '../../../components/ui/Input'
 import { ThinkingBlock } from '../../../components/ui/ThinkingBlock'
-
 interface NicheStrategy {
   niche: string
   targetAudience: string
@@ -33,11 +33,17 @@ interface NicheStrategy {
     riskReversals: string[]
     bonuses: string[]
   }
+  outreachTactics: {
+    winningSubjectLines: string[]
+    bestOpeners: string[]
+    valueDropMethods: string[]
+    structureRules: string[]
+  }
   marketingAngles: string[]
   winningFrameworks: string[]
 }
 
-type StrategySection = 'service' | 'persona' | 'offer'
+type StrategySection = 'service' | 'persona' | 'offer' | 'tactics'
 
 export function StrategyTab(): React.JSX.Element {
   const [loading, setLoading] = useState(false)
@@ -106,7 +112,7 @@ export function StrategyTab(): React.JSX.Element {
   }
 
   const updateNestedField = (
-    section: 'serviceAnalysis' | 'personaAnalysis' | 'offerStrategy' | 'root',
+    section: 'serviceAnalysis' | 'personaAnalysis' | 'offerStrategy' | 'outreachTactics' | 'root',
     field: string,
     value: string | string[],
     index?: number
@@ -120,7 +126,7 @@ export function StrategyTab(): React.JSX.Element {
       return setStrategy(newStrategy)
     }
 
-    // @ts-ignore - dynamic key access
+    // @ts-ignore - dynamic access
     const sectionData = { ...newStrategy[section] }
 
     if (index !== undefined && Array.isArray(sectionData[field])) {
@@ -131,7 +137,7 @@ export function StrategyTab(): React.JSX.Element {
       sectionData[field] = value
     }
 
-    // @ts-ignore - dynamic key assignment
+    // @ts-ignore - dynamic assignment
     newStrategy[section] = sectionData
     setStrategy(newStrategy)
   }
@@ -162,8 +168,8 @@ export function StrategyTab(): React.JSX.Element {
           <p className="text-white/60">
             Tell us WHAT you sell and WHO you sell to.
             <br />
-            Our AI will build a 3-Pillar Strategy: Service Expertise, Persona Psychology, and an
-            Irresistible Offer.
+            Our AI will build a 4-Pillar Strategy: Service Expertise, Persona Psychology, Grand Slam
+            Offer, and Outreach Tactics.
           </p>
 
           <div className="space-y-4 max-w-md mx-auto text-left">
@@ -201,8 +207,12 @@ export function StrategyTab(): React.JSX.Element {
     )
   }
 
+  // ... render loading and input card ...
+
   const renderList = (
-    section: 'serviceAnalysis' | 'personaAnalysis' | 'offerStrategy' | 'root',
+    section: 'serviceAnalysis' | 'personaAnalysis' | 'offerStrategy' | 'outreachTactics' | 'root',
+    // ... rest of args
+
     field: string,
     items: string[],
     icon: React.ReactNode,
@@ -262,16 +272,17 @@ export function StrategyTab(): React.JSX.Element {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-4 border-b border-white/10">
+      <div className="flex gap-4 border-b border-white/10 overflow-x-auto pb-1">
         {[
           { id: 'service', label: '1. Service Expertise', icon: <FiBriefcase /> },
           { id: 'persona', label: '2. Persona Psychology', icon: <FiUser /> },
-          { id: 'offer', label: '3. Grand Slam Offer', icon: <FiAward /> }
+          { id: 'offer', label: '3. Grand Slam Offer', icon: <FiAward /> },
+          { id: 'tactics', label: '4. Outreach Tactics', icon: <FiSend /> }
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveSection(tab.id as StrategySection)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
               activeSection === tab.id
                 ? 'border-primary text-primary'
                 : 'border-transparent text-text-muted hover:text-white'
@@ -364,6 +375,16 @@ export function StrategyTab(): React.JSX.Element {
               'Risk Reversal / Guarantees',
               'text-cyan-400'
             )}
+            {/* <div className="md:col-span-2">
+              {renderList(
+                'offerStrategy',
+                'bonuses',
+                strategy.offerStrategy.bonuses,
+                '🎁',
+                'High-Value Bonuses',
+                'text-emerald-400'
+              )}
+            </div> */}
             <div className="md:col-span-2">
               {renderList(
                 'offerStrategy',
@@ -376,6 +397,43 @@ export function StrategyTab(): React.JSX.Element {
             </div>
           </div>
         )}
+
+        {activeSection === 'tactics' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+            {renderList(
+              'outreachTactics',
+              'winningSubjectLines',
+              strategy.outreachTactics.winningSubjectLines,
+              '📧',
+              'Winning Subject Lines',
+              'text-indigo-400'
+            )}
+            {renderList(
+              'outreachTactics',
+              'bestOpeners',
+              strategy.outreachTactics.bestOpeners,
+              '🎣',
+              'Killer Openers',
+              'text-teal-400'
+            )}
+            {renderList(
+              'outreachTactics',
+              'structureRules',
+              strategy.outreachTactics.structureRules,
+              '📏',
+              'Structure & Formatting Rules',
+              'text-gray-400'
+            )}
+            {renderList(
+              'outreachTactics',
+              'valueDropMethods',
+              strategy.outreachTactics.valueDropMethods,
+              '🎁',
+              'Best Value Drops (Freebies)',
+              'text-amber-400'
+            )}
+          </div>
+        )}
       </div>
 
       <Card className="p-6 border-primary/20 bg-primary/5 mt-8">
@@ -386,8 +444,9 @@ export function StrategyTab(): React.JSX.Element {
           <div>
             <h4 className="font-bold text-white">Full Strategy Active</h4>
             <p className="text-white/60 text-sm">
-              The AI will now combine your <b>Service Expertise</b>, <b>Persona Psychology</b>, and{' '}
-              <b>Grand Slam Offer</b> to generate hyper-personalized pitches.
+              The AI will now combine your <b>Service Expertise</b>, <b>Persona Psychology</b>,{' '}
+              <b>Grand Slam Offer</b>, and <b>Outreach Tactics</b> to generate hyper-personalized
+              pitches.
             </p>
           </div>
         </div>

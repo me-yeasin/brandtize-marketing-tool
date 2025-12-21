@@ -295,6 +295,12 @@ interface Api {
       riskReversals: string[]
       bonuses: string[]
     }
+    outreachTactics: {
+      winningSubjectLines: string[]
+      bestOpeners: string[]
+      valueDropMethods: string[]
+      structureRules: string[]
+    }
     marketingAngles: string[]
     winningFrameworks: string[]
   } | null>
@@ -316,6 +322,12 @@ interface Api {
       grandSlamHooks: string[]
       riskReversals: string[]
       bonuses: string[]
+    }
+    outreachTactics: {
+      winningSubjectLines: string[]
+      bestOpeners: string[]
+      valueDropMethods: string[]
+      structureRules: string[]
     }
     marketingAngles: string[]
     winningFrameworks: string[]
@@ -343,6 +355,12 @@ interface Api {
         grandSlamHooks: string[]
         riskReversals: string[]
         bonuses: string[]
+      }
+      outreachTactics: {
+        winningSubjectLines: string[]
+        bestOpeners: string[]
+        valueDropMethods: string[]
+        structureRules: string[]
       }
       marketingAngles: string[]
       winningFrameworks: string[]

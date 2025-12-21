@@ -23,6 +23,14 @@ export interface NicheStrategy {
     bonuses: string[]
   }
 
+  // 4. Outreach Tactics (The "delivery")
+  outreachTactics: {
+    winningSubjectLines: string[]
+    bestOpeners: string[]
+    valueDropMethods: string[] /* e.g. "Send a loom video", "Send a PDF case study" */
+    structureRules: string[] /* e.g. "Max 50 words", "Use bullet points" */
+  }
+
   // Legacy/General
   marketingAngles: string[]
   winningFrameworks: string[]

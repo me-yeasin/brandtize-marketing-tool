@@ -46,7 +46,7 @@ function createStrategyResearchPrompt(niche: string, targetAudience: string): st
 You are a World-Class B2B Marketing Strategist and Sales Psychologist (Alex Hormozi style).
 Your task is to build a "Grand Slam" Cold Email Strategy by analyzing the Service "${niche}" and the Target Audience "${targetAudience}".
 
-We need 3 Pillars of Deep Analysis to ensure 100% response potential.
+We need 4 Pillars of Deep Analysis to ensure 100% response potential.
 
 ### 1. SERVICE ANALYSIS (The "Expertise")
 Analyze "${niche}" to identify:
@@ -65,6 +65,13 @@ Construct an irresistible offer structure:
 - **Grand Slam Hook**: A one-liner that solves a big pain with low effort/risk (e.g., "I'll double your leads or pay you $1k").
 - **Risk Reversal**: A guarantee that removes fear.
 - **Bonuses**: High-value, low-cost add-ons (e.g., "Free Audit").
+
+### 4. OUTREACH TACTICS (The "Delivery")
+Research the highest converting *style* for selling "${niche}" in 2025:
+- **Subject Lines**: 5 specific subject lines that work for this niche (mix of direct, curiosity, and value).
+- **Openers**: 3 strong first sentences that hook this specific audience.
+- **Structure**: Formatting rules (e.g., "Use 3 bullets", "Keep under 75 words").
+- **Value Drops**: What "free sample" works best? (e.g. "Loom video review", "Speed test result", "Mockup").
 
 ### OUTPUT FORMAT:
 Return ONLY valid JSON with this exact structure:
@@ -85,6 +92,12 @@ Return ONLY valid JSON with this exact structure:
     "grandSlamHooks": ["3 specific irresistible hooks..."],
     "riskReversals": ["3 confident guarantees..."],
     "bonuses": ["3 high-perceived-value bonuses..."]
+  },
+  "outreachTactics": {
+    "winningSubjectLines": ["5 high-converting subject lines..."],
+    "bestOpeners": ["3 killer opening lines..."],
+    "structureRules": ["3 formatting rules..."],
+    "valueDropMethods": ["3 best value-add ideas..."]
   },
   "marketingAngles": ["3 creative angles..."],
   "winningFrameworks": ["PAS", "AIDA"]
@@ -132,6 +145,12 @@ export async function researchNicheStrategy(
           grandSlamHooks: ['I will double your ROI in 30 days'],
           riskReversals: ['Money-back guarantee'],
           bonuses: ['Free Audit']
+        },
+        outreachTactics: {
+          winningSubjectLines: [`Quick question about ${niche}`, 'Your website'],
+          bestOpeners: ['I was researching your site and...'],
+          structureRules: ['Keep it under 100 words'],
+          valueDropMethods: ['Free Audit PDF']
         },
         marketingAngles: ['Direct Offer', 'Free Audit'],
         winningFrameworks: ['PAS', 'AIDA']
