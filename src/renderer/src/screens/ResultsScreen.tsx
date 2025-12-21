@@ -72,13 +72,29 @@ function ResultsScreen(): React.JSX.Element {
     let isMounted = true
     const fetchData = async (): Promise<void> => {
       try {
-        const [leadsData, domainsData] = await Promise.all([
+        const [leadsData, domainsData, storedPitches] = await Promise.all([
           window.electron.ipcRenderer.invoke('results:getFoundLeads'),
-          window.electron.ipcRenderer.invoke('results:getProcessedDomains')
+          window.electron.ipcRenderer.invoke('results:getProcessedDomains'),
+          window.electron.ipcRenderer.invoke('pitch:getAll')
         ])
         if (isMounted) {
           setLeads(leadsData || [])
           setDomains(domainsData || [])
+          // Convert stored pitches to LeadPitches format
+          if (storedPitches) {
+            const pitchesMap: LeadPitches = {}
+            for (const leadId in storedPitches) {
+              const stored = storedPitches[leadId]
+              pitchesMap[leadId] = {
+                subject: stored.subject,
+                body: stored.body,
+                strategy_explanation: stored.strategy_explanation,
+                target_audience_analysis: stored.target_audience_analysis,
+                psychological_triggers_used: stored.psychological_triggers_used
+              }
+            }
+            setLeadPitches(pitchesMap)
+          }
           setIsLoading(false)
         }
       } catch (error) {
@@ -109,8 +125,10 @@ function ResultsScreen(): React.JSX.Element {
 
   const handleDeleteLead = async (id: string): Promise<void> => {
     await window.electron.ipcRenderer.invoke('results:removeFoundLead', id)
+    // Also remove stored pitch from disk
+    await window.electron.ipcRenderer.invoke('pitch:remove', id)
     setLeads((prev) => prev.filter((l) => l.id !== id))
-    // Also remove pitch if exists
+    // Also remove pitch from local state
     setLeadPitches((prev) => {
       const newPitches = { ...prev }
       delete newPitches[id]
@@ -126,6 +144,8 @@ function ResultsScreen(): React.JSX.Element {
   const handleClearAllLeads = async (): Promise<void> => {
     if (confirm('Are you sure you want to clear all leads? This cannot be undone.')) {
       await window.electron.ipcRenderer.invoke('results:clearFoundLeads')
+      // Also clear all stored pitches
+      await window.electron.ipcRenderer.invoke('pitch:clearAll')
       setLeads([])
       setLeadPitches({})
     }
@@ -154,6 +174,17 @@ function ResultsScreen(): React.JSX.Element {
         }))
         // Auto-expand to show the result
         setExpandedLeadId(lead.id)
+
+        // Save to disk for persistence
+        await window.electron.ipcRenderer.invoke('pitch:save', {
+          leadId: lead.id,
+          subject: result.data.subject,
+          body: result.data.body,
+          strategy_explanation: result.data.strategy_explanation,
+          target_audience_analysis: result.data.target_audience_analysis,
+          psychological_triggers_used: result.data.psychological_triggers_used,
+          generatedAt: Date.now()
+        })
       } else {
         alert('Failed to generate pitch: ' + (result.error || 'Unknown error'))
       }

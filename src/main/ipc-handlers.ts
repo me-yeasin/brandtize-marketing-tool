@@ -15,12 +15,16 @@ import { templateManager, type EmailTemplate } from './services/template-manager
 import {
   addFoundLead,
   addProcessedDomain,
+  clearEmailPitches,
   clearFoundLeads,
   clearProcessedDomains,
   getAgencyProfile,
   // Multi-key functions
   getAllMultiKeys,
   getApiKeys,
+  // Email pitch functions
+  getEmailPitch,
+  getEmailPitches,
   getFoundLeads,
   getGoogleApiKeys,
   getGoogleLocation,
@@ -38,8 +42,10 @@ import {
   hasAgencyProfile,
   hasRequiredApiKeys,
   hasVoiceProfile,
+  removeEmailPitch,
   removeFoundLead,
   removeProcessedDomain,
+  saveEmailPitch,
   setAgencyProfile,
   setGoogleApiKey,
   setGoogleApiKeys,
@@ -70,6 +76,7 @@ import {
   type FoundLead,
   type GoogleMode,
   type ProcessedDomain,
+  type StoredEmailPitch,
   type VoiceProfile
 } from './store'
 
@@ -366,6 +373,30 @@ export async function setupIpcHandlers(): Promise<void> {
 
   ipcMain.handle('results:clearFoundLeads', () => {
     clearFoundLeads()
+    return { success: true }
+  })
+
+  // Email Pitch storage handlers
+  ipcMain.handle('pitch:getAll', () => {
+    return getEmailPitches()
+  })
+
+  ipcMain.handle('pitch:get', (_event, leadId: string) => {
+    return getEmailPitch(leadId)
+  })
+
+  ipcMain.handle('pitch:save', (_event, pitch: StoredEmailPitch) => {
+    saveEmailPitch(pitch)
+    return { success: true }
+  })
+
+  ipcMain.handle('pitch:remove', (_event, leadId: string) => {
+    removeEmailPitch(leadId)
+    return { success: true }
+  })
+
+  ipcMain.handle('pitch:clearAll', () => {
+    clearEmailPitches()
     return { success: true }
   })
 

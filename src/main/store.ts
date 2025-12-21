@@ -123,6 +123,17 @@ const DEFAULT_VOICE_PROFILE: VoiceProfile = {
   ctaStyle: 'soft'
 }
 
+// Stored email pitch (persisted to disk)
+export interface StoredEmailPitch {
+  leadId: string
+  subject: string
+  body: string
+  strategy_explanation: string
+  target_audience_analysis: string
+  psychological_triggers_used: string
+  generatedAt: number // timestamp
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -155,6 +166,8 @@ interface StoreSchema {
   // Results storage for deduplication
   processedDomains: ProcessedDomain[]
   foundLeads: FoundLead[]
+  // Email pitches storage (keyed by lead ID)
+  emailPitches: Record<string, StoredEmailPitch>
 }
 
 const store = new Store<StoreSchema>({
@@ -189,7 +202,9 @@ const store = new Store<StoreSchema>({
     voiceProfile: DEFAULT_VOICE_PROFILE,
     // Results storage (empty by default)
     processedDomains: [],
-    foundLeads: []
+    foundLeads: [],
+    // Email pitches storage (empty by default)
+    emailPitches: {}
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -503,6 +518,32 @@ export function hasVoiceProfile(): boolean {
   const profile = getVoiceProfile()
   // Consider voice profile "set" if at least tone description or sample emails are provided
   return profile.toneDescription.trim().length > 0 || profile.sampleEmails.length > 0
+}
+
+// Email Pitches functions
+export function getEmailPitches(): Record<string, StoredEmailPitch> {
+  return store.get('emailPitches', {})
+}
+
+export function getEmailPitch(leadId: string): StoredEmailPitch | null {
+  const pitches = getEmailPitches()
+  return pitches[leadId] || null
+}
+
+export function saveEmailPitch(pitch: StoredEmailPitch): void {
+  const pitches = getEmailPitches()
+  pitches[pitch.leadId] = pitch
+  store.set('emailPitches', pitches)
+}
+
+export function removeEmailPitch(leadId: string): void {
+  const pitches = getEmailPitches()
+  delete pitches[leadId]
+  store.set('emailPitches', pitches)
+}
+
+export function clearEmailPitches(): void {
+  store.set('emailPitches', {})
 }
 
 export { store }
