@@ -80,7 +80,7 @@ initializeKeyRotationServices()
 export { initializeKeyRotationServices }
 
 // Legacy helper for backward compatibility - reinitializes services and resets rotation
-function resetKeyRotation(): void {
+export function resetKeyRotation(): void {
   initializeKeyRotationServices()
   resetAllKeyRotation()
 }
@@ -342,7 +342,7 @@ function isRateLimitError(response: Response, data?: unknown): boolean {
 }
 
 // Hunter.io API with multi-key rotation
-async function findEmailByDomainWithRotation(
+export async function findEmailByDomainWithRotation(
   domain: string
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const hunterKeys = getHunterApiKeys()
@@ -390,7 +390,7 @@ async function findEmailByDomainWithRotation(
   }
 }
 
-async function findEmailByNameWithRotation(
+export async function findEmailByNameWithRotation(
   firstName: string,
   lastName: string,
   domain: string
@@ -440,7 +440,7 @@ async function findEmailByNameWithRotation(
 }
 
 // Snov.io with multi-key rotation
-async function getSnovAccessTokenWithKey(
+export async function getSnovAccessTokenWithKey(
   clientId: string,
   clientSecret: string
 ): Promise<{ token: string | null; rateLimited: boolean }> {
@@ -470,7 +470,7 @@ async function getSnovAccessTokenWithKey(
   }
 }
 
-async function findEmailByDomainSnovWithRotation(
+export async function findEmailByDomainSnovWithRotation(
   domain: string
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const snovKeys = getSnovApiKeys()
@@ -563,7 +563,7 @@ async function findEmailByDomainSnovWithRotation(
 }
 
 // Snov.io API - Find email by name and domain (exactly like Hunter.io Email Finder)
-async function findEmailByNameSnovWithRotation(
+export async function findEmailByNameSnovWithRotation(
   firstName: string,
   lastName: string,
   domain: string
@@ -673,7 +673,7 @@ async function findEmailByNameSnovWithRotation(
 
 // Combined email finder with multi-key rotation and service fallback
 // Flow: Hunter.io (all keys) → Snov.io (all keys) → Check Hunter first key reset → STOP if not reset
-async function findEmailWithFallback(
+export async function findEmailWithFallback(
   domain: string,
   firstName?: string,
   lastName?: string
@@ -819,7 +819,7 @@ async function findEmailWithFallback(
 
 // Reoon API - Email Verification with multi-key rotation
 // Flow: Always try first key first → rotate through keys → fallback to Rapid → check first key reset
-async function verifyEmailWithReoon(
+export async function verifyEmailWithReoon(
   email: string
 ): Promise<{ verified: boolean; rateLimited: boolean; allKeysExhausted: boolean }> {
   const reoonKeys = getReoonApiKeys()
@@ -898,7 +898,7 @@ async function verifyEmailWithReoon(
 
 // Rapid Email Verifier - Free Open Source fallback (no API key needed)
 // https://rapid-email-verifier.fly.dev/ - unlimited, no auth required
-async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
+export async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
   try {
     console.log(`[Rapid Verifier] Verifying email (free fallback): ${email}`)
     const response = await fetch(
@@ -924,7 +924,7 @@ async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
 }
 
 // AI-powered combined analysis: URL qualification + Service matching + Data extraction
-interface CombinedAiAnalysisResult {
+export interface CombinedAiAnalysisResult {
   isValidLead: boolean
   qualificationReason: string
   needsServices: boolean
@@ -933,7 +933,10 @@ interface CombinedAiAnalysisResult {
   decisionMaker: string | null
 }
 
-async function combinedAiAnalysis(content: string, url: string): Promise<CombinedAiAnalysisResult> {
+export async function combinedAiAnalysis(
+  content: string,
+  url: string
+): Promise<CombinedAiAnalysisResult> {
   const profile = getAgencyProfile()
   const services = profile.services.filter((s) => s.trim().length > 0)
 
@@ -1008,8 +1011,7 @@ Respond ONLY in this exact JSON format:
 // NEW STREAMING FLOW: Search → Save ALL URLs → For each URL: Scrape → AI Analysis → Email Finding → Verification
 export async function generateLeads(
   input: LeadGenerationInput,
-  callbacks: LeadGenerationCallbacks,
-  mainWindow: Electron.BrowserWindow | null = null
+  callbacks: LeadGenerationCallbacks
 ): Promise<void> {
   const leads: LeadResult[] = []
 
@@ -1050,12 +1052,7 @@ export async function generateLeads(
         const existingDomain = isDomainProcessed(domain)
         if (existingDomain) {
           console.log(`[Lead Gen] Skipping already processed domain: ${domain}`)
-          mainWindow?.webContents.send('leads:domainSkipped', {
-            url,
-            domain,
-            reason: 'Already processed',
-            previousEmail: existingDomain.email
-          })
+          // Domain already processed - skip to save credits
           continue
         }
 
