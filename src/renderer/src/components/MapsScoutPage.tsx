@@ -1,5 +1,5 @@
 import { JSX, useState } from 'react'
-import type { MapsPlace } from '../../../preload/index.d'
+import type { MapsPlace, ReviewsResult } from '../../../preload/index.d'
 
 // Extended Lead type with email search capability
 interface Lead {
@@ -104,6 +104,13 @@ function MapsScoutPage(): JSX.Element {
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Reviews panel state
+  const [reviewsPanelOpen, setReviewsPanelOpen] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [reviewsData, setReviewsData] = useState<ReviewsResult | null>(null)
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+  const [reviewsError, setReviewsError] = useState<string | null>(null)
 
   // Count leads by score
   const goldCount = leads.filter((l) => l.score === 'gold').length
@@ -226,6 +233,85 @@ function MapsScoutPage(): JSX.Element {
     a.download = `leads-${location.replace(/\s+/g, '-')}-${Date.now()}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Fetch reviews for a lead
+  const handleFetchReviews = async (lead: Lead): Promise<void> => {
+    setSelectedLead(lead)
+    setReviewsPanelOpen(true)
+    setReviewsData(null)
+    setReviewsError(null)
+    setIsLoadingReviews(true)
+
+    try {
+      console.log('[MapsScout] Fetching reviews for:', lead.id, lead.name)
+      const result = await window.api.fetchReviews(lead.id, lead.name, 15)
+      console.log('[MapsScout] Raw reviews result:', result)
+
+      // Validate and sanitize the result to prevent render crashes
+      const sanitizedResult = {
+        businessName: result?.businessName || lead.name || 'Unknown Business',
+        totalReviews: typeof result?.totalReviews === 'number' ? result.totalReviews : 0,
+        averageRating: typeof result?.averageRating === 'number' ? result.averageRating : 0,
+        reviews: Array.isArray(result?.reviews)
+          ? result.reviews.map((r) => ({
+              author: r?.author || 'Anonymous',
+              rating: typeof r?.rating === 'number' ? r.rating : 0,
+              date: r?.date || '',
+              text: r?.text || '',
+              source: r?.source || undefined
+            }))
+          : []
+      }
+
+      console.log('[MapsScout] Sanitized reviews result:', sanitizedResult)
+      setReviewsData(sanitizedResult)
+    } catch (err) {
+      console.error('[MapsScout] Reviews fetch error:', err)
+      setReviewsError(err instanceof Error ? err.message : 'Failed to fetch reviews')
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }
+
+  // Close reviews panel
+  const closeReviewsPanel = (): void => {
+    setReviewsPanelOpen(false)
+    setSelectedLead(null)
+    setReviewsData(null)
+    setReviewsError(null)
+  }
+
+  // Render star rating
+  const renderStars = (rating: number | null | undefined): JSX.Element => {
+    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 0
+    const fullStars = Math.floor(safeRating)
+    const hasHalf = safeRating % 1 >= 0.5
+    const stars: JSX.Element[] = []
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <span key={`full-${i}`} className="star full">
+          ★
+        </span>
+      )
+    }
+    if (hasHalf) {
+      stars.push(
+        <span key="half" className="star half">
+          ★
+        </span>
+      )
+    }
+    for (let i = stars.length; i < 5; i++) {
+      stars.push(
+        <span key={`empty-${i}`} className="star empty">
+          ☆
+        </span>
+      )
+    }
+
+    return <div className="stars-display">{stars}</div>
   }
 
   return (
@@ -377,6 +463,24 @@ function MapsScoutPage(): JSX.Element {
                     </svg>
                   </button>
 
+                  {/* Reviews button */}
+                  <button
+                    className="lead-action"
+                    title="View Reviews"
+                    onClick={() => handleFetchReviews(lead)}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </button>
+
                   {/* Only show Find Email button if business has website AND toggle is OFF */}
                   {lead.website && !noWebsiteOnly && !lead.email && (
                     <button
@@ -435,6 +539,88 @@ function MapsScoutPage(): JSX.Element {
           <p>Finding businesses in {location}</p>
         </div>
       )}
+
+      {/* Reviews Panel - Slide-in from right */}
+      <div className={`reviews-panel ${reviewsPanelOpen ? 'open' : ''}`}>
+        <div className="reviews-panel-header">
+          <div className="reviews-panel-title">
+            <h2>{selectedLead?.name || 'Reviews'}</h2>
+            {selectedLead && (
+              <span className="reviews-panel-subtitle">{selectedLead.category}</span>
+            )}
+          </div>
+          <button className="reviews-panel-close" onClick={closeReviewsPanel}>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div className="reviews-panel-content">
+          {isLoadingReviews && (
+            <div className="reviews-loading">
+              <div className="scout-loading-spinner"></div>
+              <p>Loading reviews...</p>
+            </div>
+          )}
+
+          {reviewsError && (
+            <div className="reviews-error">
+              <p>{reviewsError}</p>
+            </div>
+          )}
+
+          {reviewsData && !isLoadingReviews && (
+            <>
+              {/* Reviews Summary */}
+              <div className="reviews-summary">
+                <div className="reviews-rating-big">
+                  <span className="rating-number">
+                    {typeof reviewsData.averageRating === 'number'
+                      ? reviewsData.averageRating.toFixed(1)
+                      : '0.0'}
+                  </span>
+                  {renderStars(reviewsData.averageRating)}
+                </div>
+                <span className="reviews-total">{reviewsData.totalReviews ?? 0} reviews</span>
+              </div>
+
+              {/* Reviews List */}
+              <div className="reviews-list">
+                {reviewsData.reviews && reviewsData.reviews.length > 0 ? (
+                  reviewsData.reviews.map((review, index) => (
+                    <div key={index} className="review-card">
+                      <div className="review-header">
+                        <span className="review-author">{review.author || 'Anonymous'}</span>
+                        <div className="review-meta">
+                          {renderStars(review.rating)}
+                          {review.date && <span className="review-date">{review.date}</span>}
+                        </div>
+                      </div>
+                      {review.text && <p className="review-text">{review.text}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="reviews-empty">
+                    <p>No reviews available</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Overlay when panel is open */}
+      {reviewsPanelOpen && <div className="reviews-overlay" onClick={closeReviewsPanel}></div>}
     </div>
   )
 }

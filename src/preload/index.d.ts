@@ -89,6 +89,8 @@ export interface BrandtizeAPI {
   ) => Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }>
 
   verifyEmail: (email: string) => Promise<{ verified: boolean; status?: string; error?: string }>
+
+  fetchReviews: (placeId: string, businessName: string, num?: number) => Promise<ReviewsResult>
 }
 
 // Maps Place type (from Serper Maps API)
@@ -103,6 +105,22 @@ export interface MapsPlace {
   cid: string
   latitude: number
   longitude: number
+}
+
+// Review types
+export interface Review {
+  author: string
+  rating: number
+  date: string
+  text: string
+  source?: string
+}
+
+export interface ReviewsResult {
+  businessName: string
+  totalReviews: number
+  averageRating: number
+  reviews: Review[]
 }
 
 declare global {

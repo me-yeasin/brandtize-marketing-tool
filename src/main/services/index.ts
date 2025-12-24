@@ -25,6 +25,8 @@ export {
 } from './key-rotation-manager'
 export {
   combinedAiAnalysis,
+  // SerperAPI - Reviews
+  fetchReviewsWithSerper,
   // Snov.io API
   findEmailByDomainSnovWithRotation,
   // Hunter.io API
@@ -55,6 +57,8 @@ export {
   type LeadResult,
   type MapsPlace,
   type MapsSearchParams,
+  type Review,
+  type ReviewsResult,
   type SearchResult
 } from './lead-generation'
 export {

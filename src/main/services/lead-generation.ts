@@ -372,6 +372,177 @@ export async function searchMapsWithSerper(params: MapsSearchParams): Promise<Ma
   throw new Error('All Serper API keys exhausted')
 }
 
+// Serper Reviews API - Fetch Google Maps reviews with key rotation
+export interface Review {
+  author: string
+  rating: number
+  date: string
+  text: string
+  source?: string
+}
+
+export interface ReviewsResult {
+  businessName: string
+  totalReviews: number
+  averageRating: number
+  reviews: Review[]
+}
+
+export async function fetchReviewsWithSerper(
+  placeId: string,
+  businessName: string,
+  num: number = 10
+): Promise<ReviewsResult> {
+  const multiKeys = getSerperApiKeys()
+  const singleKey = getApiKeys().serperApiKey
+
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  multiKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && multiKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    throw new Error('Serper API key not configured. Please add your API key in Settings.')
+  }
+
+  // Helper to make Serper Reviews request
+  const makeSerperReviewsRequest = async (apiKey: string): Promise<Response> => {
+    // Serper uses /reviews endpoint with place data_id
+    return fetch('https://google.serper.dev/reviews', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        cid: placeId,
+        num: num
+      })
+    })
+  }
+
+  // Helper to parse Reviews response
+  const parseReviewsResponse = (data: unknown): ReviewsResult => {
+    // Log the raw response to debug
+    console.log('[SerperReviews] Raw API Response:', JSON.stringify(data, null, 2))
+
+    const response = data as {
+      reviews?: unknown[]
+      rating?: number
+      reviewsCount?: number
+      title?: string
+      place_info?: { rating?: number; reviews?: number; title?: string }
+    }
+
+    // Get rating from place_info if available (Serper structure)
+    const placeInfo = response.place_info
+    const avgRating = placeInfo?.rating ?? response.rating ?? 0
+    const totalReviews = placeInfo?.reviews ?? response.reviewsCount ?? 0
+    const businessTitle = placeInfo?.title ?? response.title ?? businessName
+
+    const reviews: Review[] = []
+    if (response.reviews && Array.isArray(response.reviews)) {
+      for (const r of response.reviews) {
+        const review = r as Record<string, unknown>
+
+        // user is an object with name property
+        let authorName = 'Anonymous'
+        if (review.user && typeof review.user === 'object') {
+          const user = review.user as Record<string, unknown>
+          authorName = (user.name as string) || 'Anonymous'
+        } else if (typeof review.author === 'string') {
+          authorName = review.author
+        }
+
+        // Get review text from snippet or extracted_snippet
+        let reviewText = ''
+        if (typeof review.snippet === 'string') {
+          reviewText = review.snippet
+        } else if (review.extracted_snippet && typeof review.extracted_snippet === 'object') {
+          const extracted = review.extracted_snippet as Record<string, unknown>
+          reviewText = (extracted.original as string) || (extracted.translated as string) || ''
+        } else if (typeof review.text === 'string') {
+          reviewText = review.text
+        }
+
+        reviews.push({
+          author: authorName,
+          rating: (review.rating as number) ?? 0,
+          date: (review.date as string) || (review.iso_date as string) || '',
+          text: reviewText,
+          source: (review.source as string) || undefined
+        })
+      }
+    }
+
+    console.log(
+      `[SerperReviews] Parsed: avgRating=${avgRating}, totalReviews=${totalReviews}, reviewsCount=${reviews.length}`
+    )
+
+    return {
+      businessName: businessTitle,
+      totalReviews: totalReviews || reviews.length,
+      averageRating: avgRating,
+      reviews
+    }
+  }
+
+  // Try each key with rotation
+  for (let attempt = 0; attempt < allKeys.length; attempt++) {
+    const { key: keyEntry, index, allExhausted } = getNextKeyForService('serper', allKeys.length)
+
+    if (!keyEntry) break
+
+    console.log(
+      `SerperReviews[${index + 1}/${allKeys.length}] fetching reviews for: ${businessName}`
+    )
+    const response = await makeSerperReviewsRequest(keyEntry.key)
+
+    if (response.ok) {
+      const data = await response.json()
+      const result = parseReviewsResponse(data)
+      console.log(
+        `SerperReviews[${index + 1}/${allKeys.length}] found ${result.reviews.length} reviews`
+      )
+      return result
+    }
+
+    // Rate limit (429) or unauthorized - mark exhausted and try next
+    if (response.status === 429 || response.status === 401) {
+      console.log(
+        `SerperReviews[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
+      )
+      markKeyExhausted('serper', index, `HTTP ${response.status}`)
+
+      // If all keys exhausted, try first key again to check if reset
+      if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
+        console.log('[SerperReviews] All keys exhausted, checking if first key has reset...')
+        const firstKeyResponse = await makeSerperReviewsRequest(allKeys[0].key)
+
+        if (firstKeyResponse.ok) {
+          console.log('[SerperReviews] First key has reset! Continuing...')
+          clearExhaustedState('serper')
+          const data = await firstKeyResponse.json()
+          return parseReviewsResponse(data)
+        }
+
+        throw new Error(
+          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
+        )
+      }
+      continue
+    }
+
+    // Other error - throw immediately
+    const errorText = await response.text().catch(() => 'Unknown error')
+    throw new Error(`Serper Reviews API error (${response.status}): ${errorText}`)
+  }
+
+  throw new Error('All Serper API keys exhausted')
+}
+
 // Jina Reader API - Content Scraping with key rotation on rate limit
 export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
   const multiKeys = getJinaApiKeys()

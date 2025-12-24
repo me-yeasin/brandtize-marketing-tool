@@ -138,5 +138,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('find-email-for-domain', domain, firstName, lastName),
 
   verifyEmail: (email: string): Promise<{ verified: boolean; status?: string; error?: string }> =>
-    ipcRenderer.invoke('verify-email', email)
+    ipcRenderer.invoke('verify-email', email),
+
+  fetchReviews: (
+    placeId: string,
+    businessName: string,
+    num?: number
+  ): Promise<{
+    businessName: string
+    totalReviews: number
+    averageRating: number
+    reviews: { author: string; rating: number; date: string; text: string; source?: string }[]
+  }> => ipcRenderer.invoke('fetch-reviews', placeId, businessName, num)
 })

@@ -255,4 +255,13 @@ export function registerIpcHandlers(): void {
     const { verifyEmailWithReoon } = await import('./services/lead-generation')
     return verifyEmailWithReoon(email)
   })
+
+  // Fetch reviews for a business
+  ipcMain.handle(
+    'fetch-reviews',
+    async (_event, placeId: string, businessName: string, num?: number) => {
+      const { fetchReviewsWithSerper } = await import('./services/lead-generation')
+      return fetchReviewsWithSerper(placeId, businessName, num || 10)
+    }
+  )
 }
