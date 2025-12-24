@@ -1,6 +1,7 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
+import { registerIpcHandlers } from './ipc-handlers'
 
 function createWindow(): void {
   // Create the browser window.
@@ -32,6 +33,9 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
+
+  // Register IPC handlers for API key management
+  registerIpcHandlers()
 
   // Default open or close DevTools by F12 in development
   app.on('browser-window-created', (_, window) => {

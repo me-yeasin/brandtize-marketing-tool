@@ -1,4 +1,14 @@
 import { JSX, useState } from 'react'
+import {
+  GeminiSettings,
+  GroqSettings,
+  HunterSettings,
+  JinaSettings,
+  MistralSettings,
+  ReoonSettings,
+  SerperSettings,
+  SnovSettings
+} from './settings'
 
 // Settings navigation structure with parent-child relationships
 interface SettingsNavChild {
@@ -384,13 +394,20 @@ function SettingsPage({ onBack }: SettingsPageProps): JSX.Element {
 
       {/* Settings Content Area */}
       <main className="settings-content">
-        <div className="settings-content-inner">
-          <h1>Settings</h1>
-          <p>Configure your Brandtize Marketing Tool</p>
-          <p className="active-route">
-            Active Settings: <code>{activeSettingsRoute}</code>
-          </p>
-        </div>
+        {activeSettingsRoute === 'groq' && <GroqSettings />}
+        {activeSettingsRoute === 'gemini' && <GeminiSettings />}
+        {activeSettingsRoute === 'mistral' && <MistralSettings />}
+        {activeSettingsRoute === 'serper' && <SerperSettings />}
+        {activeSettingsRoute === 'jina' && <JinaSettings />}
+        {activeSettingsRoute === 'hunter' && <HunterSettings />}
+        {activeSettingsRoute === 'reoon' && <ReoonSettings />}
+        {activeSettingsRoute === 'snov' && <SnovSettings />}
+        {(activeSettingsRoute === 'agency-profile' || activeSettingsRoute === 'voice-profile') && (
+          <div className="settings-content-inner">
+            <h1>Coming Soon</h1>
+            <p>This settings section is under development</p>
+          </div>
+        )}
       </main>
     </div>
   )
