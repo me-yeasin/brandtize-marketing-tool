@@ -268,23 +268,29 @@ export function registerIpcHandlers(): void {
     const { verifyEmailWithReoon, verifyEmailWithRapidVerifier } =
       await import('./services/lead-generation')
 
+    console.log(`[Verify] Starting verification for: ${email}`)
+
     // Try Reoon first
     const reoonResult = await verifyEmailWithReoon(email)
 
-    // If Reoon worked, return its result
+    // If Reoon worked (not all keys exhausted), return its result
     if (!reoonResult.allKeysExhausted) {
+      console.log(`[Verify] Reoon verified ${email}: ${reoonResult.verified}`)
       return {
         verified: reoonResult.verified,
-        source: 'reoon'
+        source: 'reoon',
+        switched: false
       }
     }
 
     // Fallback to Rapid Verifier if Reoon keys exhausted
-    console.log('[Verify] Reoon exhausted, falling back to Rapid Verifier...')
+    console.log('[Verify] Reoon exhausted, switching to Rapid Verifier...')
     const rapidResult = await verifyEmailWithRapidVerifier(email)
+    console.log(`[Verify] Rapid verified ${email}: ${rapidResult}`)
     return {
       verified: rapidResult,
-      source: 'rapid'
+      source: 'rapid',
+      switched: true
     }
   })
 

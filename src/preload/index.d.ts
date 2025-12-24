@@ -97,7 +97,7 @@ export interface BrandtizeAPI {
     lastName?: string
   ) => Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }>
 
-  verifyEmail: (email: string) => Promise<{ verified: boolean; source: string }>
+  verifyEmail: (email: string) => Promise<{ verified: boolean; source: string; switched: boolean }>
 
   fetchReviews: (placeId: string, businessName: string, num?: number) => Promise<ReviewsResult>
 }

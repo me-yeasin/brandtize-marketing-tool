@@ -122,6 +122,15 @@ function MapsScoutPage(): JSX.Element {
   const [isLoadingReviews, setIsLoadingReviews] = useState(false)
   const [reviewsError, setReviewsError] = useState<string | null>(null)
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null)
+
+  // Show toast helper
+  const showToast = (message: string, type: 'info' | 'error' = 'info'): void => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
   // Count leads by score
   const goldCount = leads.filter((l) => l.score === 'gold').length
   const silverCount = leads.filter((l) => l.score === 'silver').length
@@ -229,6 +238,11 @@ function MapsScoutPage(): JSX.Element {
             `[MapsScout] Verification result: ${verifyResult.verified} (source: ${verifyResult.source})`
           )
 
+          // Show toast if service switched
+          if (verifyResult.switched) {
+            showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+          }
+
           // Update lead with email and verification status
           setLeads((prev) =>
             prev.map((l) =>
@@ -261,7 +275,8 @@ function MapsScoutPage(): JSX.Element {
           )
         }
       } else {
-        // No email found
+        // No email found - show toast
+        showToast(`No email found for "${lead.name}"`, 'info')
         setLeads((prev) =>
           prev.map((l) =>
             l.id === leadId
@@ -898,6 +913,13 @@ function MapsScoutPage(): JSX.Element {
 
       {/* Overlay when panel is open */}
       {reviewsPanelOpen && <div className="reviews-overlay" onClick={closeReviewsPanel}></div>}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`toast-notification ${toast.type}`}>
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   )
 }

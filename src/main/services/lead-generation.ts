@@ -1242,18 +1242,36 @@ export async function verifyEmailWithReoon(
       )
 
       const data = await response.json()
+      console.log(`[Reoon] Raw response for ${email}:`, JSON.stringify(data))
 
       if (isRateLimitError(response, data)) {
+        console.log(`[Reoon] Rate limited for ${email}`)
         return { verified: false, rateLimited: true, error: false }
       }
 
       if (!response.ok) {
+        console.log(`[Reoon] HTTP error ${response.status} for ${email}`)
         return { verified: false, rateLimited: false, error: true }
       }
 
-      const verified = data.status === 'valid' || data.status === 'safe'
+      // Reoon status values:
+      // - 'valid': Definitely valid, email exists
+      // - 'safe': Personal email, deliverable
+      // - 'catch_all': Domain accepts all emails (closer to valid per Reoon docs)
+      // - 'unknown': Couldn't determine
+      // - 'invalid': Email doesn't exist
+      // - 'disposable': Temporary email
+      // - 'spamtrap': Spam trap
+      //
+      // Consider valid: 'valid', 'safe', or 'catch_all' (per Reoon documentation)
+      const validStatuses = ['valid', 'safe', 'catch_all']
+      const verified = validStatuses.includes(data.status?.toLowerCase())
+      console.log(
+        `[Reoon] Result for ${email}: ${verified ? 'VALID' : 'INVALID'} (status: ${data.status})`
+      )
       return { verified, rateLimited: false, error: false }
-    } catch {
+    } catch (err) {
+      console.log(`[Reoon] Exception for ${email}:`, err)
       return { verified: false, rateLimited: false, error: true }
     }
   }
@@ -1294,6 +1312,7 @@ export async function verifyEmailWithReoon(
 
 // Rapid Email Verifier - Free Open Source fallback (no API key needed)
 // https://rapid-email-verifier.fly.dev/ - unlimited, no auth required
+// GitHub: https://github.com/umuterturk/email-verifier
 export async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
   try {
     console.log(`[Rapid Verifier] Verifying email (free fallback): ${email}`)
@@ -1302,16 +1321,40 @@ export async function verifyEmailWithRapidVerifier(email: string): Promise<boole
     )
 
     if (!response.ok) {
-      console.log('[Rapid Verifier] API error, treating as unverified')
+      console.log(`[Rapid Verifier] API error: HTTP ${response.status}`)
       return false
     }
 
     const data = await response.json()
+    console.log(`[Rapid Verifier] Raw response:`, JSON.stringify(data))
 
-    // Rapid Verifier returns: is_valid, is_disposable, is_role_based, etc.
-    // We consider valid if: is_valid is true AND not disposable
-    const isValid = data.is_valid === true && data.is_disposable !== true
-    console.log(`[Rapid Verifier] Result for ${email}: ${isValid ? 'valid' : 'invalid'}`)
+    // Rapid Verifier status values (from official docs):
+    // - 'VALID': Email is valid
+    // - 'PROBABLY_VALID': Role-based email (admin@, info@) - still valid
+    // - 'DISPOSABLE': Temporary email - invalid
+    // - 'INVALID_FORMAT': Bad syntax - invalid
+    // - 'INVALID_DOMAIN': Domain doesn't exist - invalid
+    //
+    // Consider valid: 'VALID' or 'PROBABLY_VALID'
+    const status = data.status?.toUpperCase()
+    const validStatuses = ['VALID', 'PROBABLY_VALID']
+    const isValid = validStatuses.includes(status)
+
+    // If no status field, check validations object as fallback
+    if (!data.status && data.validations) {
+      const allValid =
+        data.validations.syntax === true &&
+        data.validations.domain_exists === true &&
+        data.validations.mx_records === true
+      console.log(
+        `[Rapid Verifier] Result for ${email}: ${allValid ? 'VALID' : 'INVALID'} (from validations)`
+      )
+      return allValid
+    }
+
+    console.log(
+      `[Rapid Verifier] Result for ${email}: ${isValid ? 'VALID' : 'INVALID'} (status: ${data.status})`
+    )
     return isValid
   } catch (error) {
     console.log('[Rapid Verifier] Error:', error)
