@@ -295,12 +295,6 @@ function SavedLeadsPage(): JSX.Element {
 
   return (
     <div className="scout-page saved-leads-page">
-      {/* Header */}
-      <section className="scout-header">
-        <h1>Saved Leads</h1>
-        <p>Your saved business leads from Maps Scout</p>
-      </section>
-
       {/* Controls */}
       <div
         style={{
@@ -550,7 +544,7 @@ function SavedLeadsPage(): JSX.Element {
 
       {/* Leads List */}
       {!isLoading && filteredLeads.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0 2rem' }}>
+        <div className="scout-leads" style={{ padding: '0 2rem' }}>
           {filteredLeads.map((lead) => (
             <div
               key={lead.id}
