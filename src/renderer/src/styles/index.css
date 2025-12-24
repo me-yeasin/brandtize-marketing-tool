@@ -2696,6 +2696,18 @@ body {
   background: rgba(37, 211, 102, 0.15);
 }
 
+/* WhatsApp Send Message Button */
+.lead-action.whatsapp-send {
+  background: rgba(37, 211, 102, 0.15);
+  border: 1px solid rgba(37, 211, 102, 0.3);
+}
+
+.lead-action.whatsapp-send:hover {
+  background: rgba(37, 211, 102, 0.3);
+  border-color: #25D366;
+  transform: scale(1.1);
+}
+
 /* No Phone Badge */
 .contact-no-phone {
   font-size: 0.75rem;
