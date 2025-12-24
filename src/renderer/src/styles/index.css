@@ -1326,6 +1326,7 @@ body {
   flex: 1;
   height: 6px;
   -webkit-appearance: none;
+  appearance: none;
   background: rgba(100, 116, 139, 0.3);
   border-radius: 3px;
   cursor: pointer;
