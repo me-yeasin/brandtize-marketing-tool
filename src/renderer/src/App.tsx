@@ -1,11 +1,32 @@
 import { JSX, useState } from 'react'
+import SettingsPage from './components/SettingsPage'
 import Sidebar from './components/Sidebar'
 import './styles/index.css'
 
-function App(): JSX.Element {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeRoute, setActiveRoute] = useState('google-maps')
+// Page types
+type PageType = 'main' | 'settings'
 
+function App(): JSX.Element {
+  const [currentPage, setCurrentPage] = useState<PageType>('main')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeRoute, setActiveRoute] = useState('maps-scout')
+
+  // Navigate to settings
+  const handleOpenSettings = (): void => {
+    setCurrentPage('settings')
+  }
+
+  // Navigate back from settings
+  const handleBackFromSettings = (): void => {
+    setCurrentPage('main')
+  }
+
+  // Render Settings Page (completely separate layout)
+  if (currentPage === 'settings') {
+    return <SettingsPage onBack={handleBackFromSettings} />
+  }
+
+  // Render Main Page
   return (
     <div className="app-container">
       {/* Sidebar */}
@@ -14,6 +35,7 @@ function App(): JSX.Element {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         activeRoute={activeRoute}
         onRouteChange={setActiveRoute}
+        onOpenSettings={handleOpenSettings}
       />
 
       {/* Main Content Area */}

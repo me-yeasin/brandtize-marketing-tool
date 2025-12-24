@@ -190,9 +190,16 @@ interface SidebarProps {
   onToggle: () => void
   activeRoute: string
   onRouteChange: (route: string) => void
+  onOpenSettings: () => void
 }
 
-function Sidebar({ isOpen, onToggle, activeRoute, onRouteChange }: SidebarProps): JSX.Element {
+function Sidebar({
+  isOpen,
+  onToggle,
+  activeRoute,
+  onRouteChange,
+  onOpenSettings
+}: SidebarProps): JSX.Element {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'direct-reach': true, // Default expanded
     'social-signal': false
@@ -281,7 +288,7 @@ function Sidebar({ isOpen, onToggle, activeRoute, onRouteChange }: SidebarProps)
 
       {/* Sidebar Footer */}
       <div className="sidebar-footer">
-        <button className="nav-footer-btn">
+        <button className="nav-footer-btn" onClick={onOpenSettings}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"

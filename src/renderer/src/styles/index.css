@@ -427,3 +427,114 @@ body {
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* ========================================
+   SETTINGS PAGE
+======================================== */
+.settings-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  animation: settingsPageIn 0.4s ease;
+}
+
+@keyframes settingsPageIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Settings Sidebar */
+.settings-sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+
+}
+
+/* Back Button */
+.back-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  color: var(--accent-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.back-button:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  transform: translateX(-2px);
+}
+
+.settings-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-left: 12px;
+}
+
+/* Settings Content */
+.settings-content {
+  flex: 1;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.settings-content-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  text-align: center;
+  padding: 2rem;
+}
+
+.settings-content-inner h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.settings-content-inner p {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.settings-content-inner .active-route {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.settings-content-inner code {
+  background: rgba(99, 102, 241, 0.15);
+  padding: 4px 12px;
+  border-radius: 6px;
+  color: var(--accent-primary);
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
