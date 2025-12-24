@@ -234,7 +234,20 @@ export function registerIpcHandlers(): void {
     'search-google-maps',
     async (
       _event,
-      params: { query: string; location: string; countryCode?: string; num?: number }
+      params: {
+        query: string
+        location: string
+        countryCode?: string
+        num?: number
+        ll?: string
+        latitude?: number
+        longitude?: number
+        zoom?: number
+        hl?: string
+        start?: number
+        autocomplete?: boolean
+        maxPages?: number
+      }
     ) => {
       const { searchMapsWithSerper } = await import('./services/lead-generation')
       return searchMapsWithSerper(params)

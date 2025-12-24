@@ -99,6 +99,16 @@ function MapsScoutPage(): JSX.Element {
   const [minRating, setMinRating] = useState(4.0)
   const [minReviews, setMinReviews] = useState(20)
 
+  // Advanced options state
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [enablePagination, setEnablePagination] = useState(true)
+  const [maxPages, setMaxPages] = useState(3)
+  const [language, setLanguage] = useState('en')
+  const [useGps, setUseGps] = useState(false)
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [zoomLevel, setZoomLevel] = useState(14)
+
   // Results state
   const [leads, setLeads] = useState<Lead[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -119,8 +129,17 @@ function MapsScoutPage(): JSX.Element {
 
   // Handle search
   const handleSearch = async (): Promise<void> => {
-    if (!location.trim() || !category.trim()) {
-      setError('Please enter both location and category')
+    // Validate: need either location text OR GPS coordinates
+    const hasTextLocation = location.trim().length > 0
+    const hasGpsLocation = useGps && latitude.trim() && longitude.trim()
+
+    if (!category.trim()) {
+      setError('Please enter a business category')
+      return
+    }
+
+    if (!hasTextLocation && !hasGpsLocation) {
+      setError('Please enter a location OR enable GPS coordinates with valid lat/long')
       return
     }
 
@@ -129,12 +148,33 @@ function MapsScoutPage(): JSX.Element {
     setHasSearched(false)
 
     try {
-      // Call the API
-      const places = await window.api.searchGoogleMaps({
+      // Build search params with advanced options
+      const searchParams: Parameters<typeof window.api.searchGoogleMaps>[0] = {
         query: category.trim(),
         location: location.trim(),
-        num: 50 // Get up to 50 results
-      })
+        num: 20, // Results per page
+        hl: language,
+        autocomplete: enablePagination,
+        maxPages: enablePagination ? maxPages : 1
+      }
+
+      // Add GPS coordinates if enabled and valid
+      if (useGps && latitude && longitude) {
+        const lat = parseFloat(latitude)
+        const lng = parseFloat(longitude)
+        if (!isNaN(lat) && !isNaN(lng)) {
+          searchParams.latitude = lat
+          searchParams.longitude = lng
+          searchParams.zoom = zoomLevel
+        }
+      }
+
+      console.log('[MapsScout] Searching with params:', searchParams)
+
+      // Call the API
+      const places = await window.api.searchGoogleMaps(searchParams)
+
+      console.log(`[MapsScout] Received ${places.length} places`)
 
       // Convert to leads
       let allLeads = places.map(mapPlaceToLead)
@@ -381,6 +421,156 @@ function MapsScoutPage(): JSX.Element {
             {isSearching ? 'Searching...' : 'Search'}
           </button>
         </div>
+
+        {/* Advanced Options Toggle */}
+        <button
+          className="advanced-toggle"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          type="button"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className={showAdvanced ? 'rotate' : ''}
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+        </button>
+
+        {/* Advanced Options Panel */}
+        {showAdvanced && (
+          <div className="advanced-options">
+            {/* Pagination Toggle */}
+            <label className="scout-toggle">
+              <input
+                type="checkbox"
+                checked={enablePagination}
+                onChange={(e) => setEnablePagination(e.target.checked)}
+              />
+              <span className="toggle-track"></span>
+              <span>
+                Fetch multiple pages{' '}
+                <span className="option-hint">(more results, uses more API credits)</span>
+              </span>
+            </label>
+
+            {/* Max Pages */}
+            {enablePagination && (
+              <div className="scout-filter">
+                <span>Max pages</span>
+                <select value={maxPages} onChange={(e) => setMaxPages(parseInt(e.target.value))}>
+                  <option value={2}>2 pages (~40 results)</option>
+                  <option value={3}>3 pages (~60 results)</option>
+                  <option value={4}>4 pages (~80 results)</option>
+                  <option value={5}>5 pages (~100 results)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Language */}
+            <div className="scout-filter">
+              <span>Results language</span>
+              <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="nl">Dutch</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="zh">Chinese</option>
+                <option value="ar">Arabic</option>
+                <option value="hi">Hindi</option>
+                <option value="bn">Bengali</option>
+              </select>
+            </div>
+
+            {/* GPS Toggle */}
+            <label className="scout-toggle">
+              <input
+                type="checkbox"
+                checked={useGps}
+                onChange={(e) => setUseGps(e.target.checked)}
+              />
+              <span className="toggle-track"></span>
+              <span>
+                Use GPS coordinates <span className="option-hint">(more precise targeting)</span>
+              </span>
+            </label>
+
+            {/* GPS Inputs */}
+            {useGps && (
+              <div className="gps-inputs">
+                <div className="gps-field">
+                  <label>Latitude</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 40.7128"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                  />
+                </div>
+                <div className="gps-field">
+                  <label>Longitude</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., -74.0060"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                  />
+                </div>
+                <div className="gps-field">
+                  <label>Zoom Level</label>
+                  <div className="zoom-control">
+                    <input
+                      type="range"
+                      min="8"
+                      max="18"
+                      value={zoomLevel}
+                      onChange={(e) => setZoomLevel(parseInt(e.target.value))}
+                    />
+                    <span className="zoom-value">{zoomLevel}</span>
+                  </div>
+                  <span className="zoom-hint">
+                    {zoomLevel <= 10
+                      ? 'Wide area'
+                      : zoomLevel <= 14
+                        ? 'City level'
+                        : 'Neighborhood'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="option-info">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <span>
+                {useGps
+                  ? `Search will focus on GPS coordinates at zoom level ${zoomLevel}.`
+                  : `With pagination enabled, the API will fetch up to ${maxPages * 20} results automatically.`}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && <div className="scout-error">{error}</div>}

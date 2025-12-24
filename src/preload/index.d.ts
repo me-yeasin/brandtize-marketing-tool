@@ -80,6 +80,15 @@ export interface BrandtizeAPI {
     location: string
     countryCode?: string
     num?: number
+    // Advanced options
+    ll?: string
+    latitude?: number
+    longitude?: number
+    zoom?: number
+    hl?: string
+    start?: number
+    autocomplete?: boolean
+    maxPages?: number
   }) => Promise<MapsPlace[]>
 
   findEmailForDomain: (

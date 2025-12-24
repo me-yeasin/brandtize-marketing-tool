@@ -254,6 +254,15 @@ export interface MapsSearchParams {
   location: string
   countryCode?: string
   num?: number
+  // Advanced options
+  ll?: string // GPS coordinates: @latitude,longitude,zoomz (e.g., @40.7455096,-74.0083012,14z)
+  latitude?: number
+  longitude?: number
+  zoom?: number // Zoom level: 3 (zoomed out) to 21 (zoomed in), default 14
+  hl?: string // Language code: en, es, fr, etc.
+  start?: number // Pagination offset: 0 (page 1), 20 (page 2), 40 (page 3), etc.
+  autocomplete?: boolean // Whether to auto-fetch multiple pages
+  maxPages?: number // Max pages to fetch when autocomplete is true (default 3)
 }
 
 export async function searchMapsWithSerper(params: MapsSearchParams): Promise<MapsPlace[]> {
@@ -272,17 +281,43 @@ export async function searchMapsWithSerper(params: MapsSearchParams): Promise<Ma
   }
 
   // Helper to make Serper Maps request
-  const makeSerperMapsRequest = async (apiKey: string): Promise<Response> => {
+  const makeSerperMapsRequest = async (apiKey: string, start: number = 0): Promise<Response> => {
     const requestBody: Record<string, unknown> = {
       q: params.query,
-      location: params.location,
       num: params.num || 20
+    }
+
+    // Location can be text-based OR GPS-based
+    // If ll parameter provided directly, use it
+    if (params.ll) {
+      requestBody.ll = params.ll
+    }
+    // If latitude/longitude/zoom provided, construct ll parameter
+    else if (params.latitude && params.longitude) {
+      const zoom = params.zoom || 14
+      requestBody.ll = `@${params.latitude},${params.longitude},${zoom}z`
+    }
+    // Otherwise use text location
+    else if (params.location) {
+      requestBody.location = params.location
     }
 
     // Add country code if provided
     if (params.countryCode) {
       requestBody.gl = params.countryCode.toLowerCase()
     }
+
+    // Add language if provided
+    if (params.hl) {
+      requestBody.hl = params.hl
+    }
+
+    // Add pagination offset
+    if (start > 0) {
+      requestBody.start = start
+    }
+
+    console.log('[SerperMaps] Request body:', JSON.stringify(requestBody))
 
     return fetch('https://google.serper.dev/maps', {
       method: 'POST',
@@ -318,58 +353,111 @@ export async function searchMapsWithSerper(params: MapsSearchParams): Promise<Ma
     })
   }
 
-  // Try each key with rotation
-  for (let attempt = 0; attempt < allKeys.length; attempt++) {
-    const { key: keyEntry, index, allExhausted } = getNextKeyForService('serper', allKeys.length)
+  // Helper to fetch a single page with key rotation
+  const fetchSinglePage = async (start: number = 0): Promise<MapsPlace[]> => {
+    for (let attempt = 0; attempt < allKeys.length; attempt++) {
+      const { key: keyEntry, index, allExhausted } = getNextKeyForService('serper', allKeys.length)
 
-    if (!keyEntry) break
+      if (!keyEntry) break
 
-    console.log(
-      `SerperMaps[${index + 1}/${allKeys.length}] searching: "${params.query}" in ${params.location}`
-    )
-    const response = await makeSerperMapsRequest(keyEntry.key)
-
-    if (response.ok) {
-      const data = await response.json()
-      const places = parseMapsResponse(data)
-      console.log(`SerperMaps[${index + 1}/${allKeys.length}] found ${places.length} places`)
-      return places
-    }
-
-    // Rate limit (429) or unauthorized - mark exhausted and try next
-    if (response.status === 429 || response.status === 401) {
+      const locationDesc =
+        params.ll || params.location || `GPS(${params.latitude},${params.longitude})`
       console.log(
-        `SerperMaps[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
+        `SerperMaps[${index + 1}/${allKeys.length}] searching: "${params.query}" in ${locationDesc} (offset: ${start})`
       )
-      markKeyExhausted('serper', index, `HTTP ${response.status}`)
+      const response = await makeSerperMapsRequest(keyEntry.key, start)
 
-      // If all keys exhausted, try first key again to check if reset
-      if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
-        console.log('[SerperMaps] All keys exhausted, checking if first key has reset...')
-        const firstKeyResponse = await makeSerperMapsRequest(allKeys[0].key)
-
-        if (firstKeyResponse.ok) {
-          // First key reset! Clear exhausted state and use it
-          console.log('[SerperMaps] First key has reset! Continuing...')
-          clearExhaustedState('serper')
-          const data = await firstKeyResponse.json()
-          return parseMapsResponse(data)
-        }
-
-        // First key still rate limited - STOP
-        throw new Error(
-          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
-        )
+      if (response.ok) {
+        const data = await response.json()
+        const places = parseMapsResponse(data)
+        console.log(`SerperMaps[${index + 1}/${allKeys.length}] found ${places.length} places`)
+        return places
       }
-      continue
+
+      // Rate limit (429) or unauthorized - mark exhausted and try next
+      if (response.status === 429 || response.status === 401) {
+        console.log(
+          `SerperMaps[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
+        )
+        markKeyExhausted('serper', index, `HTTP ${response.status}`)
+
+        // If all keys exhausted, try first key again to check if reset
+        if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
+          console.log('[SerperMaps] All keys exhausted, checking if first key has reset...')
+          const firstKeyResponse = await makeSerperMapsRequest(allKeys[0].key, start)
+
+          if (firstKeyResponse.ok) {
+            console.log('[SerperMaps] First key has reset! Continuing...')
+            clearExhaustedState('serper')
+            const data = await firstKeyResponse.json()
+            return parseMapsResponse(data)
+          }
+
+          throw new Error(
+            'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
+          )
+        }
+        continue
+      }
+
+      // Other error - throw immediately
+      const errorText = await response.text().catch(() => 'Unknown error')
+      throw new Error(`Serper Maps API error (${response.status}): ${errorText}`)
     }
 
-    // Other error - throw immediately
-    const errorText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`Serper Maps API error (${response.status}): ${errorText}`)
+    throw new Error('All Serper API keys exhausted')
   }
 
-  throw new Error('All Serper API keys exhausted')
+  // If autocomplete/pagination is enabled, fetch multiple pages
+  if (params.autocomplete) {
+    const maxPages = params.maxPages || 3
+    const resultsPerPage = params.num || 20
+    const allPlaces: MapsPlace[] = []
+    const seenCids = new Set<string>()
+
+    for (let page = 0; page < maxPages; page++) {
+      const start = page * resultsPerPage
+      console.log(`[SerperMaps] Fetching page ${page + 1}/${maxPages} (offset: ${start})`)
+
+      try {
+        const places = await fetchSinglePage(start)
+
+        // Deduplicate by cid
+        for (const place of places) {
+          const uniqueKey = place.cid || `${place.title}-${place.address}`
+          if (!seenCids.has(uniqueKey)) {
+            seenCids.add(uniqueKey)
+            allPlaces.push(place)
+          }
+        }
+
+        // If we got fewer results than requested, stop pagination
+        if (places.length < resultsPerPage) {
+          console.log(`[SerperMaps] Got ${places.length} < ${resultsPerPage}, stopping pagination`)
+          break
+        }
+
+        // Recommended max offset is 100 (5 pages of 20)
+        if (start >= 80) {
+          console.log('[SerperMaps] Reached recommended max offset (100), stopping pagination')
+          break
+        }
+      } catch (err) {
+        // If pagination fails on later pages, return what we have
+        if (page > 0 && allPlaces.length > 0) {
+          console.log(`[SerperMaps] Page ${page + 1} failed, returning ${allPlaces.length} results`)
+          break
+        }
+        throw err
+      }
+    }
+
+    console.log(`[SerperMaps] Total unique places found: ${allPlaces.length}`)
+    return allPlaces
+  }
+
+  // Single page fetch (default behavior)
+  return fetchSinglePage(params.start || 0)
 }
 
 // Serper Reviews API - Fetch Google Maps reviews with key rotation

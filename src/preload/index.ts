@@ -115,6 +115,14 @@ contextBridge.exposeInMainWorld('api', {
     location: string
     countryCode?: string
     num?: number
+    ll?: string
+    latitude?: number
+    longitude?: number
+    zoom?: number
+    hl?: string
+    start?: number
+    autocomplete?: boolean
+    maxPages?: number
   }): Promise<
     {
       title: string
