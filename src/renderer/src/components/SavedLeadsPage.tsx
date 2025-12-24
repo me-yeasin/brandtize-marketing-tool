@@ -557,25 +557,67 @@ function SavedLeadsPage(): JSX.Element {
           </div>
 
           {/* Filter Toggle Button */}
-          <button
-            onClick={() => setFilterPanelOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.75rem 1rem',
-              background: filterPanelOpen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(15, 23, 42, 0.6)',
-              border: filterPanelOpen ? '1px solid #6366f1' : '1px solid rgba(148, 163, 184, 0.2)',
-              borderRadius: '12px',
-              color: filterPanelOpen ? '#6366f1' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            <FaFilter />
-            <span>Filters</span>
-          </button>
+          {(() => {
+            let activeFilterCount = 0
+            if (filters.location) activeFilterCount++
+            if (filters.category) activeFilterCount++
+            if (filters.minRating > 0) activeFilterCount++
+            if (filters.minReviews > 0) activeFilterCount++
+            if (filters.hasWhatsApp !== 'all') activeFilterCount++
+            if (filters.hasEmail !== 'all') activeFilterCount++
+            if (!filters.scores.gold || !filters.scores.silver || !filters.scores.bronze)
+              activeFilterCount++
+
+            const hasActiveFilters = activeFilterCount > 0
+
+            return (
+              <button
+                onClick={() => setFilterPanelOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  background:
+                    filterPanelOpen || hasActiveFilters
+                      ? 'rgba(99, 102, 241, 0.2)'
+                      : 'rgba(15, 23, 42, 0.6)',
+                  border:
+                    filterPanelOpen || hasActiveFilters
+                      ? '1px solid #6366f1'
+                      : '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '12px',
+                  color: filterPanelOpen || hasActiveFilters ? '#6366f1' : '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  transition: 'all 0.2s',
+                  position: 'relative'
+                }}
+              >
+                <FaFilter />
+                <span>Filters</span>
+                {hasActiveFilters && (
+                  <span
+                    style={{
+                      background: '#6366f1',
+                      color: 'white',
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold',
+                      borderRadius: '50%',
+                      width: '18px',
+                      height: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginLeft: '0.25rem'
+                    }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            )
+          })()}
         </div>
 
         {/* Tabs */}
