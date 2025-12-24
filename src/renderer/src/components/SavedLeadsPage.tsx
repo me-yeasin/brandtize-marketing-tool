@@ -438,19 +438,6 @@ function SavedLeadsPage(): JSX.Element {
                       {lead.category}
                     </span>
                   </div>
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}
-                  >
-                    <span style={{ color: '#fbbf24' }}>
-                      <FaStar />
-                    </span>
-                    <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>
-                      {lead.rating}
-                    </span>
-                    <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                      ({lead.reviewCount})
-                    </span>
-                  </div>
                 </div>
 
                 {/* Address */}
@@ -553,7 +540,28 @@ function SavedLeadsPage(): JSX.Element {
               </div>
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                {/* Rating */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    marginRight: '0.5rem',
+                    paddingRight: '0.75rem',
+                    borderRight: '1px solid rgba(148, 163, 184, 0.2)',
+                    height: '24px'
+                  }}
+                >
+                  <span style={{ color: '#fbbf24' }}>
+                    <FaStar />
+                  </span>
+                  <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>
+                    {lead.rating}
+                  </span>
+                  <span style={{ color: '#64748b', fontSize: '0.8rem' }}>({lead.reviewCount})</span>
+                </div>
+
                 <button
                   onClick={() => openInGoogleMaps(lead)}
                   title="View on Maps"
