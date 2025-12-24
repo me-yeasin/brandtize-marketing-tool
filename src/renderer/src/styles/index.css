@@ -2682,18 +2682,14 @@ body {
   opacity: 0.7;
 }
 
-/* WhatsApp Action Button */
-.lead-action.whatsapp-action {
-  color: #25d366;
-}
-
+/* WhatsApp Check Button - same style as other action buttons */
 .lead-action.whatsapp-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
 .lead-action.whatsapp-action:hover:not(:disabled) {
-  background: rgba(37, 211, 102, 0.15);
+  background: var(--nav-hover);
 }
 
 /* WhatsApp Send Message Button */
