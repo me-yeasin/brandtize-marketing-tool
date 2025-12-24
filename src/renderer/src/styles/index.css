@@ -2704,6 +2704,18 @@ body {
   transform: scale(1.1);
 }
 
+/* Telegram Send Message Button */
+.lead-action.telegram-send {
+  background: rgba(0, 136, 204, 0.15);
+  border: 1px solid rgba(0, 136, 204, 0.3);
+}
+
+.lead-action.telegram-send:hover {
+  background: rgba(0, 136, 204, 0.3);
+  border-color: #0088cc;
+  transform: scale(1.1);
+}
+
 /* No Phone Badge */
 .contact-no-phone {
   font-size: 0.75rem;
