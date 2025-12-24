@@ -263,10 +263,29 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  // Verify email with Reoon
+  // Verify email with Reoon (with Rapid Verifier fallback)
   ipcMain.handle('verify-email', async (_event, email: string) => {
-    const { verifyEmailWithReoon } = await import('./services/lead-generation')
-    return verifyEmailWithReoon(email)
+    const { verifyEmailWithReoon, verifyEmailWithRapidVerifier } =
+      await import('./services/lead-generation')
+
+    // Try Reoon first
+    const reoonResult = await verifyEmailWithReoon(email)
+
+    // If Reoon worked, return its result
+    if (!reoonResult.allKeysExhausted) {
+      return {
+        verified: reoonResult.verified,
+        source: 'reoon'
+      }
+    }
+
+    // Fallback to Rapid Verifier if Reoon keys exhausted
+    console.log('[Verify] Reoon exhausted, falling back to Rapid Verifier...')
+    const rapidResult = await verifyEmailWithRapidVerifier(email)
+    return {
+      verified: rapidResult,
+      source: 'rapid'
+    }
   })
 
   // Fetch reviews for a business

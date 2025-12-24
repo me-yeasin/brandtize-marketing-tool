@@ -219,19 +219,62 @@ function MapsScoutPage(): JSX.Element {
       const domain = extractDomain(lead.website)
       const result = await window.api.findEmailForDomain(domain)
 
-      // Update lead with email
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === leadId
-            ? {
-                ...l,
-                email: result.email || undefined,
-                emailSource: result.source,
-                isLoadingEmail: false
-              }
-            : l
+      if (result.email) {
+        // Email found! Now verify it
+        console.log(`[MapsScout] Found email: ${result.email}, verifying...`)
+
+        try {
+          const verifyResult = await window.api.verifyEmail(result.email)
+          console.log(
+            `[MapsScout] Verification result: ${verifyResult.verified} (source: ${verifyResult.source})`
+          )
+
+          // Update lead with email and verification status
+          setLeads((prev) =>
+            prev.map((l) =>
+              l.id === leadId
+                ? {
+                    ...l,
+                    email: result.email || undefined,
+                    emailSource: result.source,
+                    emailVerified: verifyResult.verified,
+                    isLoadingEmail: false
+                  }
+                : l
+            )
+          )
+        } catch (verifyErr) {
+          console.error('Email verification error:', verifyErr)
+          // Still show the email, just mark as unverified
+          setLeads((prev) =>
+            prev.map((l) =>
+              l.id === leadId
+                ? {
+                    ...l,
+                    email: result.email || undefined,
+                    emailSource: result.source,
+                    emailVerified: false,
+                    isLoadingEmail: false
+                  }
+                : l
+            )
+          )
+        }
+      } else {
+        // No email found
+        setLeads((prev) =>
+          prev.map((l) =>
+            l.id === leadId
+              ? {
+                  ...l,
+                  email: undefined,
+                  emailSource: result.source,
+                  isLoadingEmail: false
+                }
+              : l
+          )
         )
-      )
+      }
     } catch (err) {
       console.error('Email finder error:', err)
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isLoadingEmail: false } : l)))
@@ -626,8 +669,52 @@ function MapsScoutPage(): JSX.Element {
                   {!lead.website && <span className="contact-no-web">No website</span>}
                   {lead.website && <span className="contact-has-web">Has website</span>}
                   {lead.email && (
-                    <span className="contact-email" title={lead.emailSource}>
-                      {lead.email}
+                    <span className="contact-email-wrapper">
+                      <span className="contact-email" title={lead.emailSource}>
+                        {lead.email}
+                      </span>
+                      {lead.emailVerified === true && (
+                        <span className="verified-badge" title="Email verified">
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            stroke="none"
+                          >
+                            <circle cx="12" cy="12" r="12" fill="#22c55e" />
+                            <path
+                              d="M9 12l2 2 4-4"
+                              stroke="white"
+                              strokeWidth="2"
+                              fill="none"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      )}
+                      {lead.emailVerified === false && (
+                        <span className="unverified-badge" title="Email not verified">
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            stroke="none"
+                          >
+                            <circle cx="12" cy="12" r="12" fill="#ef4444" />
+                            <path
+                              d="M8 8l8 8M16 8l-8 8"
+                              stroke="white"
+                              strokeWidth="2"
+                              fill="none"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
