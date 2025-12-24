@@ -105,5 +105,38 @@ contextBridge.exposeInMainWorld('api', {
   getSelectedAiProvider: (): Promise<'groq' | 'mistral' | 'google'> =>
     ipcRenderer.invoke('get-selected-ai-provider'),
   setSelectedAiProvider: (provider: 'groq' | 'mistral' | 'google'): Promise<boolean> =>
-    ipcRenderer.invoke('set-selected-ai-provider', provider)
+    ipcRenderer.invoke('set-selected-ai-provider', provider),
+
+  // ========================================
+  // MAPS SCOUT
+  // ========================================
+  searchGoogleMaps: (params: {
+    query: string
+    location: string
+    countryCode?: string
+    num?: number
+  }): Promise<
+    {
+      title: string
+      address: string
+      phone: string | null
+      website: string | null
+      rating: number
+      ratingCount: number
+      category: string
+      cid: string
+      latitude: number
+      longitude: number
+    }[]
+  > => ipcRenderer.invoke('search-google-maps', params),
+
+  findEmailForDomain: (
+    domain: string,
+    firstName?: string,
+    lastName?: string
+  ): Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }> =>
+    ipcRenderer.invoke('find-email-for-domain', domain, firstName, lastName),
+
+  verifyEmail: (email: string): Promise<{ verified: boolean; status?: string; error?: string }> =>
+    ipcRenderer.invoke('verify-email', email)
 })

@@ -1,142 +1,76 @@
 import { JSX, useState } from 'react'
+import type { MapsPlace } from '../../../preload/index.d'
 
-// Sample lead data for UI demo
+// Extended Lead type with email search capability
 interface Lead {
   id: string
   name: string
   address: string
-  phone: string
+  phone: string | null
+  website: string | null
   rating: number
   reviewCount: number
-  hasWebsite: boolean
-  websiteUrl: string | null
   category: string
   score: 'gold' | 'silver' | 'bronze'
+  email?: string
+  emailSource?: string
+  emailVerified?: boolean
+  isLoadingEmail?: boolean
 }
 
-// Sample data for UI demonstration
-const sampleLeads: Lead[] = [
-  {
-    id: '1',
-    name: "Joe's Pizza Palace",
-    address: '123 Main St, New York, NY',
-    phone: '(555) 123-4567',
-    rating: 4.8,
-    reviewCount: 127,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Restaurant',
-    score: 'gold'
-  },
-  {
-    id: '2',
-    name: "Maria's Hair Salon",
-    address: '456 Oak Ave, New York, NY',
-    phone: '(555) 234-5678',
-    rating: 4.5,
-    reviewCount: 89,
-    hasWebsite: false,
-    websiteUrl: 'facebook.com/mariassalon',
-    category: 'Salon',
-    score: 'gold'
-  },
-  {
-    id: '3',
-    name: 'Quick Fix Plumbing',
-    address: '789 Elm St, New York, NY',
-    phone: '(555) 345-6789',
-    rating: 4.2,
-    reviewCount: 45,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Plumber',
-    score: 'silver'
-  },
-  {
-    id: '4',
-    name: 'Sunrise Fitness Studio',
-    address: '321 Pine Rd, New York, NY',
-    phone: '(555) 456-7890',
-    rating: 4.6,
-    reviewCount: 234,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Gym',
-    score: 'gold'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
-  },
-  {
-    id: '5',
-    name: 'Downtown Auto Repair',
-    address: '654 Cedar Ln, New York, NY',
-    phone: '(555) 567-8901',
-    rating: 4.0,
-    reviewCount: 32,
-    hasWebsite: false,
-    websiteUrl: null,
-    category: 'Auto Repair',
-    score: 'silver'
+// Calculate lead score based on rating and reviews
+function calculateScore(
+  rating: number,
+  reviewCount: number,
+  hasWebsite: boolean
+): 'gold' | 'silver' | 'bronze' {
+  let score = 0
+
+  // No website = +3 (they NEED us!)
+  if (!hasWebsite) score += 3
+
+  // High rating = good business
+  if (rating >= 4.5) score += 2
+  else if (rating >= 4.0) score += 1
+
+  // Many reviews = active business
+  if (reviewCount >= 100) score += 2
+  else if (reviewCount >= 50) score += 1
+
+  // Score thresholds
+  if (score >= 5) return 'gold'
+  if (score >= 3) return 'silver'
+  return 'bronze'
+}
+
+// Convert API response to Lead format
+function mapPlaceToLead(place: MapsPlace, index: number): Lead {
+  return {
+    id: place.cid || `lead-${index}`,
+    name: place.title,
+    address: place.address,
+    phone: place.phone,
+    website: place.website,
+    rating: place.rating,
+    reviewCount: place.ratingCount,
+    category: place.category,
+    score: calculateScore(place.rating, place.ratingCount, !place.website)
   }
-]
+}
+
+// Extract domain from website URL
+function extractDomain(website: string): string {
+  try {
+    let url = website
+    if (!url.startsWith('http')) {
+      url = `https://${url}`
+    }
+    const urlObj = new URL(url)
+    return urlObj.hostname.replace('www.', '')
+  } catch {
+    return website.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]
+  }
+}
 
 function MapsScoutPage(): JSX.Element {
   // Search form state
@@ -146,24 +80,133 @@ function MapsScoutPage(): JSX.Element {
   const [minRating, setMinRating] = useState(4.0)
   const [minReviews, setMinReviews] = useState(20)
 
-  // Results state (using sample data for UI demo)
-  const leads = sampleLeads
+  // Results state
+  const [leads, setLeads] = useState<Lead[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [hasSearched, setHasSearched] = useState(true) // true for demo
+  const [hasSearched, setHasSearched] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Count leads by score
   const goldCount = leads.filter((l) => l.score === 'gold').length
   const silverCount = leads.filter((l) => l.score === 'silver').length
   const bronzeCount = leads.filter((l) => l.score === 'bronze').length
 
-  // Handle search (placeholder for now)
-  const handleSearch = (): void => {
-    if (!location.trim()) return
+  // Handle search
+  const handleSearch = async (): Promise<void> => {
+    if (!location.trim() || !category.trim()) {
+      setError('Please enter both location and category')
+      return
+    }
+
+    setError(null)
     setIsSearching(true)
-    setTimeout(() => {
-      setIsSearching(false)
+    setHasSearched(false)
+
+    try {
+      // Call the API
+      const places = await window.api.searchGoogleMaps({
+        query: category.trim(),
+        location: location.trim(),
+        num: 50 // Get up to 50 results
+      })
+
+      // Convert to leads
+      let allLeads = places.map(mapPlaceToLead)
+
+      // Apply filters
+      allLeads = allLeads.filter((lead) => {
+        // Rating filter
+        if (lead.rating < minRating) return false
+
+        // Reviews filter
+        if (lead.reviewCount < minReviews) return false
+
+        // No website filter
+        if (noWebsiteOnly && lead.website) return false
+
+        return true
+      })
+
+      // Sort by score (gold first, then silver, then bronze)
+      const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
+      allLeads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
+
+      setLeads(allLeads)
       setHasSearched(true)
-    }, 1500)
+    } catch (err) {
+      console.error('Search error:', err)
+      setError(err instanceof Error ? err.message : 'Search failed. Please try again.')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Find email for a lead (only if they have a website)
+  const handleFindEmail = async (leadId: string): Promise<void> => {
+    const lead = leads.find((l) => l.id === leadId)
+    if (!lead || !lead.website) return
+
+    // Update lead to show loading
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isLoadingEmail: true } : l)))
+
+    try {
+      const domain = extractDomain(lead.website)
+      const result = await window.api.findEmailForDomain(domain)
+
+      // Update lead with email
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                email: result.email || undefined,
+                emailSource: result.source,
+                isLoadingEmail: false
+              }
+            : l
+        )
+      )
+    } catch (err) {
+      console.error('Email finder error:', err)
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isLoadingEmail: false } : l)))
+    }
+  }
+
+  // Export leads to CSV
+  const handleExport = (): void => {
+    if (leads.length === 0) return
+
+    const headers = [
+      'Name',
+      'Category',
+      'Address',
+      'Phone',
+      'Rating',
+      'Reviews',
+      'Website',
+      'Score'
+    ]
+    const rows = leads.map((lead) => [
+      lead.name,
+      lead.category,
+      lead.address,
+      lead.phone || '',
+      lead.rating.toString(),
+      lead.reviewCount.toString(),
+      lead.website || '',
+      lead.score
+    ])
+
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
+
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `leads-${location.replace(/\s+/g, '-')}-${Date.now()}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -179,10 +222,11 @@ function MapsScoutPage(): JSX.Element {
               placeholder="e.g., New York, USA"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
 
-          {/* Category - Now a text input */}
+          {/* Category - Text input */}
           <div className="scout-field">
             <label>Business Category</label>
             <input
@@ -190,6 +234,7 @@ function MapsScoutPage(): JSX.Element {
               placeholder="e.g., Restaurants, Plumbers, Salons"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
         </div>
@@ -231,10 +276,13 @@ function MapsScoutPage(): JSX.Element {
             {isSearching ? 'Searching...' : 'Search'}
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && <div className="scout-error">{error}</div>}
       </section>
 
       {/* Results */}
-      {hasSearched && (
+      {hasSearched && leads.length > 0 && (
         <section className="scout-results">
           {/* Results Summary */}
           <div className="scout-summary">
@@ -247,15 +295,16 @@ function MapsScoutPage(): JSX.Element {
               </div>
             </div>
             <div className="scout-actions">
-              <button className="scout-btn outline">Export</button>
-              <button className="scout-btn primary">Find Emails</button>
+              <button className="scout-btn outline" onClick={handleExport}>
+                Export CSV
+              </button>
             </div>
           </div>
 
           {/* Lead List */}
           <div className="scout-leads">
-            {leads.map((lead) => (
-              <div key={lead.id} className={`scout-lead ${lead.score}`}>
+            {leads.map((lead, index) => (
+              <div key={`${lead.id}-${index}`} className={`scout-lead ${lead.score}`}>
                 {/* Left: Score indicator */}
                 <div className={`lead-indicator ${lead.score}`}></div>
 
@@ -278,37 +327,43 @@ function MapsScoutPage(): JSX.Element {
 
                 {/* Contact */}
                 <div className="lead-contact">
-                  <span className="contact-phone">{lead.phone}</span>
-                  {!lead.hasWebsite && <span className="contact-no-web">No website</span>}
+                  {lead.phone && <span className="contact-phone">{lead.phone}</span>}
+                  {!lead.website && <span className="contact-no-web">No website</span>}
+                  {lead.website && <span className="contact-has-web">Has website</span>}
+                  {lead.email && (
+                    <span className="contact-email" title={lead.emailSource}>
+                      {lead.email}
+                    </span>
+                  )}
                 </div>
 
                 {/* Actions */}
                 <div className="lead-actions">
-                  <button className="lead-action" title="Find Email">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                  {/* Only show Find Email button if business has website AND toggle is OFF */}
+                  {lead.website && !noWebsiteOnly && !lead.email && (
+                    <button
+                      className="lead-action"
+                      title="Find Email"
+                      onClick={() => handleFindEmail(lead.id)}
+                      disabled={lead.isLoadingEmail}
                     >
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                  </button>
-                  <button className="lead-action" title="AI Pitch">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                  </button>
+                      {lead.isLoadingEmail ? (
+                        <div className="action-spinner"></div>
+                      ) : (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                          <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -316,12 +371,30 @@ function MapsScoutPage(): JSX.Element {
         </section>
       )}
 
-      {/* Empty State */}
+      {/* No Results State */}
+      {hasSearched && leads.length === 0 && (
+        <div className="scout-empty">
+          <div className="scout-empty-icon">🔍</div>
+          <h3>No Leads Found</h3>
+          <p>Try adjusting your filters or search terms</p>
+        </div>
+      )}
+
+      {/* Empty State (before search) */}
       {!hasSearched && !isSearching && (
         <div className="scout-empty">
           <div className="scout-empty-icon">🗺️</div>
           <h3>Start Your Search</h3>
           <p>Enter a location and category to find leads</p>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isSearching && (
+        <div className="scout-empty">
+          <div className="scout-loading-spinner"></div>
+          <h3>Searching...</h3>
+          <p>Finding businesses in {location}</p>
         </div>
       )}
     </div>

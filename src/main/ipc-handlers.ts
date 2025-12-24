@@ -226,4 +226,33 @@ export function registerIpcHandlers(): void {
     setSelectedAiProvider(provider)
     return true
   })
+
+  // ========================================
+  // MAPS SCOUT
+  // ========================================
+  ipcMain.handle(
+    'search-google-maps',
+    async (
+      _event,
+      params: { query: string; location: string; countryCode?: string; num?: number }
+    ) => {
+      const { searchMapsWithSerper } = await import('./services/lead-generation')
+      return searchMapsWithSerper(params)
+    }
+  )
+
+  // Find email for a domain (used when No Website toggle is OFF)
+  ipcMain.handle(
+    'find-email-for-domain',
+    async (_event, domain: string, firstName?: string, lastName?: string) => {
+      const { findEmailWithFallback } = await import('./services/lead-generation')
+      return findEmailWithFallback(domain, firstName, lastName)
+    }
+  )
+
+  // Verify email with Reoon
+  ipcMain.handle('verify-email', async (_event, email: string) => {
+    const { verifyEmailWithReoon } = await import('./services/lead-generation')
+    return verifyEmailWithReoon(email)
+  })
 }

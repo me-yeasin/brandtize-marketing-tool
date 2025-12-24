@@ -40,7 +40,9 @@ export {
   resetKeyRotation,
   // Jina Reader API
   scrapeWithJina,
-  // SerperAPI
+  // SerperAPI - Maps Search
+  searchMapsWithSerper,
+  // SerperAPI - Regular Search
   searchWithSerper,
   // Rapid Email Verifier (fallback)
   verifyEmailWithRapidVerifier,
@@ -51,6 +53,8 @@ export {
   // Types
   type LeadGenerationInput,
   type LeadResult,
+  type MapsPlace,
+  type MapsSearchParams,
   type SearchResult
 } from './lead-generation'
 export {

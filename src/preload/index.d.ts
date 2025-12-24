@@ -73,6 +73,36 @@ export interface BrandtizeAPI {
   // AI Provider Selection
   getSelectedAiProvider: () => Promise<'groq' | 'mistral' | 'google'>
   setSelectedAiProvider: (provider: 'groq' | 'mistral' | 'google') => Promise<boolean>
+
+  // Maps Scout
+  searchGoogleMaps: (params: {
+    query: string
+    location: string
+    countryCode?: string
+    num?: number
+  }) => Promise<MapsPlace[]>
+
+  findEmailForDomain: (
+    domain: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }>
+
+  verifyEmail: (email: string) => Promise<{ verified: boolean; status?: string; error?: string }>
+}
+
+// Maps Place type (from Serper Maps API)
+export interface MapsPlace {
+  title: string
+  address: string
+  phone: string | null
+  website: string | null
+  rating: number
+  ratingCount: number
+  category: string
+  cid: string
+  latitude: number
+  longitude: number
 }
 
 declare global {

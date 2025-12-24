@@ -235,6 +235,143 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
   throw new Error('All Serper API keys exhausted')
 }
 
+// Serper Maps API - Google Maps Business Search with key rotation
+export interface MapsPlace {
+  title: string
+  address: string
+  phone: string | null
+  website: string | null
+  rating: number
+  ratingCount: number
+  category: string
+  cid: string
+  latitude: number
+  longitude: number
+}
+
+export interface MapsSearchParams {
+  query: string
+  location: string
+  countryCode?: string
+  num?: number
+}
+
+export async function searchMapsWithSerper(params: MapsSearchParams): Promise<MapsPlace[]> {
+  const multiKeys = getSerperApiKeys()
+  const singleKey = getApiKeys().serperApiKey
+
+  // Build keys array: multi-keys first, then single key as fallback
+  const allKeys: { key: string; index: number }[] = []
+  multiKeys.forEach((k, i) => allKeys.push({ key: k.key, index: i }))
+  if (singleKey && multiKeys.length === 0) {
+    allKeys.push({ key: singleKey, index: 0 })
+  }
+
+  if (allKeys.length === 0) {
+    throw new Error('Serper API key not configured. Please add your API key in Settings.')
+  }
+
+  // Helper to make Serper Maps request
+  const makeSerperMapsRequest = async (apiKey: string): Promise<Response> => {
+    const requestBody: Record<string, unknown> = {
+      q: params.query,
+      location: params.location,
+      num: params.num || 20
+    }
+
+    // Add country code if provided
+    if (params.countryCode) {
+      requestBody.gl = params.countryCode.toLowerCase()
+    }
+
+    return fetch('https://google.serper.dev/maps', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+  }
+
+  // Helper to parse Maps response
+  const parseMapsResponse = (data: unknown): MapsPlace[] => {
+    const response = data as { places?: unknown[] }
+    if (!response.places || !Array.isArray(response.places)) {
+      return []
+    }
+
+    return response.places.map((place: unknown) => {
+      const p = place as Record<string, unknown>
+      return {
+        title: (p.title as string) || 'Unknown Business',
+        address: (p.address as string) || '',
+        phone: (p.phoneNumber as string) || (p.phone as string) || null,
+        website: (p.website as string) || null,
+        rating: (p.rating as number) || 0,
+        ratingCount: (p.ratingCount as number) || (p.reviewsCount as number) || 0,
+        category: (p.category as string) || (p.type as string) || 'Business',
+        cid: (p.cid as string) || (p.placeId as string) || '',
+        latitude: (p.latitude as number) || 0,
+        longitude: (p.longitude as number) || 0
+      }
+    })
+  }
+
+  // Try each key with rotation
+  for (let attempt = 0; attempt < allKeys.length; attempt++) {
+    const { key: keyEntry, index, allExhausted } = getNextKeyForService('serper', allKeys.length)
+
+    if (!keyEntry) break
+
+    console.log(
+      `SerperMaps[${index + 1}/${allKeys.length}] searching: "${params.query}" in ${params.location}`
+    )
+    const response = await makeSerperMapsRequest(keyEntry.key)
+
+    if (response.ok) {
+      const data = await response.json()
+      const places = parseMapsResponse(data)
+      console.log(`SerperMaps[${index + 1}/${allKeys.length}] found ${places.length} places`)
+      return places
+    }
+
+    // Rate limit (429) or unauthorized - mark exhausted and try next
+    if (response.status === 429 || response.status === 401) {
+      console.log(
+        `SerperMaps[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
+      )
+      markKeyExhausted('serper', index, `HTTP ${response.status}`)
+
+      // If all keys exhausted, try first key again to check if reset
+      if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
+        console.log('[SerperMaps] All keys exhausted, checking if first key has reset...')
+        const firstKeyResponse = await makeSerperMapsRequest(allKeys[0].key)
+
+        if (firstKeyResponse.ok) {
+          // First key reset! Clear exhausted state and use it
+          console.log('[SerperMaps] First key has reset! Continuing...')
+          clearExhaustedState('serper')
+          const data = await firstKeyResponse.json()
+          return parseMapsResponse(data)
+        }
+
+        // First key still rate limited - STOP
+        throw new Error(
+          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
+        )
+      }
+      continue
+    }
+
+    // Other error - throw immediately
+    const errorText = await response.text().catch(() => 'Unknown error')
+    throw new Error(`Serper Maps API error (${response.status}): ${errorText}`)
+  }
+
+  throw new Error('All Serper API keys exhausted')
+}
+
 // Jina Reader API - Content Scraping with key rotation on rate limit
 export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
   const multiKeys = getJinaApiKeys()
