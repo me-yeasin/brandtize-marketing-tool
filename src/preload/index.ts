@@ -201,5 +201,11 @@ contextBridge.exposeInMainWorld('api', {
 
   onWhatsAppAuthFailure: (callback: (msg: string) => void): void => {
     ipcRenderer.on('whatsapp-auth-failure', (_event, msg) => callback(msg))
-  }
+  },
+
+  // ========================================
+  // UTILITIES
+  // ========================================
+  openExternalUrl: (url: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('open-external-url', url)
 })

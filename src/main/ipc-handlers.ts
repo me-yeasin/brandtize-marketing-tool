@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 import {
   checkWhatsAppNumber,
   disconnectWhatsApp,
@@ -347,5 +347,23 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('whatsapp-logout', async () => {
     await logoutWhatsApp()
     return { success: true }
+  })
+
+  // ========================================
+  // UTILITIES
+  // ========================================
+
+  // Open URL in system's default browser
+  ipcMain.handle('open-external-url', async (_event, url: string) => {
+    try {
+      await shell.openExternal(url)
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to open external URL:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to open URL'
+      }
+    }
   })
 }

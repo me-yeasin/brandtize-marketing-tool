@@ -93,7 +93,7 @@ function extractDomain(website: string): string {
   }
 }
 
-// Open WhatsApp to send message to a business
+// Open WhatsApp to send message to a business (opens in system default browser)
 function openWhatsApp(lead: Lead): void {
   if (!lead.phone) return
 
@@ -108,10 +108,11 @@ function openWhatsApp(lead: Lead): void {
   const message = `Hi! I found ${lead.name} on Google Maps and wanted to reach out. I'd love to discuss how we can help grow your business online. Would you have a few minutes to chat?`
 
   // wa.me link format: https://wa.me/<number>?text=<message>
-  // This opens WhatsApp Desktop if installed, otherwise WhatsApp Web
+  // Opens WhatsApp Desktop if installed, otherwise WhatsApp Web in browser
   const waUrl = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`
 
-  window.open(waUrl, '_blank')
+  // Open in system's default browser (not Electron window)
+  window.api.openExternalUrl(waUrl)
 }
 
 function MapsScoutPage(): JSX.Element {

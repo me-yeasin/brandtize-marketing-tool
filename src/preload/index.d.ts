@@ -123,6 +123,9 @@ export interface BrandtizeAPI {
   onWhatsAppReady: (callback: () => void) => void
   onWhatsAppDisconnected: (callback: (reason: string) => void) => void
   onWhatsAppAuthFailure: (callback: (msg: string) => void) => void
+
+  // Utilities
+  openExternalUrl: (url: string) => Promise<{ success: boolean; error?: string }>
 }
 
 // Maps Place type (from Serper Maps API)
