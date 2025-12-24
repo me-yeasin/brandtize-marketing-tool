@@ -21,11 +21,18 @@ type TabFilter = 'all' | 'has-website' | 'no-website'
 function SavedLeadsPage(): JSX.Element {
   const [leads, setLeads] = useState<SavedMapsLead[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<TabFilter>('all')
   const [toast, setToast] = useState<{
     message: string
     type: 'info' | 'error' | 'success'
   } | null>(null)
+
+  // WhatsApp state
+  const [whatsAppReady, setWhatsAppReady] = useState(false)
+  const [whatsAppInitializing, setWhatsAppInitializing] = useState(false)
+  const [whatsAppQrCode, setWhatsAppQrCode] = useState<string | null>(null)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
@@ -48,6 +55,142 @@ function SavedLeadsPage(): JSX.Element {
   useEffect(() => {
     loadLeads()
   }, [loadLeads])
+
+  // Setup WhatsApp event listeners
+  useEffect(() => {
+    // Listen for QR code
+    window.api.onWhatsAppQr((qr) => {
+      console.log('[SavedLeads] WhatsApp QR received')
+      setWhatsAppQrCode(qr)
+      setWhatsAppInitializing(false)
+      setShowWhatsAppModal(true)
+    })
+
+    // Listen for ready event
+    window.api.onWhatsAppReady(() => {
+      console.log('[SavedLeads] WhatsApp is ready!')
+      setWhatsAppReady(true)
+      setWhatsAppQrCode(null)
+      setWhatsAppInitializing(false)
+      setShowWhatsAppModal(false)
+      showToast('WhatsApp connected successfully!', 'success')
+    })
+
+    // Listen for disconnection
+    window.api.onWhatsAppDisconnected((reason) => {
+      console.log('[SavedLeads] WhatsApp disconnected:', reason)
+      setWhatsAppReady(false)
+      setWhatsAppQrCode(null)
+      showToast(`WhatsApp disconnected: ${reason}`, 'error')
+    })
+
+    // Listen for auth failure
+    window.api.onWhatsAppAuthFailure((msg) => {
+      console.error('[SavedLeads] WhatsApp auth failure:', msg)
+      setWhatsAppReady(false)
+      setWhatsAppInitializing(false)
+      showToast(`WhatsApp authentication failed: ${msg}`, 'error')
+    })
+
+    // Check initial status
+    window.api.whatsappGetStatus().then((status) => {
+      setWhatsAppReady(status.isReady)
+      setWhatsAppInitializing(status.isInitializing)
+      if (status.qrCode) {
+        setWhatsAppQrCode(status.qrCode)
+        setShowWhatsAppModal(true)
+      }
+    })
+  }, [])
+
+  // Initialize WhatsApp client
+  const handleInitWhatsApp = async (): Promise<void> => {
+    setWhatsAppInitializing(true)
+    try {
+      const result = await window.api.whatsappInitialize()
+      if (!result.success) {
+        showToast(result.error || 'Failed to initialize WhatsApp', 'error')
+        setWhatsAppInitializing(false)
+      }
+      // If successful, the event listeners will handle the rest
+    } catch (err) {
+      console.error('WhatsApp init error:', err)
+      showToast('Failed to initialize WhatsApp', 'error')
+      setWhatsAppInitializing(false)
+    }
+  }
+
+  // Check if a lead's phone number has WhatsApp
+  const handleCheckWhatsApp = async (leadId: string): Promise<void> => {
+    const lead = leads.find((l) => l.id === leadId)
+    if (!lead || !lead.phone) return
+
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    // Update lead to show loading locally (we don't persist loading state)
+    // We'll trust that re-render will show loading state if we had a loading field,
+    // but SavedMapsLead doesn't strictly have a 'loading' field in its type definition,
+    // so we might need to handle this locally or cast.
+    // However, looking at MapsScoutPage, it adds `isLoadingWhatsApp` to the interface.
+    // SavedMapsLead interface might NOT have it.
+    // Let's check preload/index.d.ts again.
+    // It has `hasWhatsApp`, but no `isLoadingWhatsApp`.
+    // We can use a local state Set for loading IDs.
+
+    // Actually, checking the file again, I'll use a local state for loading IDs to avoid polluting the data type.
+    setLoadingWhatsAppIds((prev) => new Set(prev).add(leadId))
+
+    try {
+      const result = await window.api.whatsappCheckNumber(lead.phone)
+
+      if (result.error) {
+        showToast(result.error, 'error')
+        setLoadingWhatsAppIds((prev) => {
+          const next = new Set(prev)
+          next.delete(leadId)
+          return next
+        })
+        return
+      }
+
+      // Update lead with WhatsApp status
+      const updatedLead = {
+        ...lead,
+        hasWhatsApp: result.hasWhatsApp
+        // formattedNumber: result.formattedNumber // If we wanted to save the formatted number
+      }
+
+      // Update local state
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+
+      // SAVE VALIDATION TO STORAGE
+      try {
+        await window.api.saveMapsLeads([updatedLead])
+        // showToast('Status saved', 'success') // Optional: too noisy?
+      } catch (saveErr) {
+        console.error('Failed to save WhatsApp status:', saveErr)
+      }
+
+      // Show feedback
+      if (result.hasWhatsApp) {
+        showToast(`${lead.name} has WhatsApp!`, 'success')
+      } else {
+        showToast(`${lead.name} does NOT have WhatsApp`, 'info')
+      }
+    } catch (err) {
+      console.error('WhatsApp check error:', err)
+      showToast('Failed to check WhatsApp status', 'error')
+    } finally {
+      setLoadingWhatsAppIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
 
   const handleRemoveLead = async (id: string): Promise<void> => {
     try {
@@ -332,6 +475,44 @@ function SavedLeadsPage(): JSX.Element {
         </div>
       </div>
 
+      {/* WhatsApp Connection Status Bar (if not connected or if wanting to show status) */}
+      <div
+        style={{
+          padding: '0 2rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'flex-end'
+        }}
+      >
+        <button
+          onClick={handleInitWhatsApp}
+          disabled={whatsAppInitializing}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '8px',
+            border: whatsAppReady
+              ? '1px solid rgba(34, 197, 94, 0.3)'
+              : '1px solid rgba(148, 163, 184, 0.3)',
+            background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
+            color: whatsAppReady ? '#22c55e' : '#94a3b8',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+        >
+          <FaWhatsapp />
+          {whatsAppInitializing
+            ? 'Connecting...'
+            : whatsAppReady
+              ? 'WhatsApp Connected'
+              : 'Connect WhatsApp'}
+        </button>
+      </div>
+
       {/* Loading */}
       {isLoading && (
         <div
@@ -483,6 +664,20 @@ function SavedLeadsPage(): JSX.Element {
                           WA
                         </span>
                       )}
+                      {lead.hasWhatsApp === false && (
+                        <span
+                          style={{
+                            padding: '1px 6px',
+                            borderRadius: '6px',
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            color: '#ef4444'
+                          }}
+                        >
+                          No WA
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
@@ -582,10 +777,39 @@ function SavedLeadsPage(): JSX.Element {
                   <FaMapMarkerAlt />
                 </button>
 
+                {/* WhatsApp Actions */}
+                {lead.phone && lead.hasWhatsApp == null && (
+                  <button
+                    onClick={() => handleCheckWhatsApp(lead.id)}
+                    disabled={loadingWhatsAppIds.has(lead.id) || !whatsAppReady}
+                    title={whatsAppReady ? 'Check WhatsApp' : 'Connect WhatsApp first'}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(148, 163, 184, 0.15)', // Grayish for "Check"
+                      color: '#94a3b8',
+                      fontSize: '1rem',
+                      opacity: !whatsAppReady && !loadingWhatsAppIds.has(lead.id) ? 0.5 : 1
+                    }}
+                  >
+                    {loadingWhatsAppIds.has(lead.id) ? (
+                      <div className="action-spinner" style={{ width: 14, height: 14 }}></div>
+                    ) : (
+                      <FaWhatsapp />
+                    )}
+                  </button>
+                )}
+
                 {lead.hasWhatsApp === true && (
                   <button
                     onClick={() => openWhatsApp(lead)}
-                    title="WhatsApp"
+                    title="Send WhatsApp Message"
                     style={{
                       width: '36px',
                       height: '36px',
@@ -690,6 +914,33 @@ function SavedLeadsPage(): JSX.Element {
           }}
         >
           {toast.message}
+        </div>
+      )}
+      {/* WhatsApp QR Code Modal */}
+      {showWhatsAppModal && whatsAppQrCode && (
+        <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
+          <div className="whatsapp-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="whatsapp-modal-header">
+              <h3>Scan QR Code with WhatsApp</h3>
+              <button className="whatsapp-modal-close" onClick={() => setShowWhatsAppModal(false)}>
+                ×
+              </button>
+            </div>
+            <div className="whatsapp-modal-body">
+              <p>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</p>
+              <div className="whatsapp-qr-container">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(whatsAppQrCode)}`}
+                  alt="WhatsApp QR Code"
+                  className="whatsapp-qr-image"
+                />
+              </div>
+              <p className="whatsapp-warning">
+                ⚠️ Use a secondary/burner WhatsApp account for checking numbers, not your main
+                business account.
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
