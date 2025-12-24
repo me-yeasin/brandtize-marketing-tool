@@ -242,6 +242,95 @@ function SavedLeadsPage(): JSX.Element {
     }
   }
 
+  // --- Email Finding Logic ---
+  const [loadingEmailIds, setLoadingEmailIds] = useState<Set<string>>(new Set())
+
+  const extractDomain = (url: string): string => {
+    try {
+      let domain = url.toLowerCase()
+      if (!domain.startsWith('http')) {
+        domain = 'http://' + domain
+      }
+      const hostname = new URL(domain).hostname
+      return hostname.replace(/^www\./, '')
+    } catch {
+      return url
+    }
+  }
+
+  const handleFindEmail = async (leadId: string): Promise<void> => {
+    const lead = leads.find((l) => l.id === leadId)
+    if (!lead || !lead.website) return
+
+    setLoadingEmailIds((prev) => new Set(prev).add(leadId))
+
+    try {
+      const domain = extractDomain(lead.website)
+      const result = await window.api.findEmailForDomain(domain)
+
+      let updatedLead = { ...lead }
+
+      if (result.email) {
+        // Email found! Now verify it
+        console.log(`[SavedLeads] Found email: ${result.email}, verifying...`)
+
+        try {
+          const verifyResult = await window.api.verifyEmail(result.email)
+
+          if (verifyResult.switched) {
+            showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+          }
+
+          updatedLead = {
+            ...updatedLead,
+            email: result.email || undefined,
+            emailSource: result.source,
+            emailVerified: verifyResult.verified
+          }
+
+          if (verifyResult.verified) {
+            showToast(`Found verified email: ${result.email}`, 'success')
+          } else {
+            showToast(`Found email (unverified): ${result.email}`, 'info')
+          }
+        } catch (verifyErr) {
+          console.error('Email verification error:', verifyErr)
+          // Still save the email, just mark as unverified
+          updatedLead = {
+            ...updatedLead,
+            email: result.email || undefined,
+            emailSource: result.source,
+            emailVerified: false
+          }
+          showToast(`Found email (verification failed): ${result.email}`, 'info')
+        }
+      } else {
+        // No email found
+        showToast(`No email found for "${lead.name}"`, 'info')
+        updatedLead = {
+          ...updatedLead,
+          email: undefined,
+          emailSource: result.source
+        }
+      }
+
+      // Update local state
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+
+      // Persist to DB
+      await window.api.updateSavedMapsLead(updatedLead)
+    } catch (err) {
+      console.error('Email finder error:', err)
+      showToast('Failed to find email', 'error')
+    } finally {
+      setLoadingEmailIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
+
   const handleClearAll = async (): Promise<void> => {
     if (!confirm('Are you sure you want to clear all saved leads?')) return
     try {
@@ -993,22 +1082,42 @@ function SavedLeadsPage(): JSX.Element {
                   )}
 
                   {lead.email && (
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.8rem',
-                        color: '#6366f1'
-                      }}
-                    >
-                      <FaEnvelope /> {lead.email}
-                      {lead.emailVerified && (
-                        <span style={{ color: '#22c55e', fontWeight: 700 }}>
-                          <FaCheck />
-                        </span>
-                      )}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontSize: '0.8rem',
+                          color: '#d97706',
+                          fontWeight: 500
+                        }}
+                      >
+                        <FaEnvelope /> {lead.email}
+                        {lead.emailVerified === true && (
+                          <span
+                            style={{ color: '#22c55e', fontWeight: 700, marginLeft: '4px' }}
+                            title="Verified Email"
+                          >
+                            <FaCheck />
+                          </span>
+                        )}
+                        {lead.emailVerified === false && (
+                          <span
+                            style={{
+                              color: '#ef4444',
+                              fontWeight: 700,
+                              marginLeft: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="Invalid/Unverified Email"
+                          >
+                            <FaTimes />
+                          </span>
+                        )}
+                      </span>
+                    </div>
                   )}
 
                   {lead.website ? (
@@ -1032,7 +1141,7 @@ function SavedLeadsPage(): JSX.Element {
                         gap: '0.35rem',
                         fontSize: '0.8rem',
                         color: '#f59e0b',
-                        fontWeight: 500
+                        fontStyle: 'italic'
                       }}
                     >
                       <FaExclamationTriangle /> No website
@@ -1041,16 +1150,14 @@ function SavedLeadsPage(): JSX.Element {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                {/* Rating */}
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.25rem',
-                    marginRight: '0.5rem',
-                    paddingRight: '0.75rem',
+                    gap: '0.5rem',
+                    paddingRight: '1rem',
                     borderRight: '1px solid rgba(148, 163, 184, 0.2)',
                     height: '24px'
                   }}
@@ -1063,6 +1170,45 @@ function SavedLeadsPage(): JSX.Element {
                   </span>
                   <span style={{ color: '#64748b', fontSize: '0.8rem' }}>({lead.reviewCount})</span>
                 </div>
+
+                {/* Find Email Button (only if website exists and no email) */}
+                {lead.website && !lead.email && (
+                  <button
+                    onClick={() => handleFindEmail(lead.id)}
+                    disabled={loadingEmailIds.has(lead.id)}
+                    title="Find Email"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      cursor: loadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: loadingEmailIds.has(lead.id)
+                        ? 'rgba(99, 102, 241, 0.1)'
+                        : 'rgba(99, 102, 241, 0.15)',
+                      color: '#6366f1',
+                      fontSize: '1rem',
+                      opacity: loadingEmailIds.has(lead.id) ? 0.7 : 1
+                    }}
+                  >
+                    {loadingEmailIds.has(lead.id) ? (
+                      <div
+                        className="action-spinner"
+                        style={{
+                          width: '14px',
+                          height: '14px',
+                          border: '2px solid rgba(99, 102, 241, 0.3)',
+                          borderTop: '2px solid #6366f1'
+                        }}
+                      ></div>
+                    ) : (
+                      <FaEnvelope />
+                    )}
+                  </button>
+                )}
 
                 <button
                   onClick={() => openInGoogleMaps(lead)}
