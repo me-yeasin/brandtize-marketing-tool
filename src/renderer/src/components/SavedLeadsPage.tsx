@@ -1171,45 +1171,6 @@ function SavedLeadsPage(): JSX.Element {
                   <span style={{ color: '#64748b', fontSize: '0.8rem' }}>({lead.reviewCount})</span>
                 </div>
 
-                {/* Find Email Button (only if website exists and no email) */}
-                {lead.website && !lead.email && (
-                  <button
-                    onClick={() => handleFindEmail(lead.id)}
-                    disabled={loadingEmailIds.has(lead.id)}
-                    title="Find Email"
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      cursor: loadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: loadingEmailIds.has(lead.id)
-                        ? 'rgba(99, 102, 241, 0.1)'
-                        : 'rgba(99, 102, 241, 0.15)',
-                      color: '#6366f1',
-                      fontSize: '1rem',
-                      opacity: loadingEmailIds.has(lead.id) ? 0.7 : 1
-                    }}
-                  >
-                    {loadingEmailIds.has(lead.id) ? (
-                      <div
-                        className="action-spinner"
-                        style={{
-                          width: '14px',
-                          height: '14px',
-                          border: '2px solid rgba(99, 102, 241, 0.3)',
-                          borderTop: '2px solid #6366f1'
-                        }}
-                      ></div>
-                    ) : (
-                      <FaEnvelope />
-                    )}
-                  </button>
-                )}
-
                 <button
                   onClick={() => openInGoogleMaps(lead)}
                   title="View on Maps"
@@ -1352,6 +1313,45 @@ function SavedLeadsPage(): JSX.Element {
                     }}
                   >
                     <FaTelegramPlane />
+                  </button>
+                )}
+
+                {/* Find Email Button (only if website exists and no email) */}
+                {lead.website && !lead.email && (
+                  <button
+                    onClick={() => handleFindEmail(lead.id)}
+                    disabled={loadingEmailIds.has(lead.id)}
+                    title="Find Email"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      cursor: loadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: loadingEmailIds.has(lead.id)
+                        ? 'rgba(99, 102, 241, 0.1)'
+                        : 'rgba(99, 102, 241, 0.15)',
+                      color: '#6366f1',
+                      fontSize: '1rem',
+                      opacity: loadingEmailIds.has(lead.id) ? 0.7 : 1
+                    }}
+                  >
+                    {loadingEmailIds.has(lead.id) ? (
+                      <div
+                        className="action-spinner"
+                        style={{
+                          width: '14px',
+                          height: '14px',
+                          border: '2px solid rgba(99, 102, 241, 0.3)',
+                          borderTop: '2px solid #6366f1'
+                        }}
+                      ></div>
+                    ) : (
+                      <FaEnvelope />
+                    )}
                   </button>
                 )}
 
