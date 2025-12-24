@@ -1,4 +1,5 @@
 import { JSX, useState } from 'react'
+import MapsScoutPage from './components/MapsScoutPage'
 import SettingsPage from './components/SettingsPage'
 import Sidebar from './components/Sidebar'
 import './styles/index.css'
@@ -24,6 +25,24 @@ function App(): JSX.Element {
   // Render Settings Page (completely separate layout)
   if (currentPage === 'settings') {
     return <SettingsPage onBack={handleBackFromSettings} />
+  }
+
+  // Render page content based on active route
+  const renderPageContent = (): JSX.Element => {
+    switch (activeRoute) {
+      case 'maps-scout':
+        return <MapsScoutPage />
+      default:
+        return (
+          <div className="page-content">
+            <h1>Coming Soon</h1>
+            <p>This feature is under development</p>
+            <p className="active-route">
+              Active Route: <code>{activeRoute}</code>
+            </p>
+          </div>
+        )
+    }
   }
 
   // Render Main Page
@@ -66,13 +85,7 @@ function App(): JSX.Element {
         )}
 
         {/* Page Content */}
-        <div className="page-content">
-          <h1>Hello World</h1>
-          <p>Welcome to Brandtize Marketing Tool</p>
-          <p className="active-route">
-            Active Route: <code>{activeRoute}</code>
-          </p>
-        </div>
+        {renderPageContent()}
       </main>
     </div>
   )
