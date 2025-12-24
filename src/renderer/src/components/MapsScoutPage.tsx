@@ -12,6 +12,8 @@ interface Lead {
   reviewCount: number
   category: string
   score: 'gold' | 'silver' | 'bronze'
+  latitude: number
+  longitude: number
   email?: string
   emailSource?: string
   emailVerified?: boolean
@@ -54,8 +56,25 @@ function mapPlaceToLead(place: MapsPlace, index: number): Lead {
     rating: place.rating,
     reviewCount: place.ratingCount,
     category: place.category,
-    score: calculateScore(place.rating, place.ratingCount, !place.website)
+    score: calculateScore(place.rating, place.ratingCount, !place.website),
+    latitude: place.latitude,
+    longitude: place.longitude
   }
+}
+
+// Open Google Maps in browser for a business
+function openInGoogleMaps(lead: Lead): void {
+  // If we have coordinates, use them for precise location
+  if (lead.latitude && lead.longitude) {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name)}&query_place_id=${lead.id}`
+    window.open(url, '_blank')
+    return
+  }
+
+  // Fallback to address search
+  const searchQuery = `${lead.name} ${lead.address}`
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`
+  window.open(url, '_blank')
 }
 
 // Extract domain from website URL
@@ -339,6 +358,25 @@ function MapsScoutPage(): JSX.Element {
 
                 {/* Actions */}
                 <div className="lead-actions">
+                  {/* View on Google Maps button */}
+                  <button
+                    className="lead-action"
+                    title="View on Map"
+                    onClick={() => openInGoogleMaps(lead)}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
+
                   {/* Only show Find Email button if business has website AND toggle is OFF */}
                   {lead.website && !noWebsiteOnly && !lead.email && (
                     <button
