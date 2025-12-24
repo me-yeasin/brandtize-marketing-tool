@@ -97,5 +97,13 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('set-snov-credentials', clientId, clientSecret),
   getSnovApiKeys: (): Promise<ApiKeyEntry[]> => ipcRenderer.invoke('get-snov-api-keys'),
   setSnovApiKeys: (keys: ApiKeyEntry[]): Promise<boolean> =>
-    ipcRenderer.invoke('set-snov-api-keys', keys)
+    ipcRenderer.invoke('set-snov-api-keys', keys),
+
+  // ========================================
+  // AI PROVIDER SELECTION
+  // ========================================
+  getSelectedAiProvider: (): Promise<'groq' | 'mistral' | 'google'> =>
+    ipcRenderer.invoke('get-selected-ai-provider'),
+  setSelectedAiProvider: (provider: 'groq' | 'mistral' | 'google'): Promise<boolean> =>
+    ipcRenderer.invoke('set-selected-ai-provider', provider)
 })

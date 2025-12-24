@@ -8,6 +8,8 @@ import {
   getJinaApiKeys,
   getMistralApiKeys,
   getReoonApiKeys,
+  // AI Provider selection
+  getSelectedAiProvider,
   getSerperApiKeys,
   getSnovApiKeys,
   setGoogleApiKey,
@@ -22,11 +24,13 @@ import {
   setMistralApiKeys,
   setReoonApiKey,
   setReoonApiKeys,
+  setSelectedAiProvider,
   setSerperApiKey,
   setSerperApiKeys,
   setSnovApiKeys,
   setSnovClientId,
   setSnovClientSecret,
+  type AiProvider,
   type ApiKeyEntry
 } from './store'
 
@@ -208,6 +212,18 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('set-snov-api-keys', (_event, keys: ApiKeyEntry[]) => {
     setSnovApiKeys(keys)
+    return true
+  })
+
+  // ========================================
+  // AI PROVIDER SELECTION
+  // ========================================
+  ipcMain.handle('get-selected-ai-provider', () => {
+    return getSelectedAiProvider()
+  })
+
+  ipcMain.handle('set-selected-ai-provider', (_event, provider: AiProvider) => {
+    setSelectedAiProvider(provider)
     return true
   })
 }

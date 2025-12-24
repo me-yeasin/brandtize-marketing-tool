@@ -69,6 +69,10 @@ export interface BrandtizeAPI {
   setSnovCredentials: (clientId: string, clientSecret: string) => Promise<boolean>
   getSnovApiKeys: () => Promise<ApiKeyEntry[]>
   setSnovApiKeys: (keys: ApiKeyEntry[]) => Promise<boolean>
+
+  // AI Provider Selection
+  getSelectedAiProvider: () => Promise<'groq' | 'mistral' | 'google'>
+  setSelectedAiProvider: (provider: 'groq' | 'mistral' | 'google') => Promise<boolean>
 }
 
 declare global {
