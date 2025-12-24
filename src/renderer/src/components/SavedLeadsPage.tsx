@@ -5,9 +5,11 @@ import {
   FaEnvelope,
   FaExclamationTriangle,
   FaFileExport,
+  FaFilter,
   FaGlobe,
   FaMapMarkerAlt,
   FaPhoneAlt,
+  FaRedo,
   FaStar,
   FaTelegramPlane,
   FaTimes,
@@ -18,11 +20,42 @@ import type { ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
 
+interface AdvancedFilters {
+  location: string
+  category: string
+  minRating: number
+  minReviews: number
+  hasWhatsApp: 'all' | 'yes' | 'no' | 'unknown'
+  hasEmail: 'all' | 'yes' | 'verified'
+  scores: {
+    gold: boolean
+    silver: boolean
+    bronze: boolean
+  }
+}
+
+const DEFAULT_FILTERS: AdvancedFilters = {
+  location: '',
+  category: '',
+  minRating: 0,
+  minReviews: 0,
+  hasWhatsApp: 'all',
+  hasEmail: 'all',
+  scores: {
+    gold: true,
+    silver: true,
+    bronze: true
+  }
+}
+
 function SavedLeadsPage(): JSX.Element {
   const [leads, setLeads] = useState<SavedMapsLead[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<TabFilter>('all')
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  const [filters, setFilters] = useState<AdvancedFilters>(DEFAULT_FILTERS)
+  const [searchQuery, setSearchQuery] = useState('')
   const [toast, setToast] = useState<{
     message: string
     type: 'info' | 'error' | 'success'
@@ -254,11 +287,49 @@ function SavedLeadsPage(): JSX.Element {
   }
 
   const filteredLeads = leads.filter((lead) => {
-    if (activeTab === 'has-website') return lead.website !== null
-    if (activeTab === 'no-website') return lead.website === null
+    // 1. Tab Filter
+    if (activeTab === 'has-website' && lead.website === null) return false
+    if (activeTab === 'no-website' && lead.website !== null) return false
+
+    // 2. Search Query (Name)
+    if (searchQuery) {
+      if (!lead.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    }
+
+    // 3. Advanced Filters
+    // Location
+    if (filters.location && !lead.address.toLowerCase().includes(filters.location.toLowerCase())) {
+      return false
+    }
+    // Category
+    if (filters.category && !lead.category.toLowerCase().includes(filters.category.toLowerCase())) {
+      return false
+    }
+    // Rating
+    if (lead.rating < filters.minRating) return false
+    // Reviews
+    if (lead.reviewCount < filters.minReviews) return false
+    // Score
+    if (!filters.scores[lead.score]) return false
+    // WhatsApp
+    if (filters.hasWhatsApp !== 'all') {
+      if (filters.hasWhatsApp === 'yes' && lead.hasWhatsApp !== true) return false
+      if (filters.hasWhatsApp === 'no' && lead.hasWhatsApp !== false) return false
+      if (
+        filters.hasWhatsApp === 'unknown' &&
+        lead.hasWhatsApp !== undefined &&
+        lead.hasWhatsApp !== null
+      )
+        return false
+    }
+    // Email
+    if (filters.hasEmail !== 'all') {
+      if (filters.hasEmail === 'yes' && !lead.email) return false
+      if (filters.hasEmail === 'verified' && (!lead.email || !lead.emailVerified)) return false
+    }
+
     return true
   })
-
   const hasWebsiteCount = leads.filter((l) => l.website !== null).length
   const noWebsiteCount = leads.filter((l) => l.website === null).length
 
@@ -445,6 +516,68 @@ function SavedLeadsPage(): JSX.Element {
           flexWrap: 'wrap'
         }}
       >
+        {/* Search & Filter */}
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '300px' }}
+        >
+          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+            <input
+              type="text"
+              placeholder="Search leads by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem 0.75rem 2.5rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '12px',
+                color: '#f1f5f9',
+                fontSize: '0.9rem',
+                outline: 'none'
+              }}
+            />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="rgba(148, 163, 184, 0.6)"
+              strokeWidth="2"
+              style={{
+                position: 'absolute',
+                left: '1rem',
+                top: '50%',
+                transform: 'translateY(-50%)'
+              }}
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+
+          {/* Filter Toggle Button */}
+          <button
+            onClick={() => setFilterPanelOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1rem',
+              background: filterPanelOpen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(15, 23, 42, 0.6)',
+              border: filterPanelOpen ? '1px solid #6366f1' : '1px solid rgba(148, 163, 184, 0.2)',
+              borderRadius: '12px',
+              color: filterPanelOpen ? '#6366f1' : '#94a3b8',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            <FaFilter />
+            <span>Filters</span>
+          </button>
+        </div>
+
         {/* Tabs */}
         <div
           style={{
@@ -1138,25 +1271,15 @@ function SavedLeadsPage(): JSX.Element {
               style={{
                 background: 'none',
                 border: 'none',
-                color: '#6366f1',
+                color: '#22c55e',
                 cursor: 'pointer',
                 padding: '4px',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
+                fontSize: '1rem'
               }}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M23 4v6h-6"></path>
-                <path d="M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 1 20.49 15"></path>
-              </svg>
+              <FaRedo />
             </button>
 
             <button className="reviews-panel-close" onClick={closeReviewsPanel}>
@@ -1247,7 +1370,9 @@ function SavedLeadsPage(): JSX.Element {
               <p>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</p>
               <div className="whatsapp-qr-container">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(whatsAppQrCode)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(
+                    whatsAppQrCode
+                  )}`}
                   alt="WhatsApp QR Code"
                   className="whatsapp-qr-image"
                 />
@@ -1259,6 +1384,267 @@ function SavedLeadsPage(): JSX.Element {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Filter Panel */}
+      <div className={`reviews-panel ${filterPanelOpen ? 'open' : ''}`}>
+        <div className="reviews-panel-header">
+          <div className="reviews-panel-title">
+            <h2>Filter Leads</h2>
+            <span className="reviews-panel-subtitle">Advanced filtering options</span>
+          </div>
+          <button className="reviews-panel-close" onClick={() => setFilterPanelOpen(false)}>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div className="reviews-panel-content" style={{ padding: '1.5rem' }}>
+          {/* Location Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span>Location / City / Country</span>
+            <input
+              type="text"
+              placeholder="e.g. New York, USA"
+              value={filters.location}
+              onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: '#f1f5f9',
+                marginTop: '0.5rem'
+              }}
+            />
+          </div>
+
+          {/* Category Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span>Category</span>
+            <input
+              type="text"
+              placeholder="e.g. Restaurant, Agency"
+              value={filters.category}
+              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: '#f1f5f9',
+                marginTop: '0.5rem'
+              }}
+            />
+          </div>
+
+          {/* Rating Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}
+            >
+              <span>Min Rating</span>
+              <span style={{ color: '#fbbf24', fontWeight: 600 }}>{filters.minRating}+ Stars</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="5"
+              step="0.5"
+              value={filters.minRating}
+              onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* Reviews Count Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span>Min Reviews Count</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="0"
+              value={filters.minReviews}
+              onChange={(e) =>
+                setFilters({ ...filters, minReviews: parseInt(e.target.value) || 0 })
+              }
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: '#f1f5f9',
+                marginTop: '0.5rem'
+              }}
+            />
+          </div>
+
+          {/* Score Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span style={{ display: 'block', marginBottom: '0.5rem' }}>Quality Score</span>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  color: '#f1f5f9'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.scores.gold}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      scores: { ...filters.scores, gold: e.target.checked }
+                    })
+                  }
+                />
+                Gold
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  color: '#f1f5f9'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.scores.silver}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      scores: { ...filters.scores, silver: e.target.checked }
+                    })
+                  }
+                />
+                Silver
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  color: '#f1f5f9'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={filters.scores.bronze}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      scores: { ...filters.scores, bronze: e.target.checked }
+                    })
+                  }
+                />
+                Bronze
+              </label>
+            </div>
+          </div>
+
+          {/* WhatsApp Status Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span>WhatsApp Status</span>
+            <select
+              value={filters.hasWhatsApp}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  hasWhatsApp: e.target.value as AdvancedFilters['hasWhatsApp']
+                })
+              }
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: '#f1f5f9',
+                marginTop: '0.5rem',
+                outline: 'none'
+              }}
+            >
+              <option value="all">All</option>
+              <option value="yes">Has WhatsApp</option>
+              <option value="no">No WhatsApp</option>
+              <option value="unknown">Unknown (Not Checked)</option>
+            </select>
+          </div>
+
+          {/* Email Status Filter */}
+          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+            <span>Email Status</span>
+            <select
+              value={filters.hasEmail}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  hasEmail: e.target.value as AdvancedFilters['hasEmail']
+                })
+              }
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                background: 'rgba(15, 23, 42, 0.6)',
+                color: '#f1f5f9',
+                marginTop: '0.5rem',
+                outline: 'none'
+              }}
+            >
+              <option value="all">All</option>
+              <option value="yes">Has Email</option>
+              <option value="verified">Verified Email Only</option>
+            </select>
+          </div>
+
+          {/* Reset Button */}
+          <button
+            onClick={() => setFilters(DEFAULT_FILTERS)}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: '1rem'
+            }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Overlay when filter panel is open */}
+      {filterPanelOpen && (
+        <div
+          className="reviews-overlay"
+          onClick={() => setFilterPanelOpen(false)}
+          style={{ zIndex: 998 }} // Ensure it's below the panel (zIndex usually 999 or 1000)
+        ></div>
       )}
     </div>
   )
