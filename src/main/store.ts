@@ -134,6 +134,15 @@ export interface StoredEmailPitch {
   generatedAt: number // timestamp
 }
 
+// Review interface for storage
+export interface Review {
+  author: string
+  rating: number
+  date: string
+  text: string
+  source?: string
+}
+
 // Saved Maps Lead (from Maps Scout)
 export interface SavedMapsLead {
   id: string
@@ -151,6 +160,7 @@ export interface SavedMapsLead {
   emailSource?: string
   emailVerified?: boolean
   hasWhatsApp?: boolean | null
+  reviews?: Review[] // Cached reviews
   savedAt: number // timestamp
 }
 

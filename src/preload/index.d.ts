@@ -151,6 +151,7 @@ export interface SavedMapsLead {
   emailSource?: string
   emailVerified?: boolean
   hasWhatsApp?: boolean | null
+  reviews?: Review[]
   savedAt: number
 }
 

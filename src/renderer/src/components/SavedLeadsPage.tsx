@@ -14,7 +14,7 @@ import {
   FaTrashAlt,
   FaWhatsapp
 } from 'react-icons/fa'
-import type { SavedMapsLead } from '../../../preload/index.d'
+import type { ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
 
@@ -27,6 +27,13 @@ function SavedLeadsPage(): JSX.Element {
     message: string
     type: 'info' | 'error' | 'success'
   } | null>(null)
+
+  // Reviews panel state
+  const [reviewsPanelOpen, setReviewsPanelOpen] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<SavedMapsLead | null>(null)
+  const [reviewsData, setReviewsData] = useState<ReviewsResult | null>(null)
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+  const [reviewsError, setReviewsError] = useState<string | null>(null)
 
   // WhatsApp state
   const [whatsAppReady, setWhatsAppReady] = useState(false)
@@ -231,9 +238,19 @@ function SavedLeadsPage(): JSX.Element {
   }
 
   const openInGoogleMaps = (lead: SavedMapsLead): void => {
+    // If we have coordinates, use them for precise location
+    if (lead.latitude && lead.longitude) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        lead.name
+      )}&query_place_id=${lead.id}`
+      window.open(url, '_blank')
+      return
+    }
+
     const searchQuery = `${lead.name} ${lead.address}`
-    window.api.openExternalUrl(
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`,
+      '_blank'
     )
   }
 
@@ -291,6 +308,108 @@ function SavedLeadsPage(): JSX.Element {
       default:
         return '#64748b'
     }
+  }
+
+  // Render star rating
+  const renderStars = (rating: number | null | undefined): JSX.Element => {
+    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 0
+    const fullStars = Math.floor(safeRating)
+    const hasHalf = safeRating % 1 >= 0.5
+    const stars: JSX.Element[] = []
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(
+        <span key={`full-${i}`} className="star full">
+          ★
+        </span>
+      )
+    }
+    if (hasHalf) {
+      stars.push(
+        <span key="half" className="star half">
+          ★
+        </span>
+      )
+    }
+    for (let i = stars.length; i < 5; i++) {
+      stars.push(
+        <span key={`empty-${i}`} className="star empty">
+          ☆
+        </span>
+      )
+    }
+
+    return <div className="stars-display">{stars}</div>
+  }
+
+  // Fetch reviews for a lead
+  const handleFetchReviews = async (lead: SavedMapsLead): Promise<void> => {
+    setSelectedLead(lead)
+    setReviewsPanelOpen(true)
+    setReviewsData(null)
+    setReviewsError(null)
+
+    // Check if we already have reviews cached
+    if (lead.reviews && lead.reviews.length > 0) {
+      console.log('[SavedLeads] Using cached reviews')
+      setReviewsData({
+        businessName: lead.name,
+        totalReviews: lead.reviewCount,
+        averageRating: lead.rating,
+        reviews: lead.reviews
+      })
+      return
+    }
+
+    setIsLoadingReviews(true)
+
+    try {
+      console.log('[SavedLeads] Fetching reviews for:', lead.id, lead.name)
+      const result = await window.api.fetchReviews(lead.id, lead.name, 10)
+      console.log('[SavedLeads] Raw reviews result:', result)
+
+      // Validate and sanitize
+      const sanitizedResult = {
+        businessName: result?.businessName || lead.name || 'Unknown Business',
+        totalReviews: typeof result?.totalReviews === 'number' ? result.totalReviews : 0,
+        averageRating: typeof result?.averageRating === 'number' ? result.averageRating : 0,
+        reviews: Array.isArray(result?.reviews)
+          ? result.reviews.map((r) => ({
+              author: r?.author || 'Anonymous',
+              rating: typeof r?.rating === 'number' ? r.rating : 0,
+              date: r?.date || '',
+              text: r?.text || '',
+              source: r?.source || undefined
+            }))
+          : []
+      }
+
+      setReviewsData(sanitizedResult)
+
+      // SAVE REVIEWS TO PERSISTENT STORAGE
+      if (sanitizedResult.reviews.length > 0) {
+        const updatedLead = { ...lead, reviews: sanitizedResult.reviews }
+
+        // Update local state
+        setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+
+        // Save to DB
+        await window.api.saveMapsLeads([updatedLead])
+        console.log('[SavedLeads] Saved reviews to cache')
+      }
+    } catch (err) {
+      console.error('[SavedLeads] Reviews fetch error:', err)
+      setReviewsError(err instanceof Error ? err.message : 'Failed to fetch reviews')
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }
+
+  const closeReviewsPanel = (): void => {
+    setReviewsPanelOpen(false)
+    setSelectedLead(null)
+    setReviewsData(null)
+    setReviewsError(null)
   }
 
   return (
@@ -771,6 +890,58 @@ function SavedLeadsPage(): JSX.Element {
                   <FaMapMarkerAlt />
                 </button>
 
+                {/* Reviews Button with Cache Indicator */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => handleFetchReviews(lead)}
+                    title={
+                      lead.reviews?.length
+                        ? `View ${lead.reviews.length} Cached Reviews`
+                        : 'Fetch Reviews'
+                    }
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background:
+                        lead.reviews && lead.reviews.length > 0
+                          ? 'rgba(251, 191, 36, 0.15)'
+                          : 'rgba(148, 163, 184, 0.15)',
+                      color: lead.reviews && lead.reviews.length > 0 ? '#fbbf24' : '#94a3b8',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    <FaStar />
+                  </button>
+                  {lead.reviews && lead.reviews.length > 0 && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -5,
+                        right: -5,
+                        background: '#fbbf24',
+                        color: '#0f172a',
+                        fontSize: '0.6rem',
+                        fontWeight: 'bold',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '2px solid #1e293b'
+                      }}
+                    >
+                      {lead.reviews.length}
+                    </span>
+                  )}
+                </div>
+
                 {/* WhatsApp Actions */}
                 {lead.phone && lead.hasWhatsApp == null && (
                   <button
@@ -910,6 +1081,88 @@ function SavedLeadsPage(): JSX.Element {
           {toast.message}
         </div>
       )}
+      {/* Reviews Panel - Slide-in from right */}
+      <div className={`reviews-panel ${reviewsPanelOpen ? 'open' : ''}`}>
+        <div className="reviews-panel-header">
+          <div className="reviews-panel-title">
+            <h2>{selectedLead?.name || 'Reviews'}</h2>
+            {selectedLead && (
+              <span className="reviews-panel-subtitle">{selectedLead.category}</span>
+            )}
+          </div>
+          <button className="reviews-panel-close" onClick={closeReviewsPanel}>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div className="reviews-panel-content">
+          {isLoadingReviews && (
+            <div className="reviews-loading">
+              <div className="action-spinner"></div>
+              <p>Loading reviews...</p>
+            </div>
+          )}
+
+          {reviewsError && (
+            <div className="reviews-error">
+              <p>{reviewsError}</p>
+            </div>
+          )}
+
+          {reviewsData && !isLoadingReviews && (
+            <>
+              {/* Reviews Summary */}
+              <div className="reviews-summary">
+                <div className="reviews-rating-big">
+                  <span className="rating-number">
+                    {typeof reviewsData.averageRating === 'number'
+                      ? reviewsData.averageRating.toFixed(1)
+                      : '0.0'}
+                  </span>
+                  {renderStars(reviewsData.averageRating)}
+                </div>
+                <span className="reviews-total">{reviewsData.totalReviews ?? 0} reviews</span>
+              </div>
+
+              {/* Reviews List */}
+              <div className="reviews-list">
+                {reviewsData.reviews && reviewsData.reviews.length > 0 ? (
+                  reviewsData.reviews.map((review, index) => (
+                    <div key={index} className="review-card">
+                      <div className="review-header">
+                        <span className="review-author">{review.author || 'Anonymous'}</span>
+                        <div className="review-meta">
+                          {renderStars(review.rating)}
+                          {review.date && <span className="review-date">{review.date}</span>}
+                        </div>
+                      </div>
+                      {review.text && <p className="review-text">{review.text}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="reviews-empty">
+                    <p>No reviews available</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Overlay when panel is open */}
+      {reviewsPanelOpen && <div className="reviews-overlay" onClick={closeReviewsPanel}></div>}
+
       {/* WhatsApp QR Code Modal */}
       {showWhatsAppModal && whatsAppQrCode && (
         <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
