@@ -157,5 +157,49 @@ contextBridge.exposeInMainWorld('api', {
     totalReviews: number
     averageRating: number
     reviews: { author: string; rating: number; date: string; text: string; source?: string }[]
-  }> => ipcRenderer.invoke('fetch-reviews', placeId, businessName, num)
+  }> => ipcRenderer.invoke('fetch-reviews', placeId, businessName, num),
+
+  // ========================================
+  // WHATSAPP
+  // ========================================
+  whatsappInitialize: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('whatsapp-initialize'),
+
+  whatsappGetStatus: (): Promise<{
+    isReady: boolean
+    isInitializing: boolean
+    hasQrCode: boolean
+    qrCode: string | null
+    error: string | null
+  }> => ipcRenderer.invoke('whatsapp-get-status'),
+
+  whatsappCheckNumber: (
+    phoneNumber: string
+  ): Promise<{
+    hasWhatsApp: boolean
+    formattedNumber: string | null
+    error: string | null
+  }> => ipcRenderer.invoke('whatsapp-check-number', phoneNumber),
+
+  whatsappDisconnect: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('whatsapp-disconnect'),
+
+  whatsappLogout: (): Promise<{ success: boolean }> => ipcRenderer.invoke('whatsapp-logout'),
+
+  // WhatsApp event listeners
+  onWhatsAppQr: (callback: (qr: string) => void): void => {
+    ipcRenderer.on('whatsapp-qr', (_event, qr) => callback(qr))
+  },
+
+  onWhatsAppReady: (callback: () => void): void => {
+    ipcRenderer.on('whatsapp-ready', () => callback())
+  },
+
+  onWhatsAppDisconnected: (callback: (reason: string) => void): void => {
+    ipcRenderer.on('whatsapp-disconnected', (_event, reason) => callback(reason))
+  },
+
+  onWhatsAppAuthFailure: (callback: (msg: string) => void): void => {
+    ipcRenderer.on('whatsapp-auth-failure', (_event, msg) => callback(msg))
+  }
 })

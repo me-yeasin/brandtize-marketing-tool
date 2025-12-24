@@ -100,6 +100,29 @@ export interface BrandtizeAPI {
   verifyEmail: (email: string) => Promise<{ verified: boolean; source: string; switched: boolean }>
 
   fetchReviews: (placeId: string, businessName: string, num?: number) => Promise<ReviewsResult>
+
+  // WhatsApp
+  whatsappInitialize: () => Promise<{ success: boolean; error?: string }>
+  whatsappGetStatus: () => Promise<{
+    isReady: boolean
+    isInitializing: boolean
+    hasQrCode: boolean
+    qrCode: string | null
+    error: string | null
+  }>
+  whatsappCheckNumber: (phoneNumber: string) => Promise<{
+    hasWhatsApp: boolean
+    formattedNumber: string | null
+    error: string | null
+  }>
+  whatsappDisconnect: () => Promise<{ success: boolean }>
+  whatsappLogout: () => Promise<{ success: boolean }>
+
+  // WhatsApp event listeners
+  onWhatsAppQr: (callback: (qr: string) => void) => void
+  onWhatsAppReady: (callback: () => void) => void
+  onWhatsAppDisconnected: (callback: (reason: string) => void) => void
+  onWhatsAppAuthFailure: (callback: (msg: string) => void) => void
 }
 
 // Maps Place type (from Serper Maps API)

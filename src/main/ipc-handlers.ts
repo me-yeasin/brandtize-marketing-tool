@@ -1,5 +1,12 @@
 import { ipcMain } from 'electron'
 import {
+  checkWhatsAppNumber,
+  disconnectWhatsApp,
+  getWhatsAppStatus,
+  initializeWhatsAppClient,
+  logoutWhatsApp
+} from './services/whatsapp-service'
+import {
   getApiKeys,
   getGoogleApiKeys,
   // Multi-key getters/setters
@@ -302,4 +309,43 @@ export function registerIpcHandlers(): void {
       return fetchReviewsWithSerper(placeId, businessName, num || 10)
     }
   )
+
+  // ========================================
+  // WHATSAPP
+  // ========================================
+
+  // Initialize WhatsApp client
+  ipcMain.handle('whatsapp-initialize', async () => {
+    try {
+      await initializeWhatsAppClient()
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to initialize WhatsApp'
+      }
+    }
+  })
+
+  // Get WhatsApp status
+  ipcMain.handle('whatsapp-get-status', () => {
+    return getWhatsAppStatus()
+  })
+
+  // Check if a phone number has WhatsApp
+  ipcMain.handle('whatsapp-check-number', async (_event, phoneNumber: string) => {
+    return checkWhatsAppNumber(phoneNumber)
+  })
+
+  // Disconnect WhatsApp client
+  ipcMain.handle('whatsapp-disconnect', async () => {
+    await disconnectWhatsApp()
+    return { success: true }
+  })
+
+  // Logout from WhatsApp (clears session)
+  ipcMain.handle('whatsapp-logout', async () => {
+    await logoutWhatsApp()
+    return { success: true }
+  })
 }

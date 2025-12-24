@@ -2626,3 +2626,188 @@ body {
   color: var(--accent-primary);
   font-family: 'Fira Code', 'Consolas', monospace;
 }
+
+/* ========================================
+   WHATSAPP STYLES
+======================================== */
+
+/* WhatsApp Connect Button */
+.scout-btn.whatsapp-connect {
+  background: rgba(37, 211, 102, 0.15);
+  border: 1px solid rgba(37, 211, 102, 0.4);
+  color: #25d366;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all var(--transition-fast);
+}
+
+.scout-btn.whatsapp-connect:hover:not(:disabled) {
+  background: rgba(37, 211, 102, 0.25);
+  border-color: #25d366;
+}
+
+.scout-btn.whatsapp-connect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scout-btn.whatsapp-connected {
+  background: rgba(37, 211, 102, 0.25);
+  border: 1px solid #25d366;
+  color: #25d366;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* WhatsApp Badge (indicator next to phone number) */
+.contact-phone-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.whatsapp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.whatsapp-badge.has-whatsapp svg {
+  filter: drop-shadow(0 0 2px rgba(37, 211, 102, 0.5));
+}
+
+.whatsapp-badge.no-whatsapp svg {
+  opacity: 0.7;
+}
+
+/* WhatsApp Action Button */
+.lead-action.whatsapp-action {
+  color: #25d366;
+}
+
+.lead-action.whatsapp-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lead-action.whatsapp-action:hover:not(:disabled) {
+  background: rgba(37, 211, 102, 0.15);
+}
+
+/* No Phone Badge */
+.contact-no-phone {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(100, 116, 139, 0.15);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* WhatsApp QR Modal */
+.whatsapp-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.whatsapp-modal {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.whatsapp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: rgba(37, 211, 102, 0.1);
+  border-bottom: 1px solid rgba(37, 211, 102, 0.2);
+}
+
+.whatsapp-modal-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #25d366;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.whatsapp-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.whatsapp-modal-close:hover {
+  color: var(--text-primary);
+}
+
+.whatsapp-modal-body {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.whatsapp-modal-body p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.whatsapp-qr-container {
+  background: white;
+  padding: 1rem;
+  border-radius: 12px;
+  display: inline-block;
+  margin: 1rem 0;
+}
+
+.whatsapp-qr-image {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.whatsapp-warning {
+  font-size: 0.8rem !important;
+  color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-top: 1rem !important;
+  margin-bottom: 0 !important;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
