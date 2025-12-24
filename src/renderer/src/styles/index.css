@@ -2700,7 +2700,7 @@ body {
 
 .lead-action.whatsapp-send:hover {
   background: rgba(37, 211, 102, 0.3);
-  border-color: #25D366;
+  border-color: #25d366;
   transform: scale(1.1);
 }
 
@@ -2831,3 +2831,8 @@ body {
   margin-bottom: 0 !important;
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
+
+/* ========================================
+   SAVED LEADS PAGE
+   Now using Tailwind CSS - see SavedLeadsPage.tsx
+======================================== */

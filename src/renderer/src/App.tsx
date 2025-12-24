@@ -1,5 +1,6 @@
 import { JSX, useState } from 'react'
 import MapsScoutPage from './components/MapsScoutPage'
+import SavedLeadsPage from './components/SavedLeadsPage'
 import SettingsPage from './components/SettingsPage'
 import Sidebar from './components/Sidebar'
 import './styles/index.css'
@@ -32,6 +33,8 @@ function App(): JSX.Element {
     switch (activeRoute) {
       case 'maps-scout':
         return <MapsScoutPage />
+      case 'saved-leads':
+        return <SavedLeadsPage />
       default:
         return (
           <div className="page-content">

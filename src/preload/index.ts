@@ -7,6 +7,26 @@ export interface ApiKeyEntry {
   label?: string
 }
 
+// Saved Maps Lead type
+export interface SavedMapsLead {
+  id: string
+  name: string
+  address: string
+  phone: string | null
+  website: string | null
+  rating: number
+  reviewCount: number
+  category: string
+  score: 'gold' | 'silver' | 'bronze'
+  latitude: number
+  longitude: number
+  email?: string
+  emailSource?: string
+  emailVerified?: boolean
+  hasWhatsApp?: boolean | null
+  savedAt: number
+}
+
 // Expose API to renderer
 contextBridge.exposeInMainWorld('api', {
   // ========================================
@@ -207,5 +227,19 @@ contextBridge.exposeInMainWorld('api', {
   // UTILITIES
   // ========================================
   openExternalUrl: (url: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('open-external-url', url)
+    ipcRenderer.invoke('open-external-url', url),
+
+  // ========================================
+  // SAVED MAPS LEADS
+  // ========================================
+  getSavedMapsLeads: (): Promise<SavedMapsLead[]> => ipcRenderer.invoke('get-saved-maps-leads'),
+
+  saveMapsLeads: (leads: SavedMapsLead[]): Promise<{ success: boolean; count: number }> =>
+    ipcRenderer.invoke('save-maps-leads', leads),
+
+  removeSavedMapsLead: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('remove-saved-maps-lead', id),
+
+  clearSavedMapsLeads: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('clear-saved-maps-leads')
 })

@@ -134,6 +134,26 @@ export interface StoredEmailPitch {
   generatedAt: number // timestamp
 }
 
+// Saved Maps Lead (from Maps Scout)
+export interface SavedMapsLead {
+  id: string
+  name: string
+  address: string
+  phone: string | null
+  website: string | null
+  rating: number
+  reviewCount: number
+  category: string
+  score: 'gold' | 'silver' | 'bronze'
+  latitude: number
+  longitude: number
+  email?: string
+  emailSource?: string
+  emailVerified?: boolean
+  hasWhatsApp?: boolean | null
+  savedAt: number // timestamp
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -168,6 +188,8 @@ interface StoreSchema {
   foundLeads: FoundLead[]
   // Email pitches storage (keyed by lead ID)
   emailPitches: Record<string, StoredEmailPitch>
+  // Saved Maps Scout leads
+  savedMapsLeads: SavedMapsLead[]
 }
 
 const store = new Store<StoreSchema>({
@@ -204,7 +226,9 @@ const store = new Store<StoreSchema>({
     processedDomains: [],
     foundLeads: [],
     // Email pitches storage (empty by default)
-    emailPitches: {}
+    emailPitches: {},
+    // Saved Maps Scout leads (empty by default)
+    savedMapsLeads: []
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -544,6 +568,39 @@ export function removeEmailPitch(leadId: string): void {
 
 export function clearEmailPitches(): void {
   store.set('emailPitches', {})
+}
+
+// Saved Maps Leads functions
+export function getSavedMapsLeads(): SavedMapsLead[] {
+  return store.get('savedMapsLeads', [])
+}
+
+export function saveMapsLeads(leads: SavedMapsLead[]): void {
+  const existingLeads = getSavedMapsLeads()
+  const timestamp = Date.now()
+
+  // Add new leads, avoiding duplicates by ID
+  leads.forEach((lead) => {
+    const existingIndex = existingLeads.findIndex((l) => l.id === lead.id)
+    if (existingIndex >= 0) {
+      // Update existing lead
+      existingLeads[existingIndex] = { ...lead, savedAt: timestamp }
+    } else {
+      // Add new lead
+      existingLeads.push({ ...lead, savedAt: timestamp })
+    }
+  })
+
+  store.set('savedMapsLeads', existingLeads)
+}
+
+export function removeSavedMapsLead(id: string): void {
+  const leads = getSavedMapsLeads().filter((l) => l.id !== id)
+  store.set('savedMapsLeads', leads)
+}
+
+export function clearSavedMapsLeads(): void {
+  store.set('savedMapsLeads', [])
 }
 
 export { store }

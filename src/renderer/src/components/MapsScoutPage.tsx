@@ -167,7 +167,10 @@ function MapsScoutPage(): JSX.Element {
   const [reviewsError, setReviewsError] = useState<string | null>(null)
 
   // Toast notification state
-  const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' } | null>(null)
+  const [toast, setToast] = useState<{
+    message: string
+    type: 'info' | 'error' | 'success'
+  } | null>(null)
 
   // WhatsApp state
   const [whatsAppReady, setWhatsAppReady] = useState(false)
@@ -176,7 +179,7 @@ function MapsScoutPage(): JSX.Element {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
 
   // Show toast helper
-  const showToast = (message: string, type: 'info' | 'error' = 'info'): void => {
+  const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
   }
@@ -497,6 +500,50 @@ function MapsScoutPage(): JSX.Element {
     a.download = `leads-${location.replace(/\s+/g, '-')}-${Date.now()}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Remove a lead from the list
+  const handleRemoveLead = (leadId: string): void => {
+    setLeads((prev) => prev.filter((l) => l.id !== leadId))
+    showToast('Lead removed from list', 'info')
+  }
+
+  // Save current leads to persistent storage
+  const handleSaveLeads = async (): Promise<void> => {
+    if (leads.length === 0) {
+      showToast('No leads to save', 'error')
+      return
+    }
+
+    try {
+      // Convert leads to SavedMapsLead format
+      const leadsToSave = leads.map((lead) => ({
+        id: lead.id,
+        name: lead.name,
+        address: lead.address,
+        phone: lead.phone,
+        website: lead.website,
+        rating: lead.rating,
+        reviewCount: lead.reviewCount,
+        category: lead.category,
+        score: lead.score,
+        latitude: lead.latitude,
+        longitude: lead.longitude,
+        email: lead.email,
+        emailSource: lead.emailSource,
+        emailVerified: lead.emailVerified,
+        hasWhatsApp: lead.hasWhatsApp,
+        savedAt: Date.now()
+      }))
+
+      const result = await window.api.saveMapsLeads(leadsToSave)
+      if (result.success) {
+        showToast(`Saved ${result.count} leads successfully!`, 'success')
+      }
+    } catch (err) {
+      console.error('Save leads error:', err)
+      showToast('Failed to save leads', 'error')
+    }
   }
 
   // Fetch reviews for a lead
@@ -832,6 +879,21 @@ function MapsScoutPage(): JSX.Element {
               <button className="scout-btn outline" onClick={handleExport}>
                 Export CSV
               </button>
+              <button className="scout-btn primary" onClick={handleSaveLeads}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Save Leads
+              </button>
             </div>
           </div>
 
@@ -1043,6 +1105,24 @@ function MapsScoutPage(): JSX.Element {
                       )}
                     </button>
                   )}
+
+                  {/* Remove lead button */}
+                  <button
+                    className="lead-action remove-action"
+                    title="Remove from list"
+                    onClick={() => handleRemoveLead(lead.id)}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M18 6L6 18M6 6l12 12"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}

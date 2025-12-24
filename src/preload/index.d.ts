@@ -126,6 +126,32 @@ export interface BrandtizeAPI {
 
   // Utilities
   openExternalUrl: (url: string) => Promise<{ success: boolean; error?: string }>
+
+  // Saved Maps Leads
+  getSavedMapsLeads: () => Promise<SavedMapsLead[]>
+  saveMapsLeads: (leads: SavedMapsLead[]) => Promise<{ success: boolean; count: number }>
+  removeSavedMapsLead: (id: string) => Promise<{ success: boolean }>
+  clearSavedMapsLeads: () => Promise<{ success: boolean }>
+}
+
+// Saved Maps Lead type
+export interface SavedMapsLead {
+  id: string
+  name: string
+  address: string
+  phone: string | null
+  website: string | null
+  rating: number
+  reviewCount: number
+  category: string
+  score: 'gold' | 'silver' | 'bronze'
+  latitude: number
+  longitude: number
+  email?: string
+  emailSource?: string
+  emailVerified?: boolean
+  hasWhatsApp?: boolean | null
+  savedAt: number
 }
 
 // Maps Place type (from Serper Maps API)

@@ -7,6 +7,7 @@ import {
   logoutWhatsApp
 } from './services/whatsapp-service'
 import {
+  clearSavedMapsLeads,
   getApiKeys,
   getGoogleApiKeys,
   // Multi-key getters/setters
@@ -15,10 +16,14 @@ import {
   getJinaApiKeys,
   getMistralApiKeys,
   getReoonApiKeys,
+  // Saved Maps Leads
+  getSavedMapsLeads,
   // AI Provider selection
   getSelectedAiProvider,
   getSerperApiKeys,
   getSnovApiKeys,
+  removeSavedMapsLead,
+  saveMapsLeads,
   setGoogleApiKey,
   setGoogleApiKeys,
   setGroqApiKey,
@@ -38,7 +43,8 @@ import {
   setSnovClientId,
   setSnovClientSecret,
   type AiProvider,
-  type ApiKeyEntry
+  type ApiKeyEntry,
+  type SavedMapsLead
 } from './store'
 
 export function registerIpcHandlers(): void {
@@ -365,5 +371,32 @@ export function registerIpcHandlers(): void {
         error: error instanceof Error ? error.message : 'Failed to open URL'
       }
     }
+  })
+
+  // ========================================
+  // SAVED MAPS LEADS
+  // ========================================
+
+  // Get all saved maps leads
+  ipcMain.handle('get-saved-maps-leads', () => {
+    return getSavedMapsLeads()
+  })
+
+  // Save maps leads
+  ipcMain.handle('save-maps-leads', (_event, leads: SavedMapsLead[]) => {
+    saveMapsLeads(leads)
+    return { success: true, count: leads.length }
+  })
+
+  // Remove a saved map lead
+  ipcMain.handle('remove-saved-maps-lead', (_event, id: string) => {
+    removeSavedMapsLead(id)
+    return { success: true }
+  })
+
+  // Clear all saved maps leads
+  ipcMain.handle('clear-saved-maps-leads', () => {
+    clearSavedMapsLeads()
+    return { success: true }
   })
 }
