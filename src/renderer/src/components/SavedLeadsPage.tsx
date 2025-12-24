@@ -175,8 +175,7 @@ function SavedLeadsPage(): JSX.Element {
 
       // SAVE VALIDATION TO STORAGE
       try {
-        await window.api.saveMapsLeads([updatedLead])
-        // showToast('Status saved', 'success') // Optional: too noisy?
+        await window.api.updateSavedMapsLead(updatedLead)
       } catch (saveErr) {
         console.error('Failed to save WhatsApp status:', saveErr)
       }
@@ -343,14 +342,14 @@ function SavedLeadsPage(): JSX.Element {
   }
 
   // Fetch reviews for a lead
-  const handleFetchReviews = async (lead: SavedMapsLead): Promise<void> => {
+  const handleFetchReviews = async (lead: SavedMapsLead, force = false): Promise<void> => {
     setSelectedLead(lead)
     setReviewsPanelOpen(true)
     setReviewsData(null)
     setReviewsError(null)
 
-    // Check if we already have reviews cached
-    if (lead.reviews && lead.reviews.length > 0) {
+    // Check if we already have reviews cached (unless forced)
+    if (!force && lead.reviews && lead.reviews.length > 0) {
       console.log('[SavedLeads] Using cached reviews')
       setReviewsData({
         businessName: lead.name,
@@ -392,9 +391,12 @@ function SavedLeadsPage(): JSX.Element {
 
         // Update local state
         setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+        if (selectedLead?.id === lead.id) {
+          setSelectedLead(updatedLead)
+        }
 
-        // Save to DB
-        await window.api.saveMapsLeads([updatedLead])
+        // Save to DB (Update specifically)
+        await window.api.updateSavedMapsLead(updatedLead)
         console.log('[SavedLeads] Saved reviews to cache')
       }
     } catch (err) {
@@ -403,6 +405,23 @@ function SavedLeadsPage(): JSX.Element {
     } finally {
       setIsLoadingReviews(false)
     }
+  }
+
+  // Clear cached reviews for a lead
+  const handleClearReviews = async (): Promise<void> => {
+    if (!selectedLead) return
+
+    // Create lead without reviews
+    const updatedLead = { ...selectedLead, reviews: undefined }
+
+    // Update local state
+    setLeads((prev) => prev.map((l) => (l.id === selectedLead.id ? updatedLead : l)))
+    setSelectedLead(updatedLead)
+    setReviewsData(null) // Clear currently shown data
+
+    // Update DB
+    await window.api.updateSavedMapsLead(updatedLead)
+    showToast('Reviews cleared from cache', 'info')
   }
 
   const closeReviewsPanel = (): void => {
@@ -1090,19 +1109,70 @@ function SavedLeadsPage(): JSX.Element {
               <span className="reviews-panel-subtitle">{selectedLead.category}</span>
             )}
           </div>
-          <button className="reviews-panel-close" onClick={closeReviewsPanel}>
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {/* Clear Button */}
+            {selectedLead?.reviews && selectedLead.reviews.length > 0 && (
+              <button
+                className="reviews-panel-action"
+                onClick={handleClearReviews}
+                title="Clear cached reviews"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <FaTrashAlt />
+              </button>
+            )}
+
+            {/* Refresh Button */}
+            <button
+              className="reviews-panel-action"
+              onClick={() => selectedLead && handleFetchReviews(selectedLead, true)}
+              title="Refresh reviews"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6366f1',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
             >
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 1 20.49 15"></path>
+              </svg>
+            </button>
+
+            <button className="reviews-panel-close" onClick={closeReviewsPanel}>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="reviews-panel-content">

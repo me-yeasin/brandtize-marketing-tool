@@ -237,6 +237,9 @@ contextBridge.exposeInMainWorld('api', {
   saveMapsLeads: (leads: SavedMapsLead[]): Promise<{ success: boolean; count: number }> =>
     ipcRenderer.invoke('save-maps-leads', leads),
 
+  updateSavedMapsLead: (lead: SavedMapsLead): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('update-saved-maps-lead', lead),
+
   removeSavedMapsLead: (id: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('remove-saved-maps-lead', id),
 

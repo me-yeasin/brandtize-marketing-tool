@@ -130,6 +130,7 @@ export interface BrandtizeAPI {
   // Saved Maps Leads
   getSavedMapsLeads: () => Promise<SavedMapsLead[]>
   saveMapsLeads: (leads: SavedMapsLead[]) => Promise<{ success: boolean; count: number }>
+  updateSavedMapsLead: (lead: SavedMapsLead) => Promise<{ success: boolean }>
   removeSavedMapsLead: (id: string) => Promise<{ success: boolean }>
   clearSavedMapsLeads: () => Promise<{ success: boolean }>
 }

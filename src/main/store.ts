@@ -585,23 +585,33 @@ export function getSavedMapsLeads(): SavedMapsLead[] {
   return store.get('savedMapsLeads', [])
 }
 
-export function saveMapsLeads(leads: SavedMapsLead[]): void {
+export function saveMapsLeads(leads: SavedMapsLead[]): number {
   const existingLeads = getSavedMapsLeads()
+  const existingIds = new Set(existingLeads.map((l) => l.id))
   const timestamp = Date.now()
 
-  // Add new leads, avoiding duplicates by ID
-  leads.forEach((lead) => {
-    const existingIndex = existingLeads.findIndex((l) => l.id === lead.id)
-    if (existingIndex >= 0) {
-      // Update existing lead
-      existingLeads[existingIndex] = { ...lead, savedAt: timestamp }
-    } else {
-      // Add new lead
-      existingLeads.push({ ...lead, savedAt: timestamp })
-    }
-  })
+  // Filter out leads that already exist
+  const newLeads = leads
+    .filter((lead) => !existingIds.has(lead.id))
+    .map((lead) => ({ ...lead, savedAt: timestamp }))
 
-  store.set('savedMapsLeads', existingLeads)
+  // Prepend new leads (add to top)
+  const updatedLeads = [...newLeads, ...existingLeads]
+
+  store.set('savedMapsLeads', updatedLeads)
+
+  return newLeads.length
+}
+
+export function updateSavedMapsLead(updatedLead: SavedMapsLead): boolean {
+  const leads = getSavedMapsLeads()
+  const index = leads.findIndex((l) => l.id === updatedLead.id)
+  if (index !== -1) {
+    leads[index] = updatedLead
+    store.set('savedMapsLeads', leads)
+    return true
+  }
+  return false
 }
 
 export function removeSavedMapsLead(id: string): void {

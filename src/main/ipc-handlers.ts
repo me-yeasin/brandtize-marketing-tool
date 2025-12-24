@@ -42,6 +42,7 @@ import {
   setSnovApiKeys,
   setSnovClientId,
   setSnovClientSecret,
+  updateSavedMapsLead,
   type AiProvider,
   type ApiKeyEntry,
   type SavedMapsLead
@@ -384,8 +385,14 @@ export function registerIpcHandlers(): void {
 
   // Save maps leads
   ipcMain.handle('save-maps-leads', (_event, leads: SavedMapsLead[]) => {
-    saveMapsLeads(leads)
-    return { success: true, count: leads.length }
+    const count = saveMapsLeads(leads)
+    return { success: true, count }
+  })
+
+  // Update a single saved map lead
+  ipcMain.handle('update-saved-maps-lead', (_event, lead: SavedMapsLead) => {
+    const success = updateSavedMapsLead(lead)
+    return { success }
   })
 
   // Remove a saved map lead
