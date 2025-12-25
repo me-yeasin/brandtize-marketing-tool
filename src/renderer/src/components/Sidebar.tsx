@@ -1,10 +1,13 @@
 import { JSX, useState } from 'react'
+import { FaEnvelope, FaTelegramPlane, FaWhatsapp } from 'react-icons/fa'
+import { TfiWrite } from 'react-icons/tfi'
 
 // Navigation structure with parent-child relationships
 interface NavChild {
   id: string
   label: string
   icon: JSX.Element
+  children?: NavChild[]
 }
 
 interface NavGroup {
@@ -204,6 +207,28 @@ const navigationGroups: NavGroup[] = [
         )
       }
     ]
+  },
+  {
+    id: 'ai-copywriter-group',
+    label: 'AI Copywriter',
+    icon: <TfiWrite />,
+    children: [
+      {
+        id: 'ai-copywriter-mail',
+        label: 'Mail',
+        icon: <FaEnvelope className="text-xs" />
+      },
+      {
+        id: 'ai-copywriter-whatsapp',
+        label: 'WhatsApp',
+        icon: <FaWhatsapp className="text-xs" />
+      },
+      {
+        id: 'ai-copywriter-telegram',
+        label: 'Telegram',
+        icon: <FaTelegramPlane className="text-xs" />
+      }
+    ]
   }
 ]
 
@@ -224,7 +249,8 @@ function Sidebar({
 }: SidebarProps): JSX.Element {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'direct-reach': true, // Default expanded
-    'social-signal': false
+    'social-signal': false,
+    'ai-copywriter-group': true
   })
 
   const toggleGroup = (groupId: string): void => {
@@ -294,14 +320,61 @@ function Sidebar({
             {/* Children */}
             <div className={`nav-children ${expandedGroups[group.id] ? 'expanded' : ''}`}>
               {group.children.map((child) => (
-                <button
-                  key={child.id}
-                  className={`nav-child ${activeRoute === child.id ? 'active' : ''}`}
-                  onClick={() => handleChildClick(child.id)}
-                >
-                  <span className="nav-child-icon">{child.icon}</span>
-                  <span className="nav-child-label">{child.label}</span>
-                </button>
+                <div key={child.id}>
+                  <button
+                    className={`nav-child ${activeRoute === child.id ? 'active' : ''}`}
+                    onClick={() => {
+                      if (child.children) {
+                        setExpandedGroups((prev) => ({
+                          ...prev,
+                          [child.id]: !prev[child.id]
+                        }))
+                      } else {
+                        handleChildClick(child.id)
+                      }
+                    }}
+                  >
+                    <span className="nav-child-icon">{child.icon}</span>
+                    <span className="nav-child-label flex-1 text-left">{child.label}</span>
+                    {child.children && (
+                      <span
+                        className={`nav-child-arrow transition-transform ${expandedGroups[child.id] ? 'rotate-180' : ''}`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Nested Children (Grandchildren) */}
+                  {child.children && (
+                    <div
+                      className={`nav-grandchildren pl-4 overflow-hidden transition-all duration-300 ${expandedGroups[child.id] ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
+                    >
+                      {child.children.map((grandchild) => (
+                        <button
+                          key={grandchild.id}
+                          className={`nav-child ${activeRoute === grandchild.id ? 'active' : ''}`}
+                          onClick={() => handleChildClick(grandchild.id)}
+                        >
+                          <span className="nav-child-icon">{grandchild.icon}</span>
+                          <span className="nav-child-label">{grandchild.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>

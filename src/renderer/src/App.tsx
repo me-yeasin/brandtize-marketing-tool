@@ -1,4 +1,5 @@
 import { JSX, useState } from 'react'
+import AiCopywriterPage from './components/AiCopywriterPage'
 import MapsScoutPage from './components/MapsScoutPage'
 import SavedLeadsPage from './components/SavedLeadsPage'
 import SettingsPage from './components/SettingsPage'
@@ -35,6 +36,12 @@ function App(): JSX.Element {
         return <MapsScoutPage />
       case 'saved-leads':
         return <SavedLeadsPage />
+      case 'ai-copywriter-mail':
+        return <AiCopywriterPage initialTab="mail" />
+      case 'ai-copywriter-whatsapp':
+        return <AiCopywriterPage initialTab="whatsapp" />
+      case 'ai-copywriter-telegram':
+        return <AiCopywriterPage initialTab="telegram" />
       default:
         return (
           <div className="page-content">
