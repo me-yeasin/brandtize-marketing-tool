@@ -1443,29 +1443,6 @@ function SavedLeadsPage(): JSX.Element {
                           <FaWhatsapp />
                         </button>
                       )}
-
-                      {/* Expand/Collapse Button (if pitch exists) */}
-                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
-                        <button
-                          onClick={() => toggleExpanded(lead.id)}
-                          title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(99, 102, 241, 0.1)',
-                            color: '#6366f1',
-                            fontSize: '1rem'
-                          }}
-                        >
-                          {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
-                        </button>
-                      )}
                     </>
                   )}
 
@@ -1527,6 +1504,28 @@ function SavedLeadsPage(): JSX.Element {
                       ) : (
                         <FaEnvelope />
                       )}
+                    </button>
+                  )}
+                  {/* Expand/Collapse Button (moved to end) */}
+                  {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                    <button
+                      onClick={() => toggleExpanded(lead.id)}
+                      title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        color: '#6366f1',
+                        fontSize: '1rem'
+                      }}
+                    >
+                      {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
                     </button>
                   )}
 
