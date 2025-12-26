@@ -1067,47 +1067,70 @@ function SavedLeadsPage(): JSX.Element {
         )}
 
         {/* Campaign Selector */}
-        {campaigns.length > 0 && (
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedCampaignId}
-              onChange={(e) => setSelectedCampaignId(e.target.value)}
-              style={{
-                appearance: 'none',
-                padding: '0.75rem 2.5rem 0.75rem 1rem',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                borderRadius: '12px',
-                color: '#f1f5f9',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                outline: 'none',
-                maxWidth: '200px',
-                minWidth: '150px'
-              }}
-            >
-              {(campaignGroups.length > 0
+        {campaigns.length > 0 &&
+          (() => {
+            const relevantCampaigns =
+              campaignGroups.length > 0
                 ? campaigns.filter((c) => c.groupId === selectedGroupId)
                 : campaigns.filter((c) => !c.groupId)
-              ).map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
-            </select>
-            <FaChevronDown
-              style={{
-                position: 'absolute',
-                right: '1rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#94a3b8',
-                pointerEvents: 'none',
-                fontSize: '0.75rem'
-              }}
-            />
-          </div>
-        )}
+
+            if (relevantCampaigns.length === 0) {
+              return (
+                <div
+                  style={{
+                    padding: '0.75rem 1rem',
+                    color: '#64748b',
+                    fontSize: '0.85rem',
+                    fontStyle: 'italic',
+                    background: 'rgba(15, 23, 42, 0.3)',
+                    borderRadius: '12px',
+                    border: '1px dashed rgba(148, 163, 184, 0.2)'
+                  }}
+                >
+                  No campaigns found
+                </div>
+              )
+            }
+
+            return (
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  style={{
+                    appearance: 'none',
+                    padding: '0.75rem 2.5rem 0.75rem 1rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '12px',
+                    color: '#f1f5f9',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    maxWidth: '200px',
+                    minWidth: '150px'
+                  }}
+                >
+                  {relevantCampaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      {campaign.name}
+                    </option>
+                  ))}
+                </select>
+                <FaChevronDown
+                  style={{
+                    position: 'absolute',
+                    right: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#94a3b8',
+                    pointerEvents: 'none',
+                    fontSize: '0.75rem'
+                  }}
+                />
+              </div>
+            )
+          })()}
 
         {/* WhatsApp Connect Button */}
         <button
