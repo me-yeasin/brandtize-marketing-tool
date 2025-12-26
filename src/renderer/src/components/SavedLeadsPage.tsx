@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fa'
 import type {
   Campaign,
+  CampaignGroup,
   PitchGenerationStatus,
   ReviewsResult,
   SavedMapsLead
@@ -67,6 +68,8 @@ function SavedLeadsPage(): JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   // Campaigns state
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [campaignGroups, setCampaignGroups] = useState<CampaignGroup[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
 
   const [toast, setToast] = useState<{
@@ -103,14 +106,29 @@ function SavedLeadsPage(): JSX.Element {
       const savedLeads = await window.api.getSavedMapsLeads()
       setLeads(savedLeads)
 
-      // Also load campaigns
+      // Load campaigns and groups
       const campaignsData = await window.api.getWhatsappCampaigns()
+      const groupsData = await window.api.getWhatsappCampaignGroups()
       const whatsappCampaigns = campaignsData.filter((c) => c.platform === 'whatsapp')
-      setCampaigns(whatsappCampaigns)
 
-      // Auto-select first campaign if available
-      if (whatsappCampaigns.length > 0) {
-        setSelectedCampaignId(whatsappCampaigns[0].id)
+      setCampaigns(whatsappCampaigns)
+      setCampaignGroups(groupsData)
+
+      // Auto-select first group if available
+      if (groupsData.length > 0) {
+        setSelectedGroupId(groupsData[0].id)
+
+        // Auto-select first campaign in that group
+        const groupCampaigns = whatsappCampaigns.filter((c) => c.groupId === groupsData[0].id)
+        if (groupCampaigns.length > 0) {
+          setSelectedCampaignId(groupCampaigns[0].id)
+        }
+      } else if (whatsappCampaigns.length > 0) {
+        // No groups, select first ungrouped campaign
+        const ungroupedCampaigns = whatsappCampaigns.filter((c) => !c.groupId)
+        if (ungroupedCampaigns.length > 0) {
+          setSelectedCampaignId(ungroupedCampaigns[0].id)
+        }
       }
     } catch (err) {
       console.error('Failed to load data:', err)
@@ -1000,12 +1018,21 @@ function SavedLeadsPage(): JSX.Element {
           gap: '1rem' // Added gap for spacing between dropdown and button
         }}
       >
-        {/* Campaign Selector */}
-        {campaigns.length > 0 && (
+        {/* Campaign Group Selector */}
+        {campaignGroups.length > 0 && (
           <div style={{ position: 'relative' }}>
             <select
-              value={selectedCampaignId}
-              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              value={selectedGroupId}
+              onChange={(e) => {
+                setSelectedGroupId(e.target.value)
+                // Auto-select first campaign in the new group
+                const groupCampaigns = campaigns.filter((c) => c.groupId === e.target.value)
+                if (groupCampaigns.length > 0) {
+                  setSelectedCampaignId(groupCampaigns[0].id)
+                } else {
+                  setSelectedCampaignId('')
+                }
+              }}
               style={{
                 appearance: 'none',
                 padding: '0.75rem 2.5rem 0.75rem 1rem',
@@ -1016,12 +1043,12 @@ function SavedLeadsPage(): JSX.Element {
                 fontSize: '0.9rem',
                 cursor: 'pointer',
                 outline: 'none',
-                maxWidth: '200px'
+                maxWidth: '150px'
               }}
             >
-              {campaigns.map((camp) => (
-                <option key={camp.id} value={camp.id}>
-                  {camp.name}
+              {campaignGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
                 </option>
               ))}
             </select>
@@ -1034,6 +1061,28 @@ function SavedLeadsPage(): JSX.Element {
                 color: '#94a3b8',
                 pointerEvents: 'none',
                 fontSize: '0.75rem'
+              }}
+            />
+          </div>
+        )}
+
+        {/* Campaign Selector */}
+        {campaigns.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              style={{
+                appearance: 'none',
+                padding: '0.75rem 2.5rem 0.75rem 1rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '12px',
+                color: '#94a3b8',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                pointerEvents: 'none',
+                transform: 'translateY(-50%)'
               }}
             />
           </div>

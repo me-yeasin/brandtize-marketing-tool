@@ -30,12 +30,22 @@ export interface SavedMapsLead {
   savedAt: number
 }
 
+// Campaign Group Type
+export interface CampaignGroup {
+  id: string
+  name: string
+  description?: string
+  createdAt: number
+  updatedAt: number
+}
+
 // Campaign Type
 export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
   platform: 'whatsapp'
+  groupId?: string // Optional group association
   createdAt: number
   updatedAt: number
 }
@@ -225,6 +235,14 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('save-whatsapp-campaign', campaign),
   deleteWhatsappCampaign: (id: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('delete-whatsapp-campaign', id),
+
+  // WhatsApp Campaign Groups
+  getWhatsappCampaignGroups: (): Promise<CampaignGroup[]> =>
+    ipcRenderer.invoke('get-whatsapp-campaign-groups'),
+  saveWhatsappCampaignGroup: (group: CampaignGroup): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('save-whatsapp-campaign-group', group),
+  deleteWhatsappCampaignGroup: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('delete-whatsapp-campaign-group', id),
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void): void => {

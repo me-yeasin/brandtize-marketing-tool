@@ -1,13 +1,22 @@
 import { JSX, useEffect, useState } from 'react'
-import { FaEdit, FaPlus, FaSave, FaTimes, FaTrash, FaWhatsapp } from 'react-icons/fa'
+import { FaEdit, FaPlus, FaSave, FaTimes, FaTrash, FaWhatsapp, FaFolder } from 'react-icons/fa'
 // Campaign is defined locally to avoid import issues
 type TabType = 'mail' | 'whatsapp' | 'telegram'
+
+interface CampaignGroup {
+  id: string
+  name: string
+  description?: string
+  createdAt: number
+  updatedAt: number
+}
 
 interface Campaign {
   id: string
   name: string
   instruction: string
   platform: 'whatsapp'
+  groupId?: string
   createdAt: number
   updatedAt: number
 }
@@ -21,24 +30,30 @@ interface AiCopywriterPageProps {
 // ============================================
 
 function WhatsAppCampaigns(): JSX.Element {
-  const [view, setView] = useState<'list' | 'editor'>('list')
+  const [view, setView] = useState<'list' | 'editor' | 'group-editor'>('list')
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'groups'>('campaigns')
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [campaignGroups, setCampaignGroups] = useState<CampaignGroup[]>([])
   const [currentCampaign, setCurrentCampaign] = useState<Partial<Campaign>>({})
+  const [currentGroup, setCurrentGroup] = useState<Partial<CampaignGroup>>({})
   const [loading, setLoading] = useState(false)
 
   // Load campaigns on mount
   useEffect(() => {
-    loadCampaigns()
+    loadData()
   }, [])
 
-  const loadCampaigns = async (): Promise<void> => {
+  const loadData = async (): Promise<void> => {
     setLoading(true)
     try {
-      const data = await window.api.getWhatsappCampaigns()
-      // Filter only WhatsApp platform campaigns just in case, though store separates them
-      setCampaigns(data.filter((c) => c.platform === 'whatsapp'))
+      const [campaignsData, groupsData] = await Promise.all([
+        window.api.getWhatsappCampaigns(),
+        window.api.getWhatsappCampaignGroups()
+      ])
+      setCampaigns(campaignsData.filter((c) => c.platform === 'whatsapp'))
+      setCampaignGroups(groupsData)
     } catch (error) {
-      console.error('Failed to load campaigns:', error)
+      console.error('Failed to load data:', error)
     } finally {
       setLoading(false)
     }
@@ -61,7 +76,62 @@ function WhatsAppCampaigns(): JSX.Element {
   const handleDelete = async (id: string): Promise<void> => {
     if (confirm('Are you sure you want to delete this campaign?')) {
       await window.api.deleteWhatsappCampaign(id)
-      loadCampaigns()
+      loadData()
+    }
+  }
+
+  // Group management functions
+  const handleCreateGroup = (): void => {
+    setCurrentGroup({
+      name: '',
+      description: ''
+    })
+    setView('group-editor')
+  }
+
+  const handleEditGroup = (group: CampaignGroup): void => {
+    setCurrentGroup({ ...group })
+    setView('group-editor')
+  }
+
+  const handleDeleteGroup = async (id: string): Promise<void> => {
+    if (
+      confirm(
+        'Are you sure you want to delete this group? Campaigns in this group will become ungrouped.'
+      )
+    ) {
+      await window.api.deleteWhatsappCampaignGroup(id)
+      loadData()
+    }
+  }
+
+  const handleSaveGroup = async (): Promise<void> => {
+    if (!currentGroup.name) {
+      alert('Please fill in the group name.')
+      return
+    }
+
+    try {
+      const id =
+        currentGroup.id ||
+        (window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+
+      const groupToSave: CampaignGroup = {
+        id,
+        name: currentGroup.name,
+        description: currentGroup.description,
+        createdAt: currentGroup.createdAt || Date.now(),
+        updatedAt: Date.now()
+      }
+
+      await window.api.saveWhatsappCampaignGroup(groupToSave)
+      setView('list')
+      loadData()
+    } catch (err) {
+      console.error('Error saving group:', err)
+      alert('Failed to save group. Check console for details.')
     }
   }
 
@@ -85,6 +155,7 @@ function WhatsAppCampaigns(): JSX.Element {
         name: currentCampaign.name,
         instruction: currentCampaign.instruction,
         platform: 'whatsapp',
+        groupId: currentCampaign.groupId,
         createdAt: currentCampaign.createdAt || Date.now(),
         updatedAt: Date.now()
       }
@@ -94,7 +165,7 @@ function WhatsAppCampaigns(): JSX.Element {
       console.log('Saved successfully')
 
       setView('list')
-      loadCampaigns()
+      loadData()
     } catch (err) {
       console.error('Error saving campaign:', err)
       alert('Failed to save campaign. Check console for details.')
@@ -104,6 +175,7 @@ function WhatsAppCampaigns(): JSX.Element {
   const handleCancel = (): void => {
     setView('list')
     setCurrentCampaign({})
+    setCurrentGroup({})
   }
 
   // --- RENDER EDITOR ---
@@ -133,6 +205,26 @@ function WhatsAppCampaigns(): JSX.Element {
               placeholder="e.g. Restaurant Owners Outreach"
               className="form-input"
             />
+          </div>
+
+          {/* Group Selection */}
+          <div className="form-group">
+            <label className="form-label">Campaign Group (Optional)</label>
+            <p className="form-hint">Assign this campaign to a group for better organization.</p>
+            <select
+              value={currentCampaign.groupId || ''}
+              onChange={(e) =>
+                setCurrentCampaign((prev) => ({ ...prev, groupId: e.target.value || undefined }))
+              }
+              className="form-input"
+            >
+              <option value="">No Group</option>
+              {campaignGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Instruction */}
@@ -167,6 +259,154 @@ function WhatsAppCampaigns(): JSX.Element {
     )
   }
 
+  // --- RENDER GROUP EDITOR ---
+  if (view === 'group-editor') {
+    return (
+      <div className="editor-container">
+        <div className="editor-header">
+          <h2 className="editor-title">
+            <span className="title-icon-box">
+              <FaFolder className="icon" />
+              Campaign Group
+            </span>
+          </h2>
+        </div>
+
+        <div className="editor-content" style={{ padding: '2rem' }}>
+          {/* Group Name */}
+          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <label
+              className="form-label"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                display: 'block'
+              }}
+            >
+              Group Name
+            </label>
+            <p
+              className="form-hint"
+              style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.75rem' }}
+            >
+              A descriptive name for this campaign group (e.g., &quot;Restaurants&quot;,
+              &quot;Retail&quot;, &quot;Healthcare&quot;).
+            </p>
+            <input
+              type="text"
+              value={currentGroup.name || ''}
+              onChange={(e) => setCurrentGroup((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Enter group name..."
+              className="form-input"
+              style={{ padding: '0.875rem 1rem', fontSize: '0.95rem' }}
+            />
+          </div>
+
+          {/* Group Description */}
+          <div className="form-group" style={{ marginBottom: '2rem' }}>
+            <label
+              className="form-label"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                display: 'block'
+              }}
+            >
+              Description (Optional)
+            </label>
+            <p
+              className="form-hint"
+              style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.75rem' }}
+            >
+              Brief description of what types of campaigns belong to this group.
+            </p>
+            <textarea
+              value={currentGroup.description || ''}
+              onChange={(e) =>
+                setCurrentGroup((prev) => ({ ...prev, description: e.target.value }))
+              }
+              placeholder="Example: Campaigns for restaurant marketing and outreach..."
+              className="form-textarea"
+              rows={3}
+              style={{ padding: '0.875rem 1rem', fontSize: '0.95rem', minHeight: '100px' }}
+            />
+          </div>
+
+          {/* Actions */}
+          <div
+            className="editor-actions"
+            style={{
+              display: 'flex',
+              gap: '1rem',
+              justifyContent: 'flex-end',
+              paddingTop: '1rem',
+              borderTop: '1px solid rgba(148, 163, 184, 0.1)'
+            }}
+          >
+            <button
+              onClick={handleCancel}
+              className="btn-cancel"
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.3)',
+                background: 'transparent',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(148, 163, 184, 0.1)'
+                e.currentTarget.style.color = '#f1f5f9'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = '#94a3b8'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveGroup}
+              className="btn-save"
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                borderRadius: '8px',
+                border: '1px solid #6366f1',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #5558e3, #7c3aed)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
+              <FaSave className="icon" size={14} />
+              Save Group
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // --- RENDER LIST ---
   return (
     <div className="wrapper-container p-6 relative">
@@ -176,68 +416,415 @@ function WhatsAppCampaigns(): JSX.Element {
           <h1>WhatsApp Campaigns</h1>
           <p className="campaign-subtitle">Manage your AI instructions for personalized outreach</p>
         </div>
-        <button onClick={handleCreate} className="btn-primary">
-          <FaPlus size={14} />
-          New Campaign
+        {activeTab === 'campaigns' ? (
+          <button onClick={handleCreate} className="btn-primary">
+            <FaPlus size={14} />
+            New Campaign
+          </button>
+        ) : (
+          <button
+            onClick={handleCreateGroup}
+            className="btn-secondary"
+            style={{
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              color: '#6366f1'
+            }}
+          >
+            <FaFolder size={14} />
+            New Group
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
+          marginBottom: '2rem'
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('campaigns')}
+          style={{
+            padding: '1rem 1.5rem',
+            background: activeTab === 'campaigns' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'campaigns' ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab === 'campaigns' ? '#6366f1' : '#94a3b8',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            marginBottom: '-1px'
+          }}
+        >
+          <FaWhatsapp size={16} style={{ marginRight: '0.5rem' }} />
+          Campaigns ({campaigns.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('groups')}
+          style={{
+            padding: '1rem 1.5rem',
+            background: activeTab === 'groups' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'groups' ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab === 'groups' ? '#6366f1' : '#94a3b8',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            marginBottom: '-1px'
+          }}
+        >
+          <FaFolder size={16} style={{ marginRight: '0.5rem' }} />
+          Groups ({campaignGroups.length})
         </button>
       </div>
 
-      {loading ? (
-        <div className="loading-container">Loading campaigns...</div>
-      ) : campaigns.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">
-            <FaWhatsapp size={32} />
-          </div>
-          <h3 className="empty-title">No Campaigns Yet</h3>
-          <p className="empty-desc">
-            Create your first campaign to teach the AI how to write pitches for your leads.
-          </p>
-          <button onClick={handleCreate} className="btn-secondary">
-            Create Campaign
-          </button>
-        </div>
-      ) : (
-        <div className="grid-container">
-          {campaigns.map((campaign) => (
-            <div key={campaign.id} className="campaign-card group">
-              <div className="card-header">
-                <div className="card-icon">
-                  <FaWhatsapp size={20} />
-                </div>
-                <div className="card-actions">
-                  <button onClick={() => handleEdit(campaign)} className="action-btn" title="Edit">
-                    <FaEdit />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(campaign.id)}
-                    className="action-btn delete"
-                    title="Delete"
-                  >
-                    <FaTrash />
-                  </button>
-                </div>
+      {/* Tab Content */}
+      {activeTab === 'campaigns' ? (
+        <>
+          {loading ? (
+            <div className="loading-container">Loading campaigns...</div>
+          ) : campaigns.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <FaWhatsapp size={32} />
               </div>
-
-              <h3 className="card-title">{campaign.name}</h3>
-
-              <div className="card-content-box">
-                <p className="card-desc">{campaign.instruction}</p>
-                <div className="fade-overlay" />
-              </div>
-
-              <div className="card-footer">
-                <span>
-                  {new Date(campaign.updatedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </span>
-                <span className="platform-badge">{campaign.platform}</span>
-              </div>
+              <h3 className="empty-title">No Campaigns Yet</h3>
+              <p className="empty-desc">
+                Create your first campaign to teach the AI how to write pitches for your leads.
+              </p>
+              <button onClick={handleCreate} className="btn-secondary">
+                Create Campaign
+              </button>
             </div>
-          ))}
-        </div>
+          ) : (
+            <>
+              {/* Grouped Campaigns */}
+              {campaignGroups.map((group) => {
+                const groupCampaigns = campaigns.filter((c) => c.groupId === group.id)
+                if (groupCampaigns.length === 0) return null
+                return (
+                  <div key={group.id} style={{ marginBottom: '2rem' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginBottom: '1rem',
+                        color: '#6366f1',
+                        fontSize: '0.9rem',
+                        fontWeight: '600'
+                      }}
+                    >
+                      <FaFolder size={14} />
+                      {group.name} ({groupCampaigns.length})
+                    </div>
+                    <div className="grid-container">
+                      {groupCampaigns.map((campaign) => (
+                        <div key={campaign.id} className="campaign-card group">
+                          <div className="card-header">
+                            <div className="card-icon">
+                              <FaWhatsapp size={20} />
+                            </div>
+                            <div className="card-actions">
+                              <button
+                                onClick={() => handleEdit(campaign)}
+                                className="action-btn"
+                                title="Edit"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(campaign.id)}
+                                className="action-btn delete"
+                                title="Delete"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+
+                          <h3 className="card-title">{campaign.name}</h3>
+
+                          <div className="card-content-box">
+                            <p className="card-desc">{campaign.instruction}</p>
+                            <div className="fade-overlay" />
+                          </div>
+
+                          <div className="card-footer">
+                            <span>
+                              {new Date(campaign.updatedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            <span className="platform-badge">{campaign.platform}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Ungrouped Campaigns */}
+              {campaigns.some((c) => !c.groupId) && (
+                <div>
+                  <div
+                    style={{
+                      marginBottom: '1rem',
+                      color: '#94a3b8',
+                      fontSize: '0.9rem',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Ungrouped Campaigns ({campaigns.filter((c) => !c.groupId).length})
+                  </div>
+                  <div className="grid-container">
+                    {campaigns
+                      .filter((c) => !c.groupId)
+                      .map((campaign) => (
+                        <div key={campaign.id} className="campaign-card group">
+                          <div className="card-header">
+                            <div className="card-icon">
+                              <FaWhatsapp size={20} />
+                            </div>
+                            <div className="card-actions">
+                              <button
+                                onClick={() => handleEdit(campaign)}
+                                className="action-btn"
+                                title="Edit"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(campaign.id)}
+                                className="action-btn delete"
+                                title="Delete"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+
+                          <h3 className="card-title">{campaign.name}</h3>
+
+                          <div className="card-content-box">
+                            <p className="card-desc">{campaign.instruction}</p>
+                            <div className="fade-overlay" />
+                          </div>
+
+                          <div className="card-footer">
+                            <span>
+                              {new Date(campaign.updatedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            <span className="platform-badge">{campaign.platform}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        // Groups Tab
+        <>
+          {loading ? (
+            <div className="loading-container">Loading groups...</div>
+          ) : campaignGroups.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <FaFolder size={32} />
+              </div>
+              <h3 className="empty-title">No Groups Yet</h3>
+              <p className="empty-desc">Create groups to organize your campaigns better.</p>
+              <button onClick={handleCreateGroup} className="btn-secondary">
+                Create Group
+              </button>
+            </div>
+          ) : (
+            <div className="grid-container">
+              {campaignGroups.map((group) => {
+                const campaignCount = campaigns.filter((c) => c.groupId === group.id).length
+                return (
+                  <div
+                    key={group.id}
+                    className="campaign-card group"
+                    style={{
+                      background:
+                        'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      borderRadius: '16px',
+                      padding: '1.5rem',
+                      transition: 'all 0.3s ease',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)'
+                      e.currentTarget.style.boxShadow = '0 12px 24px rgba(99, 102, 241, 0.15)'
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)'
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = 'none'
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.25)'
+                    }}
+                  >
+                    {/* Background decoration */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '-20px',
+                        right: '-20px',
+                        width: '80px',
+                        height: '80px',
+                        background:
+                          'radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%)',
+                        borderRadius: '50%',
+                        pointerEvents: 'none'
+                      }}
+                    />
+
+                    <div className="card-header" style={{ marginBottom: '1rem' }}>
+                      <div
+                        className="card-icon"
+                        style={{
+                          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
+                        }}
+                      >
+                        <FaFolder size={22} style={{ color: 'white' }} />
+                      </div>
+                      <div className="card-actions">
+                        <button
+                          onClick={() => handleEditGroup(group)}
+                          className="action-btn"
+                          title="Edit"
+                          style={{
+                            background: 'rgba(99, 102, 241, 0.1)',
+                            border: '1px solid rgba(99, 102, 241, 0.2)',
+                            borderRadius: '8px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.2)'
+                            e.currentTarget.style.color = '#6366f1'
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'
+                            e.currentTarget.style.color = '#94a3b8'
+                          }}
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGroup(group.id)}
+                          className="action-btn delete"
+                          title="Delete"
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            borderRadius: '8px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
+                            e.currentTarget.style.color = '#ef4444'
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
+                            e.currentTarget.style.color = '#94a3b8'
+                          }}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3
+                      className="card-title"
+                      style={{
+                        fontSize: '1.1rem',
+                        fontWeight: '600',
+                        marginBottom: '0.75rem',
+                        color: '#f1f5f9'
+                      }}
+                    >
+                      {group.name}
+                    </h3>
+
+                    {group.description && (
+                      <div className="card-content-box" style={{ marginBottom: '1rem' }}>
+                        <p
+                          className="card-desc"
+                          style={{
+                            fontSize: '0.9rem',
+                            lineHeight: '1.5',
+                            color: '#cbd5e1'
+                          }}
+                        >
+                          {group.description}
+                        </p>
+                        <div className="fade-overlay" />
+                      </div>
+                    )}
+
+                    <div
+                      className="card-footer"
+                      style={{
+                        paddingTop: '1rem',
+                        borderTop: '1px solid rgba(148, 163, 184, 0.1)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.85rem',
+                          color: '#94a3b8'
+                        }}
+                      >
+                        <FaWhatsapp size={14} />
+                        <span>
+                          {campaignCount} campaign{campaignCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <span
+                        className="platform-badge"
+                        style={{
+                          background:
+                            'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
+                          color: '#a5b4fc',
+                          fontWeight: '500',
+                          fontSize: '0.8rem',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '20px'
+                        }}
+                      >
+                        Group
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -1246,8 +1246,8 @@ body {
   border-radius: 12px;
   padding: 1rem;
   font-size: 1rem;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
+  color: #f1f5f9;
+  transition: all 0.2s;
   width: 100%;
   font-family: inherit;
 }

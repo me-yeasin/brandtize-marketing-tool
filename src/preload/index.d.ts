@@ -34,11 +34,20 @@ export interface PitchGenerationResult {
   error?: string
 }
 
+export interface CampaignGroup {
+  id: string
+  name: string
+  description?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
   platform: 'whatsapp'
+  groupId?: string // Optional group association
   createdAt: number
   updatedAt: number
 }
@@ -158,6 +167,11 @@ export interface BrandtizeAPI {
   getWhatsappCampaigns: () => Promise<Campaign[]>
   saveWhatsappCampaign: (campaign: Campaign) => Promise<{ success: boolean }>
   deleteWhatsappCampaign: (id: string) => Promise<{ success: boolean }>
+
+  // WhatsApp Campaign Groups
+  getWhatsappCampaignGroups: () => Promise<CampaignGroup[]>
+  saveWhatsappCampaignGroup: (group: CampaignGroup) => Promise<{ success: boolean }>
+  deleteWhatsappCampaignGroup: (id: string) => Promise<{ success: boolean }>
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void) => void

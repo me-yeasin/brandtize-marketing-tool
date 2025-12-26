@@ -9,6 +9,7 @@ import {
 import {
   clearSavedMapsLeads,
   deleteWhatsappCampaign,
+  deleteWhatsappCampaignGroup,
   getApiKeys,
   getGoogleApiKeys,
   // Multi-key getters/setters
@@ -24,9 +25,11 @@ import {
   getSerperApiKeys,
   getSnovApiKeys,
   getWhatsappCampaigns,
+  getWhatsappCampaignGroups,
   removeSavedMapsLead,
   saveMapsLeads,
   saveWhatsappCampaign,
+  saveWhatsappCampaignGroup,
   setGoogleApiKey,
   setGoogleApiKeys,
   setGroqApiKey,
@@ -49,6 +52,7 @@ import {
   type AiProvider,
   type ApiKeyEntry,
   type Campaign,
+  type CampaignGroup,
   type SavedMapsLead
 } from './store'
 
@@ -378,6 +382,27 @@ export function registerIpcHandlers(): void {
   // Delete WhatsApp campaign
   ipcMain.handle('delete-whatsapp-campaign', (_event, id: string) => {
     deleteWhatsappCampaign(id)
+    return { success: true }
+  })
+
+  // ========================================
+  // WHATSAPP CAMPAIGN GROUPS
+  // ========================================
+
+  // Get all WhatsApp campaign groups
+  ipcMain.handle('get-whatsapp-campaign-groups', () => {
+    return getWhatsappCampaignGroups()
+  })
+
+  // Save (Create/Update) WhatsApp campaign group
+  ipcMain.handle('save-whatsapp-campaign-group', (_event, group: CampaignGroup) => {
+    saveWhatsappCampaignGroup(group)
+    return { success: true }
+  })
+
+  // Delete WhatsApp campaign group
+  ipcMain.handle('delete-whatsapp-campaign-group', (_event, id: string) => {
+    deleteWhatsappCampaignGroup(id)
     return { success: true }
   })
 

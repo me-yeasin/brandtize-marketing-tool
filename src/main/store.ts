@@ -164,11 +164,20 @@ export interface SavedMapsLead {
   savedAt: number // timestamp
 }
 
+export interface CampaignGroup {
+  id: string
+  name: string
+  description?: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
   platform: 'whatsapp'
+  groupId?: string // Optional group association
   createdAt: number
   updatedAt: number
 }
@@ -211,6 +220,7 @@ interface StoreSchema {
   savedMapsLeads: SavedMapsLead[]
   // WhatsApp Campaigns
   whatsappCampaigns: Campaign[]
+  whatsappCampaignGroups: CampaignGroup[]
 }
 
 const store = new Store<StoreSchema>({
@@ -251,7 +261,8 @@ const store = new Store<StoreSchema>({
     // Saved Maps Scout leads (empty by default)
     savedMapsLeads: [],
     // WhatsApp Campaigns
-    whatsappCampaigns: []
+    whatsappCampaigns: [],
+    whatsappCampaignGroups: []
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -663,6 +674,42 @@ export function saveWhatsappCampaign(campaign: Campaign): void {
 export function deleteWhatsappCampaign(id: string): void {
   const campaigns = getWhatsappCampaigns().filter((c) => c.id !== id)
   store.set('whatsappCampaigns', campaigns)
+}
+
+// WhatsApp Campaign Groups Functions
+export function getWhatsappCampaignGroups(): CampaignGroup[] {
+  return store.get('whatsappCampaignGroups', [])
+}
+
+export function saveWhatsappCampaignGroup(group: CampaignGroup): void {
+  const groups = getWhatsappCampaignGroups()
+  const existingIndex = groups.findIndex((g) => g.id === group.id)
+
+  if (existingIndex >= 0) {
+    // Update existing
+    groups[existingIndex] = { ...group, updatedAt: Date.now() }
+  } else {
+    // Add new
+    const newGroup = {
+      ...group,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    groups.push(newGroup)
+  }
+  store.set('whatsappCampaignGroups', groups)
+}
+
+export function deleteWhatsappCampaignGroup(id: string): void {
+  const groups = getWhatsappCampaignGroups().filter((g) => g.id !== id)
+  store.set('whatsappCampaignGroups', groups)
+
+  // Remove group association from campaigns
+  const campaigns = getWhatsappCampaigns()
+  const updatedCampaigns = campaigns.map((c) =>
+    c.groupId === id ? { ...c, groupId: undefined } : c
+  )
+  store.set('whatsappCampaigns', updatedCampaigns)
 }
 
 export { store }
