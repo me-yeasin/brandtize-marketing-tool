@@ -448,6 +448,7 @@ export function registerIpcHandlers(): void {
         reviewCount: number
         website?: string | null
         reviews?: Array<{ text: string; rating: number; author: string }>
+        instruction?: string
       }
     ) => {
       const { generatePitch } = await import('./services/pitch-generator-agent')

@@ -278,6 +278,7 @@ contextBridge.exposeInMainWorld('api', {
     reviewCount: number
     website?: string | null
     reviews?: Array<{ text: string; rating: number; author: string }>
+    instruction?: string
   }): Promise<{ success: boolean; pitch?: string; error?: string }> =>
     ipcRenderer.invoke('generate-whatsapp-pitch', input),
 

@@ -20,7 +20,12 @@ import {
   FaTrashAlt,
   FaWhatsapp
 } from 'react-icons/fa'
-import type { PitchGenerationStatus, ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
+import type {
+  Campaign,
+  PitchGenerationStatus,
+  ReviewsResult,
+  SavedMapsLead
+} from '../../../preload/index.d'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
 
@@ -60,6 +65,10 @@ function SavedLeadsPage(): JSX.Element {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [filters, setFilters] = useState<AdvancedFilters>(DEFAULT_FILTERS)
   const [searchQuery, setSearchQuery] = useState('')
+  // Campaigns state
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('')
+
   const [toast, setToast] = useState<{
     message: string
     type: 'info' | 'error' | 'success'
@@ -93,9 +102,19 @@ function SavedLeadsPage(): JSX.Element {
     try {
       const savedLeads = await window.api.getSavedMapsLeads()
       setLeads(savedLeads)
+
+      // Also load campaigns
+      const campaignsData = await window.api.getWhatsappCampaigns()
+      const whatsappCampaigns = campaignsData.filter((c) => c.platform === 'whatsapp')
+      setCampaigns(whatsappCampaigns)
+
+      // Auto-select first campaign if available
+      if (whatsappCampaigns.length > 0) {
+        setSelectedCampaignId(whatsappCampaigns[0].id)
+      }
     } catch (err) {
-      console.error('Failed to load saved leads:', err)
-      showToast('Failed to load saved leads', 'error')
+      console.error('Failed to load data:', err)
+      showToast('Failed to load data', 'error')
     } finally {
       setIsLoading(false)
     }
@@ -381,7 +400,8 @@ function SavedLeadsPage(): JSX.Element {
         rating: lead.rating,
         reviewCount: lead.reviewCount,
         website: lead.website,
-        reviews: lead.reviews
+        reviews: lead.reviews,
+        instruction: campaigns.find((c) => c.id === selectedCampaignId)?.instruction
       })
 
       if (result.success && result.pitch) {
@@ -976,11 +996,52 @@ function SavedLeadsPage(): JSX.Element {
           padding: '0 2rem',
           marginBottom: '1.5rem',
           display: 'flex',
-          justifyContent: 'flex-end'
+          justifyContent: 'flex-end',
+          gap: '1rem' // Added gap for spacing between dropdown and button
         }}
       >
+        {/* Campaign Selector */}
+        {campaigns.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              style={{
+                appearance: 'none',
+                padding: '0.75rem 2.5rem 0.75rem 1rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                borderRadius: '12px',
+                color: '#f1f5f9',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                outline: 'none',
+                maxWidth: '200px'
+              }}
+            >
+              {campaigns.map((camp) => (
+                <option key={camp.id} value={camp.id}>
+                  {camp.name}
+                </option>
+              ))}
+            </select>
+            <FaChevronDown
+              style={{
+                position: 'absolute',
+                right: '1rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94a3b8',
+                pointerEvents: 'none',
+                fontSize: '0.75rem'
+              }}
+            />
+          </div>
+        )}
+
+        {/* WhatsApp Connect Button */}
         <button
-          onClick={handleInitWhatsApp}
+          onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
           disabled={whatsAppInitializing}
           style={{
             display: 'flex',

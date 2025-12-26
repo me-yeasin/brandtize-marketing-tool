@@ -17,6 +17,7 @@ export interface PitchGenerationInput {
   reviewCount: number
   website?: string | null
   reviews?: Array<{ text: string; rating: number; author: string }>
+  instruction?: string
 }
 
 export interface PitchGenerationStatus {

@@ -32,6 +32,7 @@ export interface PitchGenerationInput {
   reviewCount: number
   website?: string | null
   reviews?: Array<{ text: string; rating: number; author: string }>
+  instruction?: string
 }
 
 export interface PitchGenerationStatus {
@@ -222,7 +223,28 @@ async function generatePitchNode(
   const lead = state.lead
   const model = getAiModel()
 
-  const prompt = `Create a short, personalized WhatsApp message for this business:
+  let prompt = ''
+
+  if (lead.instruction && lead.instruction.trim().length > 0) {
+    // USE CUSTOM INSTRUCTION
+    prompt = `Create a short, personalized WhatsApp message for this business based on the user's specific instruction.
+
+Business: ${lead.name}
+Category: ${lead.category}
+Location: ${lead.address}
+Analysis: ${state.analysis}
+
+USER INSTRUCTION:
+"${lead.instruction}"
+
+Requirements:
+1. STRICTLY follow the User Instruction above.
+2. Keep it under 150 words (WhatsApp style).
+3. Include 1-2 relevant emojis naturally.
+4. Output ONLY the message text.`
+  } else {
+    // DEFAULT PROMPT
+    prompt = `Create a short, personalized WhatsApp message for this business:
 
 Business: ${lead.name}
 Category: ${lead.category}
@@ -239,6 +261,7 @@ Requirements:
 7. Include 1-2 relevant emojis naturally
 
 Write ONLY the message text, no explanations.`
+  }
 
   try {
     const response = await model.invoke([
