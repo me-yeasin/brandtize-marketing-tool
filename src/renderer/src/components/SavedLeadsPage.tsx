@@ -1,12 +1,16 @@
 import { JSX, useCallback, useEffect, useState } from 'react'
 import {
   FaCheck,
+  FaChevronDown,
+  FaChevronUp,
   FaClipboardList,
+  FaCopy,
   FaEnvelope,
   FaExclamationTriangle,
   FaFileExport,
   FaFilter,
   FaGlobe,
+  FaMagic,
   FaMapMarkerAlt,
   FaPhoneAlt,
   FaRedo,
@@ -16,7 +20,7 @@ import {
   FaTrashAlt,
   FaWhatsapp
 } from 'react-icons/fa'
-import type { ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
+import type { PitchGenerationStatus, ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
 
@@ -73,6 +77,11 @@ function SavedLeadsPage(): JSX.Element {
   const [whatsAppInitializing, setWhatsAppInitializing] = useState(false)
   const [whatsAppQrCode, setWhatsAppQrCode] = useState<string | null>(null)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+
+  // Pitch generation state
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
+  const [generatingPitchIds, setGeneratingPitchIds] = useState<Set<string>>(new Set())
+  const [pitchStatus, setPitchStatus] = useState<Record<string, PitchGenerationStatus>>({})
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
@@ -140,6 +149,13 @@ function SavedLeadsPage(): JSX.Element {
         setWhatsAppQrCode(status.qrCode)
         setShowWhatsAppModal(true)
       }
+    })
+
+    // Listen for pitch generation status updates
+    window.api.onPitchGenerationStatus((status) => {
+      console.log('[SavedLeads] Pitch status update:', status)
+      // Status updates are handled per-lead via pitchStatus state
+      // We need the leadId to update the right entry, but it comes from the invoke
     })
   }, [])
 
@@ -343,12 +359,95 @@ function SavedLeadsPage(): JSX.Element {
     }
   }
 
-  const openWhatsApp = (lead: SavedMapsLead): void => {
+  // --- Pitch Generation ---
+  const handleGeneratePitch = async (lead: SavedMapsLead): Promise<void> => {
+    console.log('[SavedLeads] Generating pitch for:', lead.name)
+
+    setGeneratingPitchIds((prev) => new Set(prev).add(lead.id))
+    setPitchStatus((prev) => ({
+      ...prev,
+      [lead.id]: { status: 'analyzing', message: '🧠 Analyzing business...' }
+    }))
+
+    // Expand the card to show progress
+    setExpandedLeadIds((prev) => new Set(prev).add(lead.id))
+
+    try {
+      const result = await window.api.generateWhatsAppPitch({
+        leadId: lead.id,
+        name: lead.name,
+        category: lead.category,
+        address: lead.address,
+        rating: lead.rating,
+        reviewCount: lead.reviewCount,
+        website: lead.website,
+        reviews: lead.reviews
+      })
+
+      if (result.success && result.pitch) {
+        // Update lead with generated pitch
+        const updatedLead = {
+          ...lead,
+          generatedPitch: result.pitch,
+          pitchGeneratedAt: Date.now()
+        }
+
+        setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+        await window.api.updateSavedMapsLead(updatedLead)
+
+        setPitchStatus((prev) => ({
+          ...prev,
+          [lead.id]: { status: 'done', message: '✅ Pitch ready!', currentPitch: result.pitch }
+        }))
+
+        showToast('Pitch generated successfully!', 'success')
+      } else {
+        setPitchStatus((prev) => ({
+          ...prev,
+          [lead.id]: { status: 'error', message: result.error || 'Failed to generate pitch' }
+        }))
+        showToast(result.error || 'Failed to generate pitch', 'error')
+      }
+    } catch (err) {
+      console.error('Pitch generation error:', err)
+      setPitchStatus((prev) => ({
+        ...prev,
+        [lead.id]: { status: 'error', message: 'Failed to generate pitch' }
+      }))
+      showToast('Failed to generate pitch', 'error')
+    } finally {
+      setGeneratingPitchIds((prev) => {
+        const next = new Set(prev)
+        next.delete(lead.id)
+        return next
+      })
+    }
+  }
+
+  const toggleExpanded = (leadId: string): void => {
+    setExpandedLeadIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(leadId)) {
+        next.delete(leadId)
+      } else {
+        next.add(leadId)
+      }
+      return next
+    })
+  }
+
+  const openWhatsAppWithPitch = (lead: SavedMapsLead): void => {
     if (!lead.phone) return
     let cleanNumber = lead.phone.replace(/[^\d+]/g, '')
     if (cleanNumber.startsWith('+')) cleanNumber = cleanNumber.substring(1)
-    const message = `Hi! I found ${lead.name} on Google Maps and wanted to reach out.`
+    const message =
+      lead.generatedPitch || `Hi! I found ${lead.name} on Google Maps and wanted to reach out.`
     window.api.openExternalUrl(`https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`)
+  }
+
+  const copyToClipboard = (text: string): void => {
+    navigator.clipboard.writeText(text)
+    showToast('Copied to clipboard!', 'success')
   }
 
   const openTelegram = (lead: SavedMapsLead): void => {
@@ -1273,25 +1372,96 @@ function SavedLeadsPage(): JSX.Element {
                 )}
 
                 {lead.hasWhatsApp === true && (
-                  <button
-                    onClick={() => openWhatsApp(lead)}
-                    title="Send WhatsApp Message"
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(37, 211, 102, 0.15)',
-                      color: '#25d366',
-                      fontSize: '1rem'
-                    }}
-                  >
-                    <FaWhatsapp />
-                  </button>
+                  <>
+                    {/* Generate Pitch Button (if no pitch yet) */}
+                    {!lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                      <button
+                        onClick={() => handleGeneratePitch(lead)}
+                        title="Generate Pitch with AI"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background:
+                            'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
+                          color: '#8b5cf6',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <FaMagic />
+                      </button>
+                    )}
+
+                    {/* Loading state while generating */}
+                    {generatingPitchIds.has(lead.id) && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '8px',
+                          background: 'rgba(139, 92, 246, 0.1)',
+                          color: '#8b5cf6',
+                          fontSize: '0.75rem'
+                        }}
+                      >
+                        <div className="action-spinner" style={{ width: 12, height: 12 }} />
+                        <span>{pitchStatus[lead.id]?.message || 'Processing...'}</span>
+                      </div>
+                    )}
+
+                    {/* Send WhatsApp Button (if pitch exists) */}
+                    {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                      <button
+                        onClick={() => openWhatsAppWithPitch(lead)}
+                        title="Send WhatsApp with Generated Pitch"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(37, 211, 102, 0.15)',
+                          color: '#25d366',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <FaWhatsapp />
+                      </button>
+                    )}
+
+                    {/* Expand/Collapse Button (if pitch exists) */}
+                    {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                      <button
+                        onClick={() => toggleExpanded(lead.id)}
+                        title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(99, 102, 241, 0.1)',
+                          color: '#6366f1',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {lead.phone && (
@@ -1375,6 +1545,113 @@ function SavedLeadsPage(): JSX.Element {
                   <FaTimes />
                 </button>
               </div>
+
+              {/* Expandable Pitch Section */}
+              {expandedLeadIds.has(lead.id) && lead.generatedPitch && (
+                <div
+                  style={{
+                    marginTop: '1rem',
+                    padding: '1rem',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(99, 102, 241, 0.2)'
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.75rem'
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        color: '#8b5cf6',
+                        fontWeight: 600,
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      <FaMagic /> Generated Pitch
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => copyToClipboard(lead.generatedPitch || '')}
+                        title="Copy to Clipboard"
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          color: '#6366f1',
+                          fontSize: '0.75rem',
+                          fontWeight: 500
+                        }}
+                      >
+                        <FaCopy /> Copy
+                      </button>
+                      <button
+                        onClick={() => handleGeneratePitch(lead)}
+                        title="Regenerate Pitch"
+                        disabled={generatingPitchIds.has(lead.id)}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          background: 'rgba(139, 92, 246, 0.15)',
+                          color: '#8b5cf6',
+                          fontSize: '0.75rem',
+                          fontWeight: 500
+                        }}
+                      >
+                        <FaRedo /> Regenerate
+                      </button>
+                    </div>
+                  </div>
+                  <p
+                    style={{
+                      color: '#e2e8f0',
+                      fontSize: '0.9rem',
+                      lineHeight: '1.6',
+                      whiteSpace: 'pre-wrap',
+                      margin: 0
+                    }}
+                  >
+                    {lead.generatedPitch}
+                  </p>
+                  <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => openWhatsAppWithPitch(lead)}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        background: 'linear-gradient(135deg, #25d366, #128c7e)',
+                        color: 'white',
+                        fontSize: '0.85rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      <FaWhatsapp /> Send on WhatsApp
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -7,6 +7,31 @@ export interface ApiKeyEntry {
   label?: string
 }
 
+// Pitch Generation types
+export interface PitchGenerationInput {
+  leadId: string
+  name: string
+  category: string
+  address: string
+  rating: number
+  reviewCount: number
+  website?: string | null
+  reviews?: Array<{ text: string; rating: number; author: string }>
+}
+
+export interface PitchGenerationStatus {
+  status: 'analyzing' | 'generating' | 'observing' | 'refining' | 'done' | 'error'
+  message: string
+  currentPitch?: string
+  refinementCount?: number
+}
+
+export interface PitchGenerationResult {
+  success: boolean
+  pitch?: string
+  error?: string
+}
+
 // API interface for renderer
 export interface BrandtizeAPI {
   // Get all API keys
@@ -133,6 +158,10 @@ export interface BrandtizeAPI {
   updateSavedMapsLead: (lead: SavedMapsLead) => Promise<{ success: boolean }>
   removeSavedMapsLead: (id: string) => Promise<{ success: boolean }>
   clearSavedMapsLeads: () => Promise<{ success: boolean }>
+
+  // WhatsApp Pitch Generator
+  generateWhatsAppPitch: (input: PitchGenerationInput) => Promise<PitchGenerationResult>
+  onPitchGenerationStatus: (callback: (status: PitchGenerationStatus) => void) => void
 }
 
 // Saved Maps Lead type
@@ -153,6 +182,8 @@ export interface SavedMapsLead {
   emailVerified?: boolean
   hasWhatsApp?: boolean | null
   reviews?: Review[]
+  generatedPitch?: string
+  pitchGeneratedAt?: number
   savedAt: number
 }
 

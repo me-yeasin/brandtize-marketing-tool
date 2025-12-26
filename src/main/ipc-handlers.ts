@@ -406,4 +406,27 @@ export function registerIpcHandlers(): void {
     clearSavedMapsLeads()
     return { success: true }
   })
+
+  // ========================================
+  // WHATSAPP PITCH GENERATOR
+  // ========================================
+  ipcMain.handle(
+    'generate-whatsapp-pitch',
+    async (
+      _event,
+      input: {
+        leadId: string
+        name: string
+        category: string
+        address: string
+        rating: number
+        reviewCount: number
+        website?: string | null
+        reviews?: Array<{ text: string; rating: number; author: string }>
+      }
+    ) => {
+      const { generatePitch } = await import('./services/pitch-generator-agent')
+      return generatePitch(input)
+    }
+  )
 }

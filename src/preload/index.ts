@@ -24,6 +24,9 @@ export interface SavedMapsLead {
   emailSource?: string
   emailVerified?: boolean
   hasWhatsApp?: boolean | null
+  reviews?: Array<{ text: string; rating: number; author: string }>
+  generatedPitch?: string
+  pitchGeneratedAt?: number
   savedAt: number
 }
 
@@ -244,5 +247,31 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('remove-saved-maps-lead', id),
 
   clearSavedMapsLeads: (): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke('clear-saved-maps-leads')
+    ipcRenderer.invoke('clear-saved-maps-leads'),
+
+  // ========================================
+  // WHATSAPP PITCH GENERATOR
+  // ========================================
+  generateWhatsAppPitch: (input: {
+    leadId: string
+    name: string
+    category: string
+    address: string
+    rating: number
+    reviewCount: number
+    website?: string | null
+    reviews?: Array<{ text: string; rating: number; author: string }>
+  }): Promise<{ success: boolean; pitch?: string; error?: string }> =>
+    ipcRenderer.invoke('generate-whatsapp-pitch', input),
+
+  onPitchGenerationStatus: (
+    callback: (status: {
+      status: 'analyzing' | 'generating' | 'observing' | 'refining' | 'done' | 'error'
+      message: string
+      currentPitch?: string
+      refinementCount?: number
+    }) => void
+  ): void => {
+    ipcRenderer.on('pitch-generation-status', (_event, status) => callback(status))
+  }
 })
