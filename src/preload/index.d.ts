@@ -18,6 +18,7 @@ export interface PitchGenerationInput {
   website?: string | null
   reviews?: Array<{ text: string; rating: number; author: string }>
   instruction?: string
+  buyerPersona?: string
   examples?: string[]
 }
 
@@ -47,6 +48,7 @@ export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
+  buyerPersona?: string // Optional buyer persona for better targeting
   examples?: string[] // Optional example pitches for few-shot learning
   platform: 'whatsapp'
   groupId?: string // Optional group association

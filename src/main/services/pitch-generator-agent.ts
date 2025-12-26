@@ -29,6 +29,7 @@ export interface PitchGenerationInput {
   website?: string | null
   reviews?: Array<{ text: string; rating: number; author: string }>
   instruction?: string
+  buyerPersona?: string
   examples?: string[]
 }
 
@@ -196,15 +197,21 @@ async function generatePitchNode(
 
   const lead = state.lead
 
+  // Shared Contexts
+  let exampleContext = ''
+  if (lead.examples && lead.examples.length > 0) {
+    exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, and length (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+  }
+
+  let personaContext = ''
+  if (lead.buyerPersona && lead.buyerPersona.trim().length > 0) {
+    personaContext = `\nBUYER PERSONA (Target Audience):\n"${lead.buyerPersona}"\n`
+  }
+
   let prompt = ''
 
   if (lead.instruction && lead.instruction.trim().length > 0) {
     // USE CUSTOM INSTRUCTION
-    let exampleContext = ''
-    if (lead.examples && lead.examples.length > 0) {
-      exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, and length (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
-    }
-
     prompt = `Create a short, personalized WhatsApp message for this business based on the user's specific instruction.
 
 Business: ${lead.name}
@@ -214,27 +221,25 @@ Analysis: ${state.analysis}
 
 USER INSTRUCTION:
 "${lead.instruction}"
+${personaContext}
 ${exampleContext}
 Requirements:
 1. STRICTLY follow the User Instruction above.
 2. Keep it under 150 words (WhatsApp style).
 3. Include 1-2 relevant emojis naturally.
 4. Output ONLY the message text.
+5. If a Buyer Persona is provided, ensure the language resonates with them.
 
 System Role: You are an expert at writing engaging, personalized outreach messages that feel genuine and helpful, not pushy or spammy.`
   } else {
     // DEFAULT PROMPT
-    let exampleContext = ''
-    if (lead.examples && lead.examples.length > 0) {
-      exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, and length (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
-    }
-
     prompt = `Create a short, personalized WhatsApp message for this business:
 
 Business: ${lead.name}
 Category: ${lead.category}
 Location: ${lead.address}
 Analysis: ${state.analysis}
+${personaContext}
 ${exampleContext}
 Requirements:
 1. Start with a friendly, personalized greeting mentioning their business name
@@ -245,6 +250,7 @@ Requirements:
 6. Use a warm, professional tone - not salesy
 7. Include 1-2 relevant emojis naturally
 ${exampleContext ? '8. MIMIC THE STYLE OF THE EXAMPLES ABOVE' : ''}
+${personaContext ? '9. Tailor the message to appeal to the defined BUYER PERSONA' : ''}
 
 Write ONLY the message text, no explanations.
 
@@ -315,6 +321,12 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     instructionCheck = `1. **DOES IT FOLLOW THE USER INSTRUCTION?** (Highest Priority)\n`
   }
 
+  let personaContext = ''
+  if (lead.buyerPersona && lead.buyerPersona.trim().length > 0) {
+    personaContext = `\nBUYER PERSONA:\n"${lead.buyerPersona}"\n`
+    instructionCheck += `\n*. Does it resonate with the defined Buyer Persona?`
+  }
+
   let exampleContext = ''
   if (lead.examples && lead.examples.length > 0) {
     exampleContext = `\n\nReference Examples (The pitch should match this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
@@ -327,7 +339,7 @@ Message:
 "${state.currentPitch}"
 
 Target Business: ${state.lead.name} (${state.lead.category})
-${instructionContext}${exampleContext}
+${instructionContext}${personaContext}${exampleContext}
 Criteria:
 ${instructionCheck || '1. Is it personalized to this specific business?'}
 ${instructionCheck ? '2' : '1'}. Is it personalized to this specific business?
@@ -406,6 +418,11 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
     instructionContext = `\nCRITICAL CONTEXT:\nThe user specifically asked for: "${lead.instruction}".\nEnsure the refinement STRICTLY follows this instruction.`
   }
 
+  let personaContext = ''
+  if (lead.buyerPersona && lead.buyerPersona.trim().length > 0) {
+    personaContext = `\nBUYER PERSONA:\n"${lead.buyerPersona}"\n`
+  }
+
   let exampleContext = ''
   if (lead.examples && lead.examples.length > 0) {
     exampleContext = `\n\nReference Examples (Mimic this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
@@ -419,7 +436,7 @@ Current Message:
 Feedback: ${state.observation}
 
 Business: ${state.lead.name} (${state.lead.category})
-${instructionContext}${exampleContext}
+${instructionContext}${personaContext}${exampleContext}
 
 Write an improved version that addresses the feedback while keeping:
 - Strict adherence to the USER INSTRUCTION

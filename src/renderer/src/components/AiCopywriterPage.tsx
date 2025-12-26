@@ -15,6 +15,7 @@ interface Campaign {
   id: string
   name: string
   instruction: string
+  buyerPersona?: string
   examples?: string[]
   platform: 'whatsapp'
   groupId?: string
@@ -64,6 +65,7 @@ function WhatsAppCampaigns(): JSX.Element {
     setCurrentCampaign({
       name: '',
       instruction: '',
+      buyerPersona: '',
       examples: [],
       platform: 'whatsapp'
     })
@@ -156,6 +158,7 @@ function WhatsAppCampaigns(): JSX.Element {
         id,
         name: currentCampaign.name,
         instruction: currentCampaign.instruction || '',
+        buyerPersona: currentCampaign.buyerPersona || undefined,
         examples: currentCampaign.examples || [],
         platform: 'whatsapp',
         groupId: currentCampaign.groupId,
@@ -237,6 +240,24 @@ function WhatsAppCampaigns(): JSX.Element {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Buyer Persona */}
+          <div className="form-group">
+            <label className="form-label">Buyer Persona (Optional)</label>
+            <p className="form-hint">
+              Describe your ideal customer (e.g., pain points, goals, values). The AI will tailor
+              the pitch to resonate with them.
+            </p>
+            <textarea
+              value={currentCampaign.buyerPersona || ''}
+              onChange={(e) =>
+                setCurrentCampaign((prev) => ({ ...prev, buyerPersona: e.target.value }))
+              }
+              placeholder="Example: Small business owners who are skeptical of marketing agencies, value ROI transparency, and want more local customers..."
+              className="form-textarea"
+              rows={3}
+            />
           </div>
 
           {/* Instruction */}
