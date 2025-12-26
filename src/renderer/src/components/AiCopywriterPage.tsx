@@ -1,5 +1,5 @@
 import { JSX, useEffect, useState } from 'react'
-import { FaEdit, FaPlus, FaSave, FaTimes, FaTrash, FaWhatsapp, FaFolder } from 'react-icons/fa'
+import { FaEdit, FaFolder, FaPlus, FaSave, FaTimes, FaTrash, FaWhatsapp } from 'react-icons/fa'
 // Campaign is defined locally to avoid import issues
 type TabType = 'mail' | 'whatsapp' | 'telegram'
 
@@ -15,6 +15,7 @@ interface Campaign {
   id: string
   name: string
   instruction: string
+  examples?: string[]
   platform: 'whatsapp'
   groupId?: string
   createdAt: number
@@ -63,6 +64,7 @@ function WhatsAppCampaigns(): JSX.Element {
     setCurrentCampaign({
       name: '',
       instruction: '',
+      examples: [],
       platform: 'whatsapp'
     })
     setView('editor')
@@ -151,9 +153,10 @@ function WhatsAppCampaigns(): JSX.Element {
           : `camp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
 
       const campaignToSave: Campaign = {
-        id,
+            id,
         name: currentCampaign.name,
         instruction: currentCampaign.instruction,
+        examples: currentCampaign.examples || [],
         platform: 'whatsapp',
         groupId: currentCampaign.groupId,
         createdAt: currentCampaign.createdAt || Date.now(),
@@ -242,6 +245,108 @@ function WhatsAppCampaigns(): JSX.Element {
               placeholder="Example: Act as a digital marketing expert. Analyze their reviews and mention specifically what they are doing well. Then suggest how our agency can help them get more 5-star reviews..."
               className="form-textarea"
             />
+          </div>
+
+          {/* Example Pitches */}
+          <div className="form-group">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.5rem'
+              }}
+            >
+              <label className="form-label" style={{ marginBottom: 0 }}>
+                Example Pitches (Few-Shot Learning)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentExamples = currentCampaign.examples || []
+                  setCurrentCampaign((prev) => ({ ...prev, examples: [...currentExamples, ''] }))
+                }}
+                className="btn-secondary"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  height: 'auto',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <FaPlus size={10} style={{ marginRight: '4px' }} /> Add Example
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginBottom: '1rem' }}>
+              Add specific examples of good pitches. The AI will mimic the style, tone, and
+              structure of these examples.
+            </p>
+
+            <div
+              className="examples-list"
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            >
+              {(currentCampaign.examples || []).map((example, index) => (
+                <div key={index} className="example-item" style={{ position: 'relative' }}>
+                  <textarea
+                    value={example}
+                    onChange={(e) => {
+                      const newExamples = [...(currentCampaign.examples || [])]
+                      newExamples[index] = e.target.value
+                      setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                    }}
+                    placeholder={`Example Pitch #${index + 1}...`}
+                    className="form-textarea"
+                    rows={3}
+                    style={{ fontSize: '0.9rem', marginBottom: 0 }}
+                  />
+                  <button
+                    onClick={() => {
+                      const newExamples = (currentCampaign.examples || []).filter(
+                        (_, i) => i !== index
+                      )
+                      setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '0.5rem',
+                      right: '0.5rem',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    title="Remove example"
+                  >
+                    <FaTimes size={12} />
+                  </button>
+                </div>
+              ))}
+              {(currentCampaign.examples || []).length === 0 && (
+                <div
+                  style={{
+                    padding: '1.5rem',
+                    border: '1px dashed rgba(148, 163, 184, 0.3)',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '0.9rem',
+                    background: 'rgba(15, 23, 42, 0.3)'
+                  }}
+                >
+                  No examples added yet. Adding examples significantly improves AI quality!
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}

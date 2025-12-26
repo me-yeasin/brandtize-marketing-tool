@@ -437,6 +437,8 @@ function SavedLeadsPage(): JSX.Element {
     setExpandedLeadIds((prev) => new Set(prev).add(lead.id))
 
     try {
+      const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId)
+
       const result = await window.api.generateWhatsAppPitch({
         leadId: lead.id,
         name: lead.name,
@@ -446,7 +448,8 @@ function SavedLeadsPage(): JSX.Element {
         reviewCount: lead.reviewCount,
         website: lead.website,
         reviews: lead.reviews,
-        instruction: campaigns.find((c) => c.id === selectedCampaignId)?.instruction
+        instruction: selectedCampaign?.instruction,
+        examples: selectedCampaign?.examples
       })
 
       if (result.success && result.pitch) {

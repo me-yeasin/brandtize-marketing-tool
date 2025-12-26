@@ -29,6 +29,7 @@ export interface PitchGenerationInput {
   website?: string | null
   reviews?: Array<{ text: string; rating: number; author: string }>
   instruction?: string
+  examples?: string[]
 }
 
 export interface PitchGenerationStatus {
@@ -199,6 +200,11 @@ async function generatePitchNode(
 
   if (lead.instruction && lead.instruction.trim().length > 0) {
     // USE CUSTOM INSTRUCTION
+    let exampleContext = ''
+    if (lead.examples && lead.examples.length > 0) {
+      exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, and length (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+    }
+
     prompt = `Create a short, personalized WhatsApp message for this business based on the user's specific instruction.
 
 Business: ${lead.name}
@@ -208,7 +214,7 @@ Analysis: ${state.analysis}
 
 USER INSTRUCTION:
 "${lead.instruction}"
-
+${exampleContext}
 Requirements:
 1. STRICTLY follow the User Instruction above.
 2. Keep it under 150 words (WhatsApp style).
@@ -303,13 +309,19 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     instructionCheck = `1. **DOES IT FOLLOW THE USER INSTRUCTION?** (Highest Priority)\n`
   }
 
+  let exampleContext = ''
+  if (lead.examples && lead.examples.length > 0) {
+    exampleContext = `\n\nReference Examples (The pitch should match this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
+    instructionCheck += `\n*. Does it match the style/tone of the provided examples?`
+  }
+
   const prompt = `Evaluate this WhatsApp outreach message and decide if it needs improvement:
 
 Message:
 "${state.currentPitch}"
 
 Target Business: ${state.lead.name} (${state.lead.category})
-${instructionContext}
+${instructionContext}${exampleContext}
 Criteria:
 ${instructionCheck || '1. Is it personalized to this specific business?'}
 ${instructionCheck ? '2' : '1'}. Is it personalized to this specific business?
@@ -388,6 +400,11 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
     instructionContext = `\nCRITICAL CONTEXT:\nThe user specifically asked for: "${lead.instruction}".\nEnsure the refinement STRICTLY follows this instruction.`
   }
 
+  let exampleContext = ''
+  if (lead.examples && lead.examples.length > 0) {
+    exampleContext = `\n\nReference Examples (Mimic this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
+  }
+
   const prompt = `Improve this WhatsApp message based on the feedback:
 
 Current Message:
@@ -396,10 +413,11 @@ Current Message:
 Feedback: ${state.observation}
 
 Business: ${state.lead.name} (${state.lead.category})
-${instructionContext}
+${instructionContext}${exampleContext}
 
 Write an improved version that addresses the feedback while keeping:
 - Strict adherence to the USER INSTRUCTION
+- Matching the style of the EXAMPLES (if provided)
 - Personalization to this specific business
 - Concise length
 - Genuine, helpful tone

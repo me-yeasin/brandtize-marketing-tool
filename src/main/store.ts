@@ -176,6 +176,7 @@ export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
+  examples?: string[] // Optional example pitches
   platform: 'whatsapp'
   groupId?: string // Optional group association
   createdAt: number
