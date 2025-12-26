@@ -139,8 +139,8 @@ function WhatsAppCampaigns(): JSX.Element {
 
   const handleSave = async (): Promise<void> => {
     console.log('Saving campaign...', currentCampaign)
-    if (!currentCampaign.name || !currentCampaign.instruction) {
-      alert('Please fill in both Name and Instruction.')
+    if (!currentCampaign.name) {
+      alert('Please fill in the Campaign Name.')
       return
     }
 
@@ -155,7 +155,7 @@ function WhatsAppCampaigns(): JSX.Element {
       const campaignToSave: Campaign = {
         id,
         name: currentCampaign.name,
-        instruction: currentCampaign.instruction,
+        instruction: currentCampaign.instruction || '',
         examples: currentCampaign.examples || [],
         platform: 'whatsapp',
         groupId: currentCampaign.groupId,
@@ -241,7 +241,7 @@ function WhatsAppCampaigns(): JSX.Element {
 
           {/* Instruction */}
           <div className="form-group">
-            <label className="form-label">Pitch Instructions</label>
+            <label className="form-label">Pitch Instructions (Optional)</label>
             <p className="form-hint">
               Explain how the AI should write the pitch. Include tone, key points to mention, and
               call-to-action style.
