@@ -313,7 +313,16 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     }
   }
 
+  const lead = state.lead
   const model = getAiModel()
+
+  let instructionContext = ''
+  let instructionCheck = ''
+
+  if (lead.instruction && lead.instruction.trim().length > 0) {
+    instructionContext = `\nUSER INSTRUCTION (CRITICAL):\n"${lead.instruction}"\n`
+    instructionCheck = `1. **DOES IT FOLLOW THE USER INSTRUCTION?** (Highest Priority)\n`
+  }
 
   const prompt = `Evaluate this WhatsApp outreach message and decide if it needs improvement:
 
@@ -321,13 +330,13 @@ Message:
 "${state.currentPitch}"
 
 Target Business: ${state.lead.name} (${state.lead.category})
-
+${instructionContext}
 Criteria:
-1. Is it personalized to this specific business?
-2. Is it concise (under 150 words)?
-3. Does it feel genuine and not salesy?
-4. Is there a clear but soft call-to-action?
-5. Is the tone appropriate for WhatsApp?
+${instructionCheck || '1. Is it personalized to this specific business?'}
+${instructionCheck ? '2' : '1'}. Is it personalized to this specific business?
+${instructionCheck ? '3' : '2'}. Is it concise (under 150 words)?
+${instructionCheck ? '4' : '3'}. Does it feel genuine and not salesy?
+${instructionCheck ? '5' : '4'}. Is there a clear but soft call-to-action?
 
 Respond with ONLY one of these formats:
 - If the message is good: "APPROVED: [brief reason]"
@@ -388,7 +397,14 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
     refinementCount: newCount
   })
 
+  const lead = state.lead
   const model = getAiModel()
+
+  let instructionContext = ''
+
+  if (lead.instruction && lead.instruction.trim().length > 0) {
+    instructionContext = `\nCRITICAL CONTEXT:\nThe user specifically asked for: "${lead.instruction}".\nEnsure the refinement STRICTLY follows this instruction.`
+  }
 
   const prompt = `Improve this WhatsApp message based on the feedback:
 
@@ -398,12 +414,13 @@ Current Message:
 Feedback: ${state.observation}
 
 Business: ${state.lead.name} (${state.lead.category})
+${instructionContext}
 
 Write an improved version that addresses the feedback while keeping:
+- Strict adherence to the USER INSTRUCTION
 - Personalization to this specific business
-- Concise length (under 150 words)
+- Concise length
 - Genuine, helpful tone
-- Soft call-to-action
 
 Write ONLY the improved message text.`
 
