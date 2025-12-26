@@ -30,6 +30,16 @@ export interface SavedMapsLead {
   savedAt: number
 }
 
+// Campaign Type
+export interface Campaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  platform: 'whatsapp'
+  createdAt: number
+  updatedAt: number
+}
+
 // Expose API to renderer
 contextBridge.exposeInMainWorld('api', {
   // ========================================
@@ -208,6 +218,13 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('whatsapp-disconnect'),
 
   whatsappLogout: (): Promise<{ success: boolean }> => ipcRenderer.invoke('whatsapp-logout'),
+
+  // WhatsApp Campaigns
+  getWhatsappCampaigns: (): Promise<Campaign[]> => ipcRenderer.invoke('get-whatsapp-campaigns'),
+  saveWhatsappCampaign: (campaign: Campaign): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('save-whatsapp-campaign', campaign),
+  deleteWhatsappCampaign: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('delete-whatsapp-campaign', id),
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void): void => {

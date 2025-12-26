@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+/* @import 'tailwindcss'; removed */
 
 /* ========================================
    ROOT VARIABLES
@@ -800,11 +800,441 @@ body {
 .add-key-btn:hover:not(:disabled) {
   background: rgba(99, 102, 241, 0.2);
   border-color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
+/* ========================================
+   WHATSAPP CAMPAIGN MANAGER
+======================================== */
+.wrapper-container {
+  height: 100%;
+  width: 100%;
+  background: #0f172a;
+  color: white;
+  overflow-y: auto;
+}
+
+.campaign-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 1.5rem;
+}
+
+.campaign-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.campaign-list-header {
+  margin-bottom: 2rem;
+}
+
+.campaign-title-group h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.campaign-subtitle {
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #4f46e5;
+  color: white;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.1);
+}
+
+.btn-primary:hover {
+  background-color: #4338ca;
+  transform: scale(1.05);
+}
+
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16rem;
+  color: #64748b;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+  border: 2px dashed #1e293b;
+  border-radius: 1.5rem;
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.empty-icon {
+  width: 4rem;
+  height: 4rem;
+  background: #1e293b;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  color: #475569;
+}
+
+.empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 0.5rem;
+}
+
+.empty-desc {
+  color: #64748b;
+  max-width: 24rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1e293b;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .grid-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.campaign-card {
+  background: rgba(30, 41, 59, 0.5);
+  backdrop-filter: blur(4px);
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  height: 16rem;
+}
+
+.campaign-card:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.1);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  transition: all 0.2s;
+}
+
+.campaign-card:hover .card-icon {
+  background: #6366f1;
+  color: white;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.campaign-card:hover .card-actions {
+  opacity: 1;
+}
+
+.action-btn {
+  padding: 0.5rem;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  color: white;
+  background: #334155;
+}
+
+.action-btn.delete:hover {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-content-box {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.card-desc {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fade-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  background: linear-gradient(to top, rgba(30, 41, 59, 0.9), transparent);
+  pointer-events: none;
+}
+
+.card-footer {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(51, 65, 85, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.platform-badge {
+  padding: 0.25rem 0.5rem;
+  background: rgba(51, 65, 85, 0.5);
+  border-radius: 0.25rem;
+  color: #94a3b8;
+}
+
+/* EDITOR STYLES */
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.editor-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.title-icon-box {
+  padding: 0.5rem;
+  background: rgba(99, 102, 241, 0.2);
+  border-radius: 0.5rem;
+  color: #818cf8;
+}
+
+.close-btn {
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(51, 65, 85, 0.5);
+  color: white;
+}
+
+.editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: rgba(30, 41, 59, 0.5);
+  padding: 2rem;
+  border-radius: 0.75rem;
+  border: 1px solid #334155;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.form-input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.form-textarea {
+  width: 100%;
+  height: 16rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  resize: none;
+  transition: all 0.2s;
+}
+
+.form-textarea:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.btn-cancel {
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.5rem;
+  color: #cbd5e1;
+  background: transparent;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.btn-save {
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.5rem;
+  background: #4f46e5;
+  color: white;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn-save:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+
 .add-key-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 /* Settings Info Box */

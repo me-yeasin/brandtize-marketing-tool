@@ -8,6 +8,7 @@ import {
 } from './services/whatsapp-service'
 import {
   clearSavedMapsLeads,
+  deleteWhatsappCampaign,
   getApiKeys,
   getGoogleApiKeys,
   // Multi-key getters/setters
@@ -22,8 +23,10 @@ import {
   getSelectedAiProvider,
   getSerperApiKeys,
   getSnovApiKeys,
+  getWhatsappCampaigns,
   removeSavedMapsLead,
   saveMapsLeads,
+  saveWhatsappCampaign,
   setGoogleApiKey,
   setGoogleApiKeys,
   setGroqApiKey,
@@ -45,6 +48,7 @@ import {
   updateSavedMapsLead,
   type AiProvider,
   type ApiKeyEntry,
+  type Campaign,
   type SavedMapsLead
 } from './store'
 
@@ -353,6 +357,27 @@ export function registerIpcHandlers(): void {
   // Logout from WhatsApp (clears session)
   ipcMain.handle('whatsapp-logout', async () => {
     await logoutWhatsApp()
+    return { success: true }
+  })
+
+  // ========================================
+  // WHATSAPP CAMPAIGNS
+  // ========================================
+
+  // Get all WhatsApp campaigns
+  ipcMain.handle('get-whatsapp-campaigns', () => {
+    return getWhatsappCampaigns()
+  })
+
+  // Save (Create/Update) WhatsApp campaign
+  ipcMain.handle('save-whatsapp-campaign', (_event, campaign: Campaign) => {
+    saveWhatsappCampaign(campaign)
+    return { success: true }
+  })
+
+  // Delete WhatsApp campaign
+  ipcMain.handle('delete-whatsapp-campaign', (_event, id: string) => {
+    deleteWhatsappCampaign(id)
     return { success: true }
   })
 

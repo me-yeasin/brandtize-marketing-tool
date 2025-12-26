@@ -164,6 +164,15 @@ export interface SavedMapsLead {
   savedAt: number // timestamp
 }
 
+export interface Campaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  platform: 'whatsapp'
+  createdAt: number
+  updatedAt: number
+}
+
 interface StoreSchema {
   groqApiKey: string
   mistralApiKey: string
@@ -200,6 +209,8 @@ interface StoreSchema {
   emailPitches: Record<string, StoredEmailPitch>
   // Saved Maps Scout leads
   savedMapsLeads: SavedMapsLead[]
+  // WhatsApp Campaigns
+  whatsappCampaigns: Campaign[]
 }
 
 const store = new Store<StoreSchema>({
@@ -238,7 +249,9 @@ const store = new Store<StoreSchema>({
     // Email pitches storage (empty by default)
     emailPitches: {},
     // Saved Maps Scout leads (empty by default)
-    savedMapsLeads: []
+    savedMapsLeads: [],
+    // WhatsApp Campaigns
+    whatsappCampaigns: []
   },
   encryptionKey: 'ar-branding-secure-key-2025'
 })
@@ -621,6 +634,35 @@ export function removeSavedMapsLead(id: string): void {
 
 export function clearSavedMapsLeads(): void {
   store.set('savedMapsLeads', [])
+}
+
+// WhatsApp Campaigns Functions
+export function getWhatsappCampaigns(): Campaign[] {
+  return store.get('whatsappCampaigns', [])
+}
+
+export function saveWhatsappCampaign(campaign: Campaign): void {
+  const campaigns = getWhatsappCampaigns()
+  const existingIndex = campaigns.findIndex((c) => c.id === campaign.id)
+
+  if (existingIndex >= 0) {
+    // Update existing
+    campaigns[existingIndex] = { ...campaign, updatedAt: Date.now() }
+  } else {
+    // Add new
+    const newCampaign = {
+      ...campaign,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    campaigns.push(newCampaign)
+  }
+  store.set('whatsappCampaigns', campaigns)
+}
+
+export function deleteWhatsappCampaign(id: string): void {
+  const campaigns = getWhatsappCampaigns().filter((c) => c.id !== id)
+  store.set('whatsappCampaigns', campaigns)
 }
 
 export { store }

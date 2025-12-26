@@ -29,7 +29,17 @@ export interface PitchGenerationStatus {
 export interface PitchGenerationResult {
   success: boolean
   pitch?: string
+  pitch?: string
   error?: string
+}
+
+export interface Campaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  platform: 'whatsapp'
+  createdAt: number
+  updatedAt: number
 }
 
 // API interface for renderer
@@ -142,6 +152,11 @@ export interface BrandtizeAPI {
   }>
   whatsappDisconnect: () => Promise<{ success: boolean }>
   whatsappLogout: () => Promise<{ success: boolean }>
+
+  // WhatsApp Campaigns
+  getWhatsappCampaigns: () => Promise<Campaign[]>
+  saveWhatsappCampaign: (campaign: Campaign) => Promise<{ success: boolean }>
+  deleteWhatsappCampaign: (id: string) => Promise<{ success: boolean }>
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void) => void
