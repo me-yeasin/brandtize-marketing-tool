@@ -1078,11 +1078,32 @@ function SavedLeadsPage(): JSX.Element {
                 background: 'rgba(15, 23, 42, 0.6)',
                 border: '1px solid rgba(148, 163, 184, 0.2)',
                 borderRadius: '12px',
-                color: '#94a3b8',
-                fontSize: '0.75rem',
+                color: '#f1f5f9',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
+                outline: 'none',
+                maxWidth: '200px',
+                minWidth: '150px'
+              }}
+            >
+              {(campaignGroups.length > 0
+                ? campaigns.filter((c) => c.groupId === selectedGroupId)
+                : campaigns.filter((c) => !c.groupId)
+              ).map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+            <FaChevronDown
+              style={{
+                position: 'absolute',
+                right: '1rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94a3b8',
                 pointerEvents: 'none',
-                transform: 'translateY(-50%)'
+                fontSize: '0.75rem'
               }}
             />
           </div>
