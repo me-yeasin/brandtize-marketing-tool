@@ -11,13 +11,9 @@
  * 4. Refine Node - Improves pitch if needed (max 3 iterations)
  */
 
-import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
-import { ChatGroq } from '@langchain/groq'
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
-import { ChatMistralAI } from '@langchain/mistralai'
 import { BrowserWindow } from 'electron'
-import { getApiKeys, getSelectedAiProvider } from '../store'
+import { executeWithAiRotation } from './ai-rotation-manager'
 
 // ============================================
 // TYPES
@@ -105,35 +101,9 @@ function sendStatusUpdate(status: PitchGenerationStatus): void {
   })
 }
 
-function getAiModel(): ChatGoogleGenerativeAI | ChatGroq | ChatMistralAI {
-  const provider = getSelectedAiProvider()
-  const keys = getApiKeys()
-
-  switch (provider) {
-    case 'google':
-      if (!keys.googleApiKey) throw new Error('Google API key not configured')
-      return new ChatGoogleGenerativeAI({
-        apiKey: keys.googleApiKey,
-        model: 'gemini-2.0-flash-exp',
-        temperature: 0.7
-      })
-    case 'groq':
-      if (!keys.groqApiKey) throw new Error('Groq API key not configured')
-      return new ChatGroq({
-        apiKey: keys.groqApiKey,
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.7
-      })
-    case 'mistral':
-      if (!keys.mistralApiKey) throw new Error('Mistral API key not configured')
-      return new ChatMistralAI({
-        apiKey: keys.mistralApiKey,
-        model: 'mistral-large-latest',
-        temperature: 0.7
-      })
-    default:
-      throw new Error(`Unknown AI provider: ${provider}`)
-  }
+// Wrapper to parse simple string response from AI
+function parseStringResponse(response: string): string {
+  return response.trim()
 }
 
 // ============================================
@@ -155,7 +125,6 @@ async function analyzeBusinessNode(
   })
 
   const lead = state.lead
-  const model = getAiModel()
 
   // Build context from reviews if available
   let reviewContext = ''
@@ -178,18 +147,22 @@ Provide a brief analysis (2-3 sentences) covering:
 2. Key strengths or unique aspects based on the data
 3. Potential areas where they might need marketing/digital services
 
-Keep the analysis concise and actionable.`
+Keep the analysis concise and actionable.
+
+System Role: You are a business analyst specializing in local businesses and marketing needs.`
 
   try {
-    const response = await model.invoke([
-      new SystemMessage(
-        'You are a business analyst specializing in local businesses and marketing needs.'
-      ),
-      new HumanMessage(prompt)
-    ])
-
-    const analysis =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+    const analysis = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      'Analysis unavailable', // Default value
+      {
+        onRetry: (model, attempt) =>
+          console.log(`[PitchAgent] Retrying analysis with ${model} (attempt ${attempt})`),
+        onModelSwitch: (from, to) =>
+          console.log(`[PitchAgent] Switched model for analysis: ${from} -> ${to}`)
+      }
+    )
 
     console.log('[PitchAgent] Analysis complete')
 
@@ -221,7 +194,6 @@ async function generatePitchNode(
   })
 
   const lead = state.lead
-  const model = getAiModel()
 
   let prompt = ''
 
@@ -241,7 +213,9 @@ Requirements:
 1. STRICTLY follow the User Instruction above.
 2. Keep it under 150 words (WhatsApp style).
 3. Include 1-2 relevant emojis naturally.
-4. Output ONLY the message text.`
+4. Output ONLY the message text.
+
+System Role: You are an expert at writing engaging, personalized outreach messages that feel genuine and helpful, not pushy or spammy.`
   } else {
     // DEFAULT PROMPT
     prompt = `Create a short, personalized WhatsApp message for this business:
@@ -260,24 +234,30 @@ Requirements:
 6. Use a warm, professional tone - not salesy
 7. Include 1-2 relevant emojis naturally
 
-Write ONLY the message text, no explanations.`
+Write ONLY the message text, no explanations.
+
+System Role: You are an expert at writing engaging, personalized outreach messages that feel genuine and helpful, not pushy or spammy.`
   }
 
   try {
-    const response = await model.invoke([
-      new SystemMessage(
-        'You are an expert at writing engaging, personalized outreach messages that feel genuine and helpful, not pushy or spammy.'
-      ),
-      new HumanMessage(prompt)
-    ])
+    const pitch = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      '', // Default
+      {
+        onRetry: (model, attempt) =>
+          console.log(`[PitchAgent] Retrying generation with ${model} (attempt ${attempt})`),
+        onModelSwitch: (from, to) =>
+          console.log(`[PitchAgent] Switched model for generation: ${from} -> ${to}`)
+      }
+    )
 
-    const pitch =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+    if (!pitch) throw new Error('Failed to generate pitch content')
 
     console.log('[PitchAgent] Pitch generated')
 
     return {
-      currentPitch: pitch.trim(),
+      currentPitch: pitch,
       status: 'observing'
     }
   } catch (error) {
@@ -314,7 +294,6 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
   }
 
   const lead = state.lead
-  const model = getAiModel()
 
   let instructionContext = ''
   let instructionCheck = ''
@@ -340,18 +319,22 @@ ${instructionCheck ? '5' : '4'}. Is there a clear but soft call-to-action?
 
 Respond with ONLY one of these formats:
 - If the message is good: "APPROVED: [brief reason]"
-- If it needs improvement: "REFINE: [specific improvements needed]"`
+- If it needs improvement: "REFINE: [specific improvements needed]"
+
+System Role: You are a quality assurance expert for marketing messages. Be concise and decisive.`
 
   try {
-    const response = await model.invoke([
-      new SystemMessage(
-        'You are a quality assurance expert for marketing messages. Be concise and decisive.'
-      ),
-      new HumanMessage(prompt)
-    ])
-
-    const observation =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+    const observation = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      'APPROVED: Default approval due to error', // Safe fallback
+      {
+        onRetry: (model, attempt) =>
+          console.log(`[PitchAgent] Retrying observation with ${model} (attempt ${attempt})`),
+        onModelSwitch: (from, to) =>
+          console.log(`[PitchAgent] Switched model for observation: ${from} -> ${to}`)
+      }
+    )
 
     console.log('[PitchAgent] Observation:', observation)
 
@@ -398,7 +381,6 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
   })
 
   const lead = state.lead
-  const model = getAiModel()
 
   let instructionContext = ''
 
@@ -422,23 +404,27 @@ Write an improved version that addresses the feedback while keeping:
 - Concise length
 - Genuine, helpful tone
 
-Write ONLY the improved message text.`
+Write ONLY the improved message text.
+
+System Role: You are an expert at refining outreach messages to be more effective and genuine.`
 
   try {
-    const response = await model.invoke([
-      new SystemMessage(
-        'You are an expert at refining outreach messages to be more effective and genuine.'
-      ),
-      new HumanMessage(prompt)
-    ])
-
-    const refinedPitch =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content)
+    const refinedPitch = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      state.currentPitch, // Default to current pitch if fail
+      {
+        onRetry: (model, attempt) =>
+          console.log(`[PitchAgent] Retrying refinement with ${model} (attempt ${attempt})`),
+        onModelSwitch: (from, to) =>
+          console.log(`[PitchAgent] Switched model for refinement: ${from} -> ${to}`)
+      }
+    )
 
     console.log('[PitchAgent] Pitch refined')
 
     return {
-      currentPitch: refinedPitch.trim(),
+      currentPitch: refinedPitch,
       refinementCount: newCount,
       status: 'observing'
     }
