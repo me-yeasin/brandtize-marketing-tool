@@ -153,7 +153,7 @@ function WhatsAppCampaigns(): JSX.Element {
           : `camp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
 
       const campaignToSave: Campaign = {
-            id,
+        id,
         name: currentCampaign.name,
         instruction: currentCampaign.instruction,
         examples: currentCampaign.examples || [],
@@ -184,7 +184,16 @@ function WhatsAppCampaigns(): JSX.Element {
   // --- RENDER EDITOR ---
   if (view === 'editor') {
     return (
-      <div className="editor-container">
+      <div
+        className="editor-container"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden'
+        }}
+      >
         <div className="editor-header">
           <h2 className="editor-title">
             <span className="title-icon-box">
@@ -197,7 +206,7 @@ function WhatsAppCampaigns(): JSX.Element {
           </button>
         </div>
 
-        <div className="editor-form">
+        <div className="editor-form" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
           {/* Campaign Name */}
           <div className="form-group">
             <label className="form-label">Campaign Name</label>
@@ -367,7 +376,16 @@ function WhatsAppCampaigns(): JSX.Element {
   // --- RENDER GROUP EDITOR ---
   if (view === 'group-editor') {
     return (
-      <div className="editor-container">
+      <div
+        className="editor-container"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden'
+        }}
+      >
         <div className="editor-header">
           <h2 className="editor-title">
             <span className="title-icon-box">
@@ -377,7 +395,7 @@ function WhatsAppCampaigns(): JSX.Element {
           </h2>
         </div>
 
-        <div className="editor-content" style={{ padding: '2rem' }}>
+        <div className="editor-content" style={{ padding: '2rem', flex: 1, overflowY: 'auto' }}>
           {/* Group Name */}
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
             <label
