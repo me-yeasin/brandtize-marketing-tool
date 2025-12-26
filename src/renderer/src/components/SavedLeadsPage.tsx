@@ -114,21 +114,48 @@ function SavedLeadsPage(): JSX.Element {
       setCampaigns(whatsappCampaigns)
       setCampaignGroups(groupsData)
 
-      // Auto-select first group if available
+      // Auto-select group and campaign with persistence
       if (groupsData.length > 0) {
-        setSelectedGroupId(groupsData[0].id)
+        const savedGroupId = localStorage.getItem('savedLeads_selectedGroupId')
+        const targetGroupId =
+          savedGroupId && groupsData.find((g) => g.id === savedGroupId)
+            ? savedGroupId
+            : groupsData[0].id
 
-        // Auto-select first campaign in that group
-        const groupCampaigns = whatsappCampaigns.filter((c) => c.groupId === groupsData[0].id)
-        if (groupCampaigns.length > 0) {
-          setSelectedCampaignId(groupCampaigns[0].id)
-        }
+        setSelectedGroupId(targetGroupId)
+
+        // Select campaign
+        const savedCampaignId = localStorage.getItem('savedLeads_selectedCampaignId')
+        const groupCampaigns = whatsappCampaigns.filter((c) => c.groupId === targetGroupId)
+
+        const targetCampaignId =
+          savedCampaignId && groupCampaigns.find((c) => c.id === savedCampaignId)
+            ? savedCampaignId
+            : groupCampaigns.length > 0
+              ? groupCampaigns[0].id
+              : ''
+
+        setSelectedCampaignId(targetCampaignId)
+
+        // Ensure persistence
+        if (!savedGroupId) localStorage.setItem('savedLeads_selectedGroupId', targetGroupId)
+        if (targetCampaignId)
+          localStorage.setItem('savedLeads_selectedCampaignId', targetCampaignId)
       } else if (whatsappCampaigns.length > 0) {
-        // No groups, select first ungrouped campaign
+        // No groups
         const ungroupedCampaigns = whatsappCampaigns.filter((c) => !c.groupId)
-        if (ungroupedCampaigns.length > 0) {
-          setSelectedCampaignId(ungroupedCampaigns[0].id)
-        }
+        const savedCampaignId = localStorage.getItem('savedLeads_selectedCampaignId')
+
+        const targetCampaignId =
+          savedCampaignId && ungroupedCampaigns.find((c) => c.id === savedCampaignId)
+            ? savedCampaignId
+            : ungroupedCampaigns.length > 0
+              ? ungroupedCampaigns[0].id
+              : ''
+
+        setSelectedCampaignId(targetCampaignId)
+        if (targetCampaignId)
+          localStorage.setItem('savedLeads_selectedCampaignId', targetCampaignId)
       }
     } catch (err) {
       console.error('Failed to load data:', err)
@@ -1024,13 +1051,19 @@ function SavedLeadsPage(): JSX.Element {
             <select
               value={selectedGroupId}
               onChange={(e) => {
-                setSelectedGroupId(e.target.value)
+                const newGroupId = e.target.value
+                setSelectedGroupId(newGroupId)
+                localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
+
                 // Auto-select first campaign in the new group
-                const groupCampaigns = campaigns.filter((c) => c.groupId === e.target.value)
+                const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
                 if (groupCampaigns.length > 0) {
-                  setSelectedCampaignId(groupCampaigns[0].id)
+                  const newCampaignId = groupCampaigns[0].id
+                  setSelectedCampaignId(newCampaignId)
+                  localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
                 } else {
                   setSelectedCampaignId('')
+                  localStorage.removeItem('savedLeads_selectedCampaignId')
                 }
               }}
               style={{
@@ -1096,7 +1129,11 @@ function SavedLeadsPage(): JSX.Element {
               <div style={{ position: 'relative' }}>
                 <select
                   value={selectedCampaignId}
-                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  onChange={(e) => {
+                    const newId = e.target.value
+                    setSelectedCampaignId(newId)
+                    localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                  }}
                   style={{
                     appearance: 'none',
                     padding: '0.75rem 2.5rem 0.75rem 1rem',
@@ -1536,20 +1573,27 @@ function SavedLeadsPage(): JSX.Element {
                       {!lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
                         <button
                           onClick={() => handleGeneratePitch(lead)}
-                          title="Generate Pitch with AI"
+                          disabled={!selectedCampaignId}
+                          title={
+                            !selectedCampaignId
+                              ? 'Select a campaign first'
+                              : 'Generate Pitch with AI'
+                          }
                           style={{
                             width: '36px',
                             height: '36px',
                             borderRadius: '10px',
                             border: 'none',
-                            cursor: 'pointer',
+                            cursor: !selectedCampaignId ? 'not-allowed' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background:
-                              'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
-                            color: '#8b5cf6',
-                            fontSize: '1rem'
+                            background: !selectedCampaignId
+                              ? 'rgba(148, 163, 184, 0.1)'
+                              : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
+                            color: !selectedCampaignId ? '#94a3b8' : '#8b5cf6',
+                            fontSize: '1rem',
+                            opacity: !selectedCampaignId ? 0.5 : 1
                           }}
                         >
                           <FaMagic />
@@ -1759,20 +1803,34 @@ function SavedLeadsPage(): JSX.Element {
                       </button>
                       <button
                         onClick={() => handleGeneratePitch(lead)}
-                        title="Regenerate Pitch"
-                        disabled={generatingPitchIds.has(lead.id)}
+                        title={
+                          !selectedCampaignId
+                            ? 'Select a campaign to regenerate'
+                            : 'Regenerate Pitch'
+                        }
+                        disabled={generatingPitchIds.has(lead.id) || !selectedCampaignId}
                         style={{
                           padding: '0.4rem 0.75rem',
                           borderRadius: '8px',
                           border: 'none',
-                          cursor: 'pointer',
+                          cursor:
+                            generatingPitchIds.has(lead.id) || !selectedCampaignId
+                              ? 'not-allowed'
+                              : 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.35rem',
-                          background: 'rgba(139, 92, 246, 0.15)',
-                          color: '#8b5cf6',
+                          background:
+                            !selectedCampaignId || generatingPitchIds.has(lead.id)
+                              ? 'rgba(148, 163, 184, 0.1)'
+                              : 'rgba(139, 92, 246, 0.15)',
+                          color:
+                            !selectedCampaignId || generatingPitchIds.has(lead.id)
+                              ? '#94a3b8'
+                              : '#8b5cf6',
                           fontSize: '0.75rem',
-                          fontWeight: 500
+                          fontWeight: 500,
+                          opacity: !selectedCampaignId ? 0.7 : 1
                         }}
                       >
                         <FaRedo /> Regenerate
