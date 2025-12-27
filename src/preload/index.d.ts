@@ -305,6 +305,8 @@ export interface FacebookPageLead {
 // Saved Facebook Lead (with required savedAt)
 export interface SavedFacebookLead extends FacebookPageLead {
   savedAt: number
+  generatedPitch?: string
+  pitchGeneratedAt?: number
 }
 
 declare global {

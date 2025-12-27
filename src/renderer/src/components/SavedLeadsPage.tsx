@@ -384,6 +384,10 @@ function SavedLeadsPage(): JSX.Element {
 
   // Facebook leads state
   const [facebookLeads, setFacebookLeads] = useState<SavedFacebookLead[]>([])
+  const [fbSearchQuery, setFbSearchQuery] = useState('')
+  const [fbActiveTab, setFbActiveTab] = useState<TabFilter>('all')
+  const [fbFilterPanelOpen, setFbFilterPanelOpen] = useState(false)
+  const [fbLoadingWhatsAppIds, setFbLoadingWhatsAppIds] = useState<Set<string>>(new Set())
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
@@ -888,6 +892,195 @@ function SavedLeadsPage(): JSX.Element {
       '_blank'
     )
   }
+
+  // =====================================================
+  // FACEBOOK LEADS HANDLERS
+  // =====================================================
+
+  // Check if a Facebook lead's phone number has WhatsApp
+  const handleFbCheckWhatsApp = async (leadId: string): Promise<void> => {
+    const lead = facebookLeads.find((l) => l.id === leadId)
+    if (!lead || !lead.phone) return
+
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    setFbLoadingWhatsAppIds((prev) => new Set(prev).add(leadId))
+
+    try {
+      const result = await window.api.whatsappCheckNumber(lead.phone)
+
+      if (result.error) {
+        showToast(result.error, 'error')
+        setFbLoadingWhatsAppIds((prev) => {
+          const next = new Set(prev)
+          next.delete(leadId)
+          return next
+        })
+        return
+      }
+
+      // Update lead with WhatsApp status
+      const updatedLead = {
+        ...lead,
+        hasWhatsApp: result.hasWhatsApp
+      }
+
+      // Update local state
+      setFacebookLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+
+      // SAVE VALIDATION TO STORAGE
+      try {
+        await window.api.updateSavedFacebookLead(updatedLead)
+      } catch (saveErr) {
+        console.error('Failed to save WhatsApp status:', saveErr)
+      }
+
+      // Show feedback
+      if (result.hasWhatsApp) {
+        showToast(`${lead.title} has WhatsApp!`, 'success')
+      } else {
+        showToast(`${lead.title} does NOT have WhatsApp`, 'info')
+      }
+    } catch (err) {
+      console.error('WhatsApp check error:', err)
+      showToast('Failed to check WhatsApp status', 'error')
+    } finally {
+      setFbLoadingWhatsAppIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
+
+  // Generate pitch for Facebook lead
+  const handleFbGeneratePitch = async (lead: SavedFacebookLead): Promise<void> => {
+    console.log('[SavedLeads] Generating pitch for FB:', lead.title)
+
+    setGeneratingPitchIds((prev) => new Set(prev).add(lead.id))
+    setPitchStatus((prev) => ({
+      ...prev,
+      [lead.id]: { status: 'analyzing', message: '🧠 Analyzing business...' }
+    }))
+
+    // Expand the card to show progress
+    setExpandedLeadIds((prev) => new Set(prev).add(lead.id))
+
+    try {
+      const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId)
+
+      const result = await window.api.generateWhatsAppPitch({
+        leadId: lead.id,
+        name: lead.title,
+        category: lead.categories[0] || 'Business',
+        address: lead.address || '',
+        rating: lead.rating || 0,
+        reviewCount: lead.ratingCount || 0,
+        website: lead.website,
+        instruction: selectedCampaign?.instruction,
+        buyerPersona: selectedCampaign?.buyerPersona,
+        examples: selectedCampaign?.examples,
+        productLinks: selectedCampaign?.productLinks,
+        language: selectedCampaign?.language || 'en'
+      })
+
+      if (result.success && result.pitch) {
+        // Update lead with generated pitch
+        const updatedLead = {
+          ...lead,
+          generatedPitch: result.pitch,
+          pitchGeneratedAt: Date.now()
+        }
+
+        setFacebookLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+        await window.api.updateSavedFacebookLead(updatedLead)
+
+        setPitchStatus((prev) => ({
+          ...prev,
+          [lead.id]: { status: 'done', message: '✅ Pitch ready!', currentPitch: result.pitch }
+        }))
+
+        // Reset local edit state so the new pitch is shown
+        setEditedPitches((prev) => {
+          const next = { ...prev }
+          delete next[lead.id]
+          return next
+        })
+
+        showToast('Pitch generated successfully!', 'success')
+      } else {
+        setPitchStatus((prev) => ({
+          ...prev,
+          [lead.id]: { status: 'error', message: result.error || 'Failed to generate pitch' }
+        }))
+        showToast(result.error || 'Failed to generate pitch', 'error')
+      }
+    } catch (err) {
+      console.error('Pitch generation error:', err)
+      setPitchStatus((prev) => ({
+        ...prev,
+        [lead.id]: { status: 'error', message: 'Failed to generate pitch' }
+      }))
+      showToast('Failed to generate pitch', 'error')
+    } finally {
+      setGeneratingPitchIds((prev) => {
+        const next = new Set(prev)
+        next.delete(lead.id)
+        return next
+      })
+    }
+  }
+
+  // Open WhatsApp with pitch for Facebook lead
+  const openFbWhatsAppWithPitch = (lead: SavedFacebookLead): void => {
+    if (!lead.phone) return
+    let cleanNumber = lead.phone.replace(/[^\d+]/g, '')
+    if (cleanNumber.startsWith('+')) cleanNumber = cleanNumber.substring(1)
+
+    // USE EDITED PITCH IF AVAILABLE
+    const finalPitch = editedPitches[lead.id] ?? lead.generatedPitch
+    const message = finalPitch || `Hi! I found ${lead.title} on Facebook and wanted to reach out.`
+    window.api.openExternalUrl(`https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`)
+  }
+
+  // Open Telegram for Facebook lead
+  const openFbTelegram = (lead: SavedFacebookLead): void => {
+    if (!lead.phone) return
+    let cleanNumber = lead.phone.replace(/[^\d+]/g, '')
+    if (!cleanNumber.startsWith('+')) cleanNumber = '+' + cleanNumber
+    window.api.openExternalUrl(`https://t.me/${cleanNumber}`)
+  }
+
+  // Remove Facebook lead
+  const handleFbRemoveLead = async (id: string): Promise<void> => {
+    try {
+      await window.api.removeSavedFacebookLead(id)
+      setFacebookLeads((prev) => prev.filter((l) => l.id !== id))
+      showToast('Lead removed', 'info')
+    } catch (err) {
+      console.error('Failed to remove lead:', err)
+      showToast('Failed to remove lead', 'error')
+    }
+  }
+
+  // Filter Facebook leads
+  const filteredFacebookLeads = facebookLeads.filter((lead) => {
+    // 1. Tab Filter
+    if (fbActiveTab === 'has-website' && lead.website === null) return false
+    if (fbActiveTab === 'no-website' && lead.website !== null) return false
+
+    // 2. Search Query (Title)
+    if (fbSearchQuery) {
+      if (!lead.title.toLowerCase().includes(fbSearchQuery.toLowerCase())) return false
+    }
+
+    return true
+  })
+  const fbHasWebsiteCount = facebookLeads.filter((l) => l.website !== null).length
+  const fbNoWebsiteCount = facebookLeads.filter((l) => l.website === null).length
 
   const filteredLeads = leads.filter((lead) => {
     // 1. Tab Filter
@@ -1618,9 +1811,16 @@ function SavedLeadsPage(): JSX.Element {
             </div>
           )}
 
-          {/* Leads List */}
+          {/* Leads List - SCROLLABLE */}
           {!isLoading && filteredLeads.length > 0 && (
-            <div className="scout-leads" style={{ padding: '0 2rem' }}>
+            <div
+              className="scout-leads"
+              style={{
+                padding: '0 2rem',
+                maxHeight: 'calc(100vh - 320px)',
+                overflowY: 'auto'
+              }}
+            >
               {filteredLeads.map((lead) => (
                 <div
                   key={lead.id}
@@ -3028,122 +3228,1321 @@ function SavedLeadsPage(): JSX.Element {
 
       {/* Facebook Leads Content */}
       {sourceTab === 'facebook' && (
-        <div style={{ padding: '0 2rem' }}>
-          {/* Header */}
+        <>
+          {/* Controls */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: '1.5rem'
+              padding: '0 2rem',
+              marginBottom: '1.5rem',
+              gap: '1rem',
+              flexWrap: 'wrap'
             }}
           >
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f1f5f9' }}>
-                Saved Facebook Leads
-              </h2>
-              <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                {facebookLeads.length} leads from Facebook page scraping
-              </p>
-            </div>
-            <button
-              className="scout-btn outline"
-              onClick={async () => {
-                if (!confirm('Are you sure you want to clear all Facebook leads?')) return
-                await window.api.clearSavedFacebookLeads()
-                setFacebookLeads([])
-                showToast('All Facebook leads cleared', 'success')
+            {/* Search & Filter */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                flex: 1,
+                minWidth: '300px'
               }}
-              disabled={facebookLeads.length === 0}
             >
-              <FaTrashAlt /> Clear All
+              <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+                <input
+                  type="text"
+                  placeholder="Search leads by name..."
+                  value={fbSearchQuery}
+                  onChange={(e) => setFbSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '12px',
+                    color: '#f1f5f9',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="rgba(148, 163, 184, 0.6)"
+                  strokeWidth="2"
+                  style={{
+                    position: 'absolute',
+                    left: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)'
+                  }}
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
+
+              {/* Filter Toggle Button */}
+              <button
+                onClick={() => setFbFilterPanelOpen(!fbFilterPanelOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  background: fbFilterPanelOpen
+                    ? 'rgba(99, 102, 241, 0.2)'
+                    : 'rgba(15, 23, 42, 0.6)',
+                  border: fbFilterPanelOpen
+                    ? '1px solid #6366f1'
+                    : '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '12px',
+                  color: fbFilterPanelOpen ? '#6366f1' : '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <FaFilter />
+                <span>Filters</span>
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.25rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                padding: '4px',
+                borderRadius: '12px',
+                border: '1px solid rgba(148, 163, 184, 0.1)'
+              }}
+            >
+              <button
+                onClick={() => setFbActiveTab('all')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    fbActiveTab === 'all'
+                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                      : 'transparent',
+                  color: fbActiveTab === 'all' ? 'white' : '#94a3b8'
+                }}
+              >
+                All
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      fbActiveTab === 'all' ? 'rgba(255,255,255,0.2)' : 'rgba(99, 102, 241, 0.15)',
+                    color: fbActiveTab === 'all' ? 'white' : '#6366f1'
+                  }}
+                >
+                  {facebookLeads.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setFbActiveTab('has-website')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    fbActiveTab === 'has-website'
+                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                      : 'transparent',
+                  color: fbActiveTab === 'has-website' ? 'white' : '#94a3b8'
+                }}
+              >
+                Has Website
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      fbActiveTab === 'has-website'
+                        ? 'rgba(255,255,255,0.2)'
+                        : 'rgba(99, 102, 241, 0.15)',
+                    color: fbActiveTab === 'has-website' ? 'white' : '#6366f1'
+                  }}
+                >
+                  {fbHasWebsiteCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setFbActiveTab('no-website')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    fbActiveTab === 'no-website'
+                      ? 'linear-gradient(135deg, #f59e0b, #ef4444)'
+                      : 'transparent',
+                  color: fbActiveTab === 'no-website' ? 'white' : '#94a3b8'
+                }}
+              >
+                No Website
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      fbActiveTab === 'no-website'
+                        ? 'rgba(255,255,255,0.2)'
+                        : 'rgba(245, 158, 11, 0.15)',
+                    color: fbActiveTab === 'no-website' ? 'white' : '#f59e0b'
+                  }}
+                >
+                  {fbNoWebsiteCount}
+                </span>
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={async () => {
+                  if (!confirm('Are you sure you want to clear all Facebook leads?')) return
+                  await window.api.clearSavedFacebookLeads()
+                  setFacebookLeads([])
+                  showToast('All Facebook leads cleared', 'success')
+                }}
+                disabled={facebookLeads.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: facebookLeads.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: facebookLeads.length === 0 ? 0.5 : 1
+                }}
+              >
+                <FaTrashAlt /> Clear All
+              </button>
+            </div>
+          </div>
+
+          {/* WhatsApp Connection Status Bar */}
+          <div
+            style={{
+              padding: '0 2rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '1rem'
+            }}
+          >
+            {/* Campaign Group Selector */}
+            {campaignGroups.length > 0 && (
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedGroupId}
+                  onChange={(e) => {
+                    const newGroupId = e.target.value
+                    setSelectedGroupId(newGroupId)
+                    localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
+
+                    // Auto-select first campaign in the new group
+                    const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
+                    if (groupCampaigns.length > 0) {
+                      const newCampaignId = groupCampaigns[0].id
+                      setSelectedCampaignId(newCampaignId)
+                      localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
+                    } else {
+                      setSelectedCampaignId('')
+                      localStorage.removeItem('savedLeads_selectedCampaignId')
+                    }
+                  }}
+                  style={{
+                    appearance: 'none',
+                    padding: '0.75rem 2.5rem 0.75rem 1rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '12px',
+                    color: '#f1f5f9',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    maxWidth: '150px'
+                  }}
+                >
+                  {campaignGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <FaChevronDown
+                  style={{
+                    position: 'absolute',
+                    right: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#94a3b8',
+                    pointerEvents: 'none',
+                    fontSize: '0.75rem'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Campaign Selector */}
+            {campaigns.length > 0 &&
+              (() => {
+                const relevantCampaigns =
+                  campaignGroups.length > 0
+                    ? campaigns.filter((c) => c.groupId === selectedGroupId)
+                    : campaigns.filter((c) => !c.groupId)
+
+                if (relevantCampaigns.length === 0) {
+                  return (
+                    <div
+                      style={{
+                        padding: '0.75rem 1rem',
+                        color: '#64748b',
+                        fontSize: '0.85rem',
+                        fontStyle: 'italic',
+                        background: 'rgba(15, 23, 42, 0.3)',
+                        borderRadius: '12px',
+                        border: '1px dashed rgba(148, 163, 184, 0.2)'
+                      }}
+                    >
+                      No campaigns found
+                    </div>
+                  )
+                }
+
+                return (
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={selectedCampaignId}
+                      onChange={(e) => {
+                        const newId = e.target.value
+                        setSelectedCampaignId(newId)
+                        localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                      }}
+                      style={{
+                        appearance: 'none',
+                        padding: '0.75rem 2.5rem 0.75rem 1rem',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '12px',
+                        color: '#f1f5f9',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        maxWidth: '200px',
+                        minWidth: '150px'
+                      }}
+                    >
+                      {relevantCampaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
+                          {campaign.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FaChevronDown
+                      style={{
+                        position: 'absolute',
+                        right: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#94a3b8',
+                        pointerEvents: 'none',
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </div>
+                )
+              })()}
+
+            {/* WhatsApp Connect Button */}
+            <button
+              onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
+              disabled={whatsAppInitializing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: whatsAppReady
+                  ? '1px solid rgba(34, 197, 94, 0.3)'
+                  : '1px solid rgba(148, 163, 184, 0.3)',
+                background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
+                color: whatsAppReady ? '#22c55e' : '#94a3b8',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FaWhatsapp />
+              {whatsAppInitializing
+                ? 'Connecting...'
+                : whatsAppReady
+                  ? 'WhatsApp Connected'
+                  : 'Connect WhatsApp'}
             </button>
           </div>
 
-          {/* Leads List */}
-          {facebookLeads.length === 0 ? (
-            <div className="scout-empty">
-              <FaFacebook style={{ fontSize: '3rem', opacity: 0.5, marginBottom: '1rem' }} />
-              <h3>No Facebook Leads Saved</h3>
-              <p>Search for Facebook pages and save leads to see them here.</p>
+          {/* Loading */}
+          {isLoading && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '4rem',
+                gap: '1rem'
+              }}
+            >
+              <div className="action-spinner" style={{ width: 32, height: 32 }} />
+              <p style={{ color: '#94a3b8' }}>Loading saved leads...</p>
             </div>
-          ) : (
-            <div className="scout-leads">
-              {facebookLeads.map((lead, index) => (
-                <div key={`${lead.id}-${index}`} className={`scout-lead ${lead.score}`}>
-                  {/* Score indicator */}
-                  <div className={`lead-indicator ${lead.score}`}></div>
+          )}
 
-                  {/* Main Content */}
-                  <div className="lead-main">
-                    <div className="lead-top">
-                      <h3 className="lead-name">{lead.title}</h3>
-                      <span className="lead-category">{lead.categories[0] || 'Page'}</span>
-                      {lead.isBusinessPageActive && <span className="active-badge">Active</span>}
-                    </div>
-                    <p className="lead-address">{lead.address || 'No address available'}</p>
-                  </div>
+          {/* Empty */}
+          {!isLoading && facebookLeads.length === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '4rem',
+                textAlign: 'center'
+              }}
+            >
+              <div
+                style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3, color: '#f1f5f9' }}
+              >
+                <FaFacebook />
+              </div>
+              <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>No Facebook Leads Saved</h3>
+              <p style={{ color: '#64748b' }}>
+                Save leads from Facebook Page Scraper to see them here.
+              </p>
+            </div>
+          )}
 
-                  {/* Stats */}
-                  <div className="lead-stats">
-                    <div className="lead-stat">
-                      <span className="stat-value">
-                        <FaStar style={{ color: '#fbbf24', marginRight: '4px' }} />
-                        {lead.rating || 'N/A'}
-                      </span>
-                      <span className="stat-label">
-                        {lead.followers?.toLocaleString() || 0} followers
-                      </span>
-                    </div>
-                  </div>
+          {/* Leads List - SCROLLABLE */}
+          {!isLoading && filteredFacebookLeads.length > 0 && (
+            <div
+              className="scout-leads"
+              style={{
+                padding: '0 2rem',
+                maxHeight: 'calc(100vh - 320px)',
+                overflowY: 'auto'
+              }}
+            >
+              {filteredFacebookLeads.map((lead) => (
+                <div
+                  key={lead.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0',
+                    padding: '1rem 1.25rem',
+                    background:
+                      'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(148, 163, 184, 0.1)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)'
+                    e.currentTarget.style.transform = 'translateX(4px)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                  }}
+                >
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}
+                  >
+                    {/* Score Indicator */}
+                    <div
+                      style={{
+                        width: '4px',
+                        height: '48px',
+                        borderRadius: '4px',
+                        flexShrink: 0,
+                        background: `linear-gradient(180deg, ${getScoreColor(lead.score)}, ${getScoreColor(lead.score)}dd)`
+                      }}
+                    />
 
-                  {/* Contact */}
-                  <div className="lead-contact">
-                    {lead.phone && <span className="contact-phone">{lead.phone}</span>}
-                    {lead.email && <span className="contact-email">{lead.email}</span>}
-                    {!lead.website && <span className="contact-no-web">No website</span>}
-                    {lead.website && <span className="contact-has-web">Has website</span>}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="lead-actions">
-                    <button
-                      className="lead-action"
-                      title="Open Facebook Page"
-                      onClick={() => window.api.openExternalUrl(lead.facebookUrl)}
-                    >
-                      <FaFacebook />
-                    </button>
-                    {lead.phone && (
-                      <button
-                        className="lead-action"
-                        title="WhatsApp"
-                        onClick={() =>
-                          window.api.openExternalUrl(
-                            `https://wa.me/${lead.phone!.replace(/[^0-9]/g, '')}`
-                          )
-                        }
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Top Row */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.25rem'
+                        }}
                       >
-                        <FaWhatsapp style={{ color: '#25D366' }} />
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <h3
+                            style={{
+                              color: '#f1f5f9',
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              margin: 0
+                            }}
+                          >
+                            {lead.title}
+                          </h3>
+                          <span
+                            style={{
+                              padding: '2px 10px',
+                              borderRadius: '20px',
+                              fontSize: '0.75rem',
+                              background: 'rgba(99, 102, 241, 0.12)',
+                              color: '#6366f1'
+                            }}
+                          >
+                            {lead.categories[0] || 'Page'}
+                          </span>
+                          {lead.isBusinessPageActive && (
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                background: 'rgba(34, 197, 94, 0.2)',
+                                color: '#22c55e'
+                              }}
+                            >
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Address */}
+                      <p
+                        style={{
+                          color: '#64748b',
+                          fontSize: '0.8rem',
+                          margin: '0 0 0.5rem 0',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {lead.address || 'No address available'}
+                      </p>
+
+                      {/* Contact Row */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1rem',
+                          flexWrap: 'wrap'
+                        }}
+                      >
+                        {lead.phone ? (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#f1f5f9'
+                            }}
+                          >
+                            <FaPhoneAlt style={{ color: '#64748b' }} /> {lead.phone}
+                            {lead.hasWhatsApp === true && (
+                              <span
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  background: 'rgba(37, 211, 102, 0.2)',
+                                  color: '#25d366'
+                                }}
+                              >
+                                WA
+                              </span>
+                            )}
+                            {lead.hasWhatsApp === false && (
+                              <span
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  background: 'rgba(239, 68, 68, 0.2)',
+                                  color: '#ef4444'
+                                }}
+                              >
+                                No WA
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}
+                          >
+                            No phone
+                          </span>
+                        )}
+
+                        {lead.email && (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#d97706',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaEnvelope /> {lead.email}
+                          </span>
+                        )}
+
+                        {lead.website ? (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#22c55e',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaGlobe /> Has website
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#f59e0b',
+                              fontStyle: 'italic'
+                            }}
+                          >
+                            <FaExclamationTriangle /> No website
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          paddingRight: '1rem',
+                          borderRight: '1px solid rgba(148, 163, 184, 0.2)',
+                          height: '24px'
+                        }}
+                      >
+                        <span style={{ color: '#fbbf24' }}>
+                          <FaStar />
+                        </span>
+                        <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>
+                          {lead.rating || 'N/A'}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                          ({lead.followers?.toLocaleString() || 0})
+                        </span>
+                      </div>
+
+                      {/* Facebook Page Button */}
+                      <button
+                        onClick={() => window.api.openExternalUrl(lead.facebookUrl)}
+                        title="Open Facebook Page"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(59, 89, 152, 0.15)',
+                          color: '#3b5998',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <FaFacebook />
                       </button>
-                    )}
-                    <button
-                      className="lead-action remove-action"
-                      title="Remove"
-                      onClick={async () => {
-                        await window.api.removeSavedFacebookLead(lead.id)
-                        setFacebookLeads((prev) => prev.filter((l) => l.id !== lead.id))
-                        showToast('Lead removed', 'info')
+
+                      {/* WhatsApp Actions */}
+                      {lead.phone && lead.hasWhatsApp == null && (
+                        <button
+                          onClick={() => handleFbCheckWhatsApp(lead.id)}
+                          disabled={fbLoadingWhatsAppIds.has(lead.id) || !whatsAppReady}
+                          title={whatsAppReady ? 'Check WhatsApp' : 'Connect WhatsApp first'}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(148, 163, 184, 0.15)',
+                            color: '#94a3b8',
+                            fontSize: '1rem',
+                            opacity: !whatsAppReady && !fbLoadingWhatsAppIds.has(lead.id) ? 0.5 : 1
+                          }}
+                        >
+                          {fbLoadingWhatsAppIds.has(lead.id) ? (
+                            <div className="action-spinner" style={{ width: 14, height: 14 }}></div>
+                          ) : (
+                            <FaWhatsapp />
+                          )}
+                        </button>
+                      )}
+
+                      {lead.hasWhatsApp === true && (
+                        <>
+                          {/* Generate Pitch Button (if no pitch yet) */}
+                          {!lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                            <button
+                              onClick={() => handleFbGeneratePitch(lead)}
+                              disabled={!selectedCampaignId}
+                              title={
+                                !selectedCampaignId
+                                  ? 'Select a campaign first'
+                                  : 'Generate Pitch with AI'
+                              }
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                cursor: !selectedCampaignId ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: !selectedCampaignId
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
+                                color: !selectedCampaignId ? '#94a3b8' : '#8b5cf6',
+                                fontSize: '1rem',
+                                opacity: !selectedCampaignId ? 0.5 : 1
+                              }}
+                            >
+                              <FaMagic />
+                            </button>
+                          )}
+
+                          {/* Loading state while generating */}
+                          {generatingPitchIds.has(lead.id) && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: '8px',
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                color: '#8b5cf6',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              <div className="action-spinner" style={{ width: 12, height: 12 }} />
+                              <span>{pitchStatus[lead.id]?.message || 'Processing...'}</span>
+                            </div>
+                          )}
+
+                          {/* Send WhatsApp Button (if pitch exists) */}
+                          {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                            <button
+                              onClick={() => openFbWhatsAppWithPitch(lead)}
+                              title="Send WhatsApp with Generated Pitch"
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(37, 211, 102, 0.15)',
+                                color: '#25d366',
+                                fontSize: '1rem'
+                              }}
+                            >
+                              <FaWhatsapp />
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {/* Telegram Button */}
+                      {lead.phone && (
+                        <button
+                          onClick={() => openFbTelegram(lead)}
+                          title="Telegram"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(0, 136, 204, 0.15)',
+                            color: '#0088cc',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          <FaTelegramPlane />
+                        </button>
+                      )}
+
+                      {/* Expand/Collapse Button (moved to end) */}
+                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                        <button
+                          onClick={() => toggleExpanded(lead.id)}
+                          title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(99, 102, 241, 0.1)',
+                            color: '#6366f1',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleFbRemoveLead(lead.id)}
+                        title="Remove"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <FaTimes />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Pitch Section */}
+                  {expandedLeadIds.has(lead.id) && lead.generatedPitch && (
+                    <div
+                      style={{
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        animation: 'slideDown 0.3s ease-out'
                       }}
                     >
-                      <FaTimes />
-                    </button>
-                  </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.75rem'
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            color: '#8b5cf6',
+                            fontWeight: 600,
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <FaMagic /> Generated Pitch (Editable)
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() =>
+                              copyToClipboard(editedPitches[lead.id] ?? lead.generatedPitch ?? '')
+                            }
+                            title="Copy to Clipboard"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(99, 102, 241, 0.15)',
+                              color: '#6366f1',
+                              fontSize: '0.75rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaCopy /> Copy
+                          </button>
+                          <button
+                            onClick={() => handleFbGeneratePitch(lead)}
+                            title={
+                              !selectedCampaignId
+                                ? 'Select a campaign to regenerate'
+                                : 'Regenerate Pitch'
+                            }
+                            disabled={generatingPitchIds.has(lead.id) || !selectedCampaignId}
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor:
+                                generatingPitchIds.has(lead.id) || !selectedCampaignId
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background:
+                                !selectedCampaignId || generatingPitchIds.has(lead.id)
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'rgba(139, 92, 246, 0.15)',
+                              color:
+                                !selectedCampaignId || generatingPitchIds.has(lead.id)
+                                  ? '#94a3b8'
+                                  : '#8b5cf6',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: !selectedCampaignId ? 0.7 : 1
+                            }}
+                          >
+                            <FaRedo /> Regenerate
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* TOOLBAR */}
+                      <div
+                        className="markdown-toolbar"
+                        style={{
+                          display: 'flex',
+                          gap: '0.5rem',
+                          marginBottom: '0.5rem',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          padding: '0.25rem',
+                          borderRadius: '4px',
+                          width: 'fit-content'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '*',
+                              '*',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Bold (*text*)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '_',
+                              '_',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Italic (_text_)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontStyle: 'italic',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          I
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '~',
+                              '~',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Strikethrough (~text~)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            textDecoration: 'line-through',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          S
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '```',
+                              '```',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Monospace (```text```)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontFamily: 'monospace',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          {'<>'}
+                        </button>
+
+                        {/* DIVIDER */}
+                        <div
+                          style={{
+                            width: '1px',
+                            height: '16px',
+                            background: '#475569',
+                            margin: '0 4px'
+                          }}
+                        ></div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '- ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Bullet List (- item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          <span style={{ fontSize: '12px' }}>●</span> List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '1. ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Numbered List (1. item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          1. List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '> ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Quote (> item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          &gt; Quote
+                        </button>
+                      </div>
+
+                      {/* EDITABLE TEXTAREA */}
+                      <textarea
+                        value={editedPitches[lead.id] ?? lead.generatedPitch ?? ''}
+                        onChange={(e) =>
+                          setEditedPitches((prev) => ({ ...prev, [lead.id]: e.target.value }))
+                        }
+                        style={{
+                          width: '100%',
+                          minHeight: '120px',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          padding: '0.75rem',
+                          color: '#f1f5f9',
+                          fontSize: '0.9rem',
+                          lineHeight: '1.6',
+                          marginBottom: '0.75rem',
+                          fontFamily: 'inherit',
+                          resize: 'vertical'
+                        }}
+                        placeholder="Type your custom pitch here..."
+                      />
+
+                      {/* PREVIEW TOGGLE */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <button
+                          onClick={() =>
+                            setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                          }
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: 0
+                          }}
+                        >
+                          {showPreviews[lead.id] ? (
+                            <FaChevronUp size={10} />
+                          ) : (
+                            <FaChevronDown size={10} />
+                          )}
+                          {showPreviews[lead.id]
+                            ? 'Hide WhatsApp Preview'
+                            : 'Show WhatsApp Preview'}
+                        </button>
+
+                        {/* VISUAL PREVIEW BOX */}
+                        {showPreviews[lead.id] && (
+                          <div
+                            style={{
+                              marginTop: '1.3rem',
+                              padding: '0.75rem',
+                              background: '#0f172a',
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #25d366',
+                              fontSize: '0.9rem',
+                              color: '#e2e8f0',
+                              position: 'relative'
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: -10,
+                                left: 10,
+                                fontSize: '0.65rem',
+                                background: '#25d366',
+                                color: '#000',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              PREVIEW
+                            </div>
+                            {renderWhatsAppMarkdown(
+                              editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => openFbWhatsAppWithPitch(lead)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: 'linear-gradient(135deg, #25d366, #128c7e)',
+                            color: 'white',
+                            fontSize: '0.85rem',
+                            fontWeight: 600
+                          }}
+                        >
+                          <FaWhatsapp /> Send via WhatsApp
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
-        </div>
+
+          {/* No results for filter */}
+          {!isLoading && facebookLeads.length > 0 && filteredFacebookLeads.length === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '4rem',
+                textAlign: 'center'
+              }}
+            >
+              <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>
+                No leads in this category
+              </h3>
+              <p style={{ color: '#64748b' }}>Try switching to a different filter.</p>
+            </div>
+          )}
+
+          {/* Overlay when filter panel is open */}
+          {fbFilterPanelOpen && (
+            <div
+              className="reviews-overlay"
+              onClick={() => setFbFilterPanelOpen(false)}
+              style={{ zIndex: 998 }}
+            ></div>
+          )}
+        </>
       )}
     </div>
   )
