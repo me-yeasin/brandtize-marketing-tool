@@ -7,10 +7,12 @@ import {
   FaCopy,
   FaEnvelope,
   FaExclamationTriangle,
+  FaFacebook,
   FaFileExport,
   FaFilter,
   FaGlobe,
   FaMagic,
+  FaMapMarkedAlt,
   FaMapMarkerAlt,
   FaPhoneAlt,
   FaRedo,
@@ -25,8 +27,12 @@ import type {
   CampaignGroup,
   PitchGenerationStatus,
   ReviewsResult,
+  SavedFacebookLead,
   SavedMapsLead
 } from '../../../preload/index.d'
+
+// Source tab for saved leads
+type SourceTab = 'maps' | 'facebook'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
 
@@ -370,7 +376,15 @@ const insertMarkdown = (
 }
 
 function SavedLeadsPage(): JSX.Element {
+  // Source tab state
+  const [sourceTab, setSourceTab] = useState<SourceTab>('maps')
+
+  // Maps leads state
   const [leads, setLeads] = useState<SavedMapsLead[]>([])
+
+  // Facebook leads state
+  const [facebookLeads, setFacebookLeads] = useState<SavedFacebookLead[]>([])
+
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<TabFilter>('all')
@@ -419,8 +433,13 @@ function SavedLeadsPage(): JSX.Element {
   const loadLeads = useCallback(async (): Promise<void> => {
     setIsLoading(true)
     try {
+      // Load Maps leads
       const savedLeads = await window.api.getSavedMapsLeads()
       setLeads(savedLeads)
+
+      // Load Facebook leads
+      const savedFacebookLeads = await window.api.getSavedFacebookLeads()
+      setFacebookLeads(savedFacebookLeads)
 
       // Load campaigns and groups
       const campaignsData = await window.api.getWhatsappCampaigns()
@@ -1088,382 +1107,345 @@ function SavedLeadsPage(): JSX.Element {
 
   return (
     <div className="scout-page saved-leads-page">
-      {/* Controls */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 2rem',
-          marginBottom: '1.5rem',
-          gap: '1rem',
-          flexWrap: 'wrap'
-        }}
-      >
-        {/* Search & Filter */}
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '300px' }}
+      {/* Source Tabs - Maps Scout vs Facebook */}
+      <div className="tabs-container" style={{ marginBottom: '1rem' }}>
+        <button
+          className={`tab-btn ${sourceTab === 'maps' ? 'active' : ''}`}
+          onClick={() => setSourceTab('maps')}
         >
-          <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
-            <input
-              type="text"
-              placeholder="Search leads by name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          <FaMapMarkedAlt />
+          Maps Scout ({leads.length})
+        </button>
+        <button
+          className={`tab-btn ${sourceTab === 'facebook' ? 'active' : ''}`}
+          onClick={() => setSourceTab('facebook')}
+        >
+          <FaFacebook />
+          Facebook Page ({facebookLeads.length})
+        </button>
+      </div>
+
+      {/* Maps Scout Content */}
+      {sourceTab === 'maps' && (
+        <>
+          {/* Controls */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 2rem',
+              marginBottom: '1.5rem',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}
+          >
+            {/* Search & Filter */}
+            <div
               style={{
-                width: '100%',
-                padding: '0.75rem 1rem 0.75rem 2.5rem',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                borderRadius: '12px',
-                color: '#f1f5f9',
-                fontSize: '0.9rem',
-                outline: 'none'
-              }}
-            />
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="rgba(148, 163, 184, 0.6)"
-              strokeWidth="2"
-              style={{
-                position: 'absolute',
-                left: '1rem',
-                top: '50%',
-                transform: 'translateY(-50%)'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                flex: 1,
+                minWidth: '300px'
               }}
             >
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </div>
+              <div style={{ position: 'relative', flex: 1, maxWidth: '400px' }}>
+                <input
+                  type="text"
+                  placeholder="Search leads by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '12px',
+                    color: '#f1f5f9',
+                    fontSize: '0.9rem',
+                    outline: 'none'
+                  }}
+                />
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="rgba(148, 163, 184, 0.6)"
+                  strokeWidth="2"
+                  style={{
+                    position: 'absolute',
+                    left: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)'
+                  }}
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
 
-          {/* Filter Toggle Button */}
-          {(() => {
-            let activeFilterCount = 0
-            if (filters.location) activeFilterCount++
-            if (filters.category) activeFilterCount++
-            if (filters.minRating > 0) activeFilterCount++
-            if (filters.minReviews > 0) activeFilterCount++
-            if (filters.hasWhatsApp !== 'all') activeFilterCount++
-            if (filters.hasEmail !== 'all') activeFilterCount++
-            if (!filters.scores.gold || !filters.scores.silver || !filters.scores.bronze)
-              activeFilterCount++
+              {/* Filter Toggle Button */}
+              {(() => {
+                let activeFilterCount = 0
+                if (filters.location) activeFilterCount++
+                if (filters.category) activeFilterCount++
+                if (filters.minRating > 0) activeFilterCount++
+                if (filters.minReviews > 0) activeFilterCount++
+                if (filters.hasWhatsApp !== 'all') activeFilterCount++
+                if (filters.hasEmail !== 'all') activeFilterCount++
+                if (!filters.scores.gold || !filters.scores.silver || !filters.scores.bronze)
+                  activeFilterCount++
 
-            const hasActiveFilters = activeFilterCount > 0
+                const hasActiveFilters = activeFilterCount > 0
 
-            return (
+                return (
+                  <button
+                    onClick={() => setFilterPanelOpen(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      background:
+                        filterPanelOpen || hasActiveFilters
+                          ? 'rgba(99, 102, 241, 0.2)'
+                          : 'rgba(15, 23, 42, 0.6)',
+                      border:
+                        filterPanelOpen || hasActiveFilters
+                          ? '1px solid #6366f1'
+                          : '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: '12px',
+                      color: filterPanelOpen || hasActiveFilters ? '#6366f1' : '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s',
+                      position: 'relative'
+                    }}
+                  >
+                    <FaFilter />
+                    <span>Filters</span>
+                    {hasActiveFilters && (
+                      <span
+                        style={{
+                          background: '#6366f1',
+                          color: 'white',
+                          fontSize: '0.7rem',
+                          fontWeight: 'bold',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginLeft: '0.25rem'
+                        }}
+                      >
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                )
+              })()}
+            </div>
+
+            {/* Tabs */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.25rem',
+                background: 'rgba(15, 23, 42, 0.6)',
+                padding: '4px',
+                borderRadius: '12px',
+                border: '1px solid rgba(148, 163, 184, 0.1)'
+              }}
+            >
               <button
-                onClick={() => setFilterPanelOpen(true)}
+                onClick={() => setActiveTab('all')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  padding: '0.75rem 1rem',
-                  background:
-                    filterPanelOpen || hasActiveFilters
-                      ? 'rgba(99, 102, 241, 0.2)'
-                      : 'rgba(15, 23, 42, 0.6)',
-                  border:
-                    filterPanelOpen || hasActiveFilters
-                      ? '1px solid #6366f1'
-                      : '1px solid rgba(148, 163, 184, 0.2)',
-                  borderRadius: '12px',
-                  color: filterPanelOpen || hasActiveFilters ? '#6366f1' : '#94a3b8',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
                   cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  transition: 'all 0.2s',
-                  position: 'relative'
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    activeTab === 'all'
+                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                      : 'transparent',
+                  color: activeTab === 'all' ? 'white' : '#94a3b8'
                 }}
               >
-                <FaFilter />
-                <span>Filters</span>
-                {hasActiveFilters && (
-                  <span
-                    style={{
-                      background: '#6366f1',
-                      color: 'white',
-                      fontSize: '0.7rem',
-                      fontWeight: 'bold',
-                      borderRadius: '50%',
-                      width: '18px',
-                      height: '18px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginLeft: '0.25rem'
-                    }}
-                  >
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            )
-          })()}
-        </div>
-
-        {/* Tabs */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.25rem',
-            background: 'rgba(15, 23, 42, 0.6)',
-            padding: '4px',
-            borderRadius: '12px',
-            border: '1px solid rgba(148, 163, 184, 0.1)'
-          }}
-        >
-          <button
-            onClick={() => setActiveTab('all')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              background:
-                activeTab === 'all' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'transparent',
-              color: activeTab === 'all' ? 'white' : '#94a3b8'
-            }}
-          >
-            All
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                background:
-                  activeTab === 'all' ? 'rgba(255,255,255,0.2)' : 'rgba(99, 102, 241, 0.15)',
-                color: activeTab === 'all' ? 'white' : '#6366f1'
-              }}
-            >
-              {leads.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('has-website')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              background:
-                activeTab === 'has-website'
-                  ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                  : 'transparent',
-              color: activeTab === 'has-website' ? 'white' : '#94a3b8'
-            }}
-          >
-            Has Website
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                background:
-                  activeTab === 'has-website'
-                    ? 'rgba(255,255,255,0.2)'
-                    : 'rgba(99, 102, 241, 0.15)',
-                color: activeTab === 'has-website' ? 'white' : '#6366f1'
-              }}
-            >
-              {hasWebsiteCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('no-website')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              background:
-                activeTab === 'no-website'
-                  ? 'linear-gradient(135deg, #f59e0b, #ef4444)'
-                  : 'transparent',
-              color: activeTab === 'no-website' ? 'white' : '#94a3b8'
-            }}
-          >
-            No Website
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                background:
-                  activeTab === 'no-website' ? 'rgba(255,255,255,0.2)' : 'rgba(245, 158, 11, 0.15)',
-                color: activeTab === 'no-website' ? 'white' : '#f59e0b'
-              }}
-            >
-              {noWebsiteCount}
-            </span>
-          </button>
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            onClick={handleExport}
-            disabled={filteredLeads.length === 0}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
-              background: 'rgba(99, 102, 241, 0.1)',
-              color: '#6366f1',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              cursor: filteredLeads.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: filteredLeads.length === 0 ? 0.5 : 1
-            }}
-          >
-            <FaFileExport /> Export
-          </button>
-          <button
-            onClick={handleClearAll}
-            disabled={leads.length === 0}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              background: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              cursor: leads.length === 0 ? 'not-allowed' : 'pointer',
-              opacity: leads.length === 0 ? 0.5 : 1
-            }}
-          >
-            <FaTrashAlt /> Clear All
-          </button>
-        </div>
-      </div>
-
-      {/* WhatsApp Connection Status Bar (if not connected or if wanting to show status) */}
-      <div
-        style={{
-          padding: '0 2rem',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '1rem' // Added gap for spacing between dropdown and button
-        }}
-      >
-        {/* Campaign Group Selector */}
-        {campaignGroups.length > 0 && (
-          <div style={{ position: 'relative' }}>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => {
-                const newGroupId = e.target.value
-                setSelectedGroupId(newGroupId)
-                localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
-
-                // Auto-select first campaign in the new group
-                const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
-                if (groupCampaigns.length > 0) {
-                  const newCampaignId = groupCampaigns[0].id
-                  setSelectedCampaignId(newCampaignId)
-                  localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
-                } else {
-                  setSelectedCampaignId('')
-                  localStorage.removeItem('savedLeads_selectedCampaignId')
-                }
-              }}
-              style={{
-                appearance: 'none',
-                padding: '0.75rem 2.5rem 0.75rem 1rem',
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                borderRadius: '12px',
-                color: '#f1f5f9',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                outline: 'none',
-                maxWidth: '150px'
-              }}
-            >
-              {campaignGroups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-            <FaChevronDown
-              style={{
-                position: 'absolute',
-                right: '1rem',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#94a3b8',
-                pointerEvents: 'none',
-                fontSize: '0.75rem'
-              }}
-            />
-          </div>
-        )}
-
-        {/* Campaign Selector */}
-        {campaigns.length > 0 &&
-          (() => {
-            const relevantCampaigns =
-              campaignGroups.length > 0
-                ? campaigns.filter((c) => c.groupId === selectedGroupId)
-                : campaigns.filter((c) => !c.groupId)
-
-            if (relevantCampaigns.length === 0) {
-              return (
-                <div
+                All
+                <span
                   style={{
-                    padding: '0.75rem 1rem',
-                    color: '#64748b',
-                    fontSize: '0.85rem',
-                    fontStyle: 'italic',
-                    background: 'rgba(15, 23, 42, 0.3)',
-                    borderRadius: '12px',
-                    border: '1px dashed rgba(148, 163, 184, 0.2)'
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      activeTab === 'all' ? 'rgba(255,255,255,0.2)' : 'rgba(99, 102, 241, 0.15)',
+                    color: activeTab === 'all' ? 'white' : '#6366f1'
                   }}
                 >
-                  No campaigns found
-                </div>
-              )
-            }
+                  {leads.length}
+                </span>
+              </button>
 
-            return (
+              <button
+                onClick={() => setActiveTab('has-website')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    activeTab === 'has-website'
+                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                      : 'transparent',
+                  color: activeTab === 'has-website' ? 'white' : '#94a3b8'
+                }}
+              >
+                Has Website
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      activeTab === 'has-website'
+                        ? 'rgba(255,255,255,0.2)'
+                        : 'rgba(99, 102, 241, 0.15)',
+                    color: activeTab === 'has-website' ? 'white' : '#6366f1'
+                  }}
+                >
+                  {hasWebsiteCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('no-website')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  background:
+                    activeTab === 'no-website'
+                      ? 'linear-gradient(135deg, #f59e0b, #ef4444)'
+                      : 'transparent',
+                  color: activeTab === 'no-website' ? 'white' : '#94a3b8'
+                }}
+              >
+                No Website
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background:
+                      activeTab === 'no-website'
+                        ? 'rgba(255,255,255,0.2)'
+                        : 'rgba(245, 158, 11, 0.15)',
+                    color: activeTab === 'no-website' ? 'white' : '#f59e0b'
+                  }}
+                >
+                  {noWebsiteCount}
+                </span>
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={handleExport}
+                disabled={filteredLeads.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: filteredLeads.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: filteredLeads.length === 0 ? 0.5 : 1
+                }}
+              >
+                <FaFileExport /> Export
+              </button>
+              <button
+                onClick={handleClearAll}
+                disabled={leads.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: leads.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: leads.length === 0 ? 0.5 : 1
+                }}
+              >
+                <FaTrashAlt /> Clear All
+              </button>
+            </div>
+          </div>
+
+          {/* WhatsApp Connection Status Bar (if not connected or if wanting to show status) */}
+          <div
+            style={{
+              padding: '0 2rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '1rem' // Added gap for spacing between dropdown and button
+            }}
+          >
+            {/* Campaign Group Selector */}
+            {campaignGroups.length > 0 && (
               <div style={{ position: 'relative' }}>
                 <select
-                  value={selectedCampaignId}
+                  value={selectedGroupId}
                   onChange={(e) => {
-                    const newId = e.target.value
-                    setSelectedCampaignId(newId)
-                    localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                    const newGroupId = e.target.value
+                    setSelectedGroupId(newGroupId)
+                    localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
+
+                    // Auto-select first campaign in the new group
+                    const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
+                    if (groupCampaigns.length > 0) {
+                      const newCampaignId = groupCampaigns[0].id
+                      setSelectedCampaignId(newCampaignId)
+                      localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
+                    } else {
+                      setSelectedCampaignId('')
+                      localStorage.removeItem('savedLeads_selectedCampaignId')
+                    }
                   }}
                   style={{
                     appearance: 'none',
@@ -1475,14 +1457,12 @@ function SavedLeadsPage(): JSX.Element {
                     fontSize: '0.9rem',
                     cursor: 'pointer',
                     outline: 'none',
-                    maxWidth: '200px',
-                    minWidth: '150px'
+                    maxWidth: '150px'
                   }}
                 >
-                  {relevantCampaigns.map((campaign) => (
-                    <option key={campaign.id} value={campaign.id}>
-                      {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
-                      {campaign.name}
+                  {campaignGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
                     </option>
                   ))}
                 </select>
@@ -1498,464 +1478,421 @@ function SavedLeadsPage(): JSX.Element {
                   }}
                 />
               </div>
-            )
-          })()}
+            )}
 
-        {/* WhatsApp Connect Button */}
-        <button
-          onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
-          disabled={whatsAppInitializing}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            border: whatsAppReady
-              ? '1px solid rgba(34, 197, 94, 0.3)'
-              : '1px solid rgba(148, 163, 184, 0.3)',
-            background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
-            color: whatsAppReady ? '#22c55e' : '#94a3b8',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
-        >
-          <FaWhatsapp />
-          {whatsAppInitializing
-            ? 'Connecting...'
-            : whatsAppReady
-              ? 'WhatsApp Connected'
-              : 'Connect WhatsApp'}
-        </button>
-      </div>
+            {/* Campaign Selector */}
+            {campaigns.length > 0 &&
+              (() => {
+                const relevantCampaigns =
+                  campaignGroups.length > 0
+                    ? campaigns.filter((c) => c.groupId === selectedGroupId)
+                    : campaigns.filter((c) => !c.groupId)
 
-      {/* Loading */}
-      {isLoading && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '4rem',
-            gap: '1rem'
-          }}
-        >
-          <div className="action-spinner" style={{ width: 32, height: 32 }} />
-          <p style={{ color: '#94a3b8' }}>Loading saved leads...</p>
-        </div>
-      )}
+                if (relevantCampaigns.length === 0) {
+                  return (
+                    <div
+                      style={{
+                        padding: '0.75rem 1rem',
+                        color: '#64748b',
+                        fontSize: '0.85rem',
+                        fontStyle: 'italic',
+                        background: 'rgba(15, 23, 42, 0.3)',
+                        borderRadius: '12px',
+                        border: '1px dashed rgba(148, 163, 184, 0.2)'
+                      }}
+                    >
+                      No campaigns found
+                    </div>
+                  )
+                }
 
-      {/* Empty */}
-      {!isLoading && leads.length === 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '4rem',
-            textAlign: 'center'
-          }}
-        >
-          <div style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3, color: '#f1f5f9' }}>
-            <FaClipboardList />
+                return (
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={selectedCampaignId}
+                      onChange={(e) => {
+                        const newId = e.target.value
+                        setSelectedCampaignId(newId)
+                        localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                      }}
+                      style={{
+                        appearance: 'none',
+                        padding: '0.75rem 2.5rem 0.75rem 1rem',
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        borderRadius: '12px',
+                        color: '#f1f5f9',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        maxWidth: '200px',
+                        minWidth: '150px'
+                      }}
+                    >
+                      {relevantCampaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
+                          {campaign.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FaChevronDown
+                      style={{
+                        position: 'absolute',
+                        right: '1rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#94a3b8',
+                        pointerEvents: 'none',
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </div>
+                )
+              })()}
+
+            {/* WhatsApp Connect Button */}
+            <button
+              onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
+              disabled={whatsAppInitializing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                border: whatsAppReady
+                  ? '1px solid rgba(34, 197, 94, 0.3)'
+                  : '1px solid rgba(148, 163, 184, 0.3)',
+                background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
+                color: whatsAppReady ? '#22c55e' : '#94a3b8',
+                fontSize: '0.85rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FaWhatsapp />
+              {whatsAppInitializing
+                ? 'Connecting...'
+                : whatsAppReady
+                  ? 'WhatsApp Connected'
+                  : 'Connect WhatsApp'}
+            </button>
           </div>
-          <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>No Saved Leads</h3>
-          <p style={{ color: '#64748b' }}>Save leads from Maps Scout to see them here.</p>
-        </div>
-      )}
 
-      {/* Leads List */}
-      {!isLoading && filteredLeads.length > 0 && (
-        <div className="scout-leads" style={{ padding: '0 2rem' }}>
-          {filteredLeads.map((lead) => (
+          {/* Loading */}
+          {isLoading && (
             <div
-              key={lead.id}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0',
-                padding: '1rem 1.25rem',
-                background:
-                  'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)',
-                borderRadius: '14px',
-                border: '1px solid rgba(148, 163, 184, 0.1)',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)'
-                e.currentTarget.style.transform = 'translateX(4px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)'
-                e.currentTarget.style.transform = 'translateY(0)'
+                alignItems: 'center',
+                padding: '4rem',
+                gap: '1rem'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
-                {/* Score Indicator */}
-                <div
-                  style={{
-                    width: '4px',
-                    height: '48px',
-                    borderRadius: '4px',
-                    flexShrink: 0,
-                    background: `linear-gradient(180deg, ${getScoreColor(lead.score)}, ${getScoreColor(lead.score)}dd)`
-                  }}
-                />
+              <div className="action-spinner" style={{ width: 32, height: 32 }} />
+              <p style={{ color: '#94a3b8' }}>Loading saved leads...</p>
+            </div>
+          )}
 
-                {/* Content */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Top Row */}
+          {/* Empty */}
+          {!isLoading && leads.length === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '4rem',
+                textAlign: 'center'
+              }}
+            >
+              <div
+                style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3, color: '#f1f5f9' }}
+              >
+                <FaClipboardList />
+              </div>
+              <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>No Saved Leads</h3>
+              <p style={{ color: '#64748b' }}>Save leads from Maps Scout to see them here.</p>
+            </div>
+          )}
+
+          {/* Leads List */}
+          {!isLoading && filteredLeads.length > 0 && (
+            <div className="scout-leads" style={{ padding: '0 2rem' }}>
+              {filteredLeads.map((lead) => (
+                <div
+                  key={lead.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0',
+                    padding: '1rem 1.25rem',
+                    background:
+                      'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(148, 163, 184, 0.1)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)'
+                    e.currentTarget.style.transform = 'translateX(4px)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.1)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                  }}
+                >
                   <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.25rem'
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}
                   >
+                    {/* Score Indicator */}
                     <div
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        flexWrap: 'wrap'
+                        width: '4px',
+                        height: '48px',
+                        borderRadius: '4px',
+                        flexShrink: 0,
+                        background: `linear-gradient(180deg, ${getScoreColor(lead.score)}, ${getScoreColor(lead.score)}dd)`
                       }}
-                    >
-                      <h3
-                        style={{ color: '#f1f5f9', fontSize: '1rem', fontWeight: 600, margin: 0 }}
-                      >
-                        {lead.name}
-                      </h3>
-                      <span
-                        style={{
-                          padding: '2px 10px',
-                          borderRadius: '20px',
-                          fontSize: '0.75rem',
-                          background: 'rgba(99, 102, 241, 0.12)',
-                          color: '#6366f1'
-                        }}
-                      >
-                        {lead.category}
-                      </span>
-                    </div>
-                  </div>
+                    />
 
-                  {/* Address */}
-                  <p
-                    style={{
-                      color: '#64748b',
-                      fontSize: '0.8rem',
-                      margin: '0 0 0.5rem 0',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}
-                  >
-                    {lead.address}
-                  </p>
-
-                  {/* Contact Row */}
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}
-                  >
-                    {lead.phone ? (
-                      <span
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Top Row */}
+                      <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.8rem',
-                          color: '#f1f5f9'
+                          justifyContent: 'space-between',
+                          marginBottom: '0.25rem'
                         }}
                       >
-                        <FaPhoneAlt style={{ color: '#64748b' }} /> {lead.phone}
-                        {lead.hasWhatsApp === true && (
-                          <span
-                            style={{
-                              padding: '1px 6px',
-                              borderRadius: '6px',
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
-                              background: 'rgba(37, 211, 102, 0.2)',
-                              color: '#25d366'
-                            }}
-                          >
-                            WA
-                          </span>
-                        )}
-                        {lead.hasWhatsApp === false && (
-                          <span
-                            style={{
-                              padding: '1px 6px',
-                              borderRadius: '6px',
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
-                              background: 'rgba(239, 68, 68, 0.2)',
-                              color: '#ef4444'
-                            }}
-                          >
-                            No WA
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
-                        No phone
-                      </span>
-                    )}
-
-                    {lead.email && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            fontSize: '0.8rem',
-                            color: '#d97706',
-                            fontWeight: 500
-                          }}
-                        >
-                          <FaEnvelope /> {lead.email}
-                          {lead.emailVerified === true && (
-                            <span
-                              style={{ color: '#22c55e', fontWeight: 700, marginLeft: '4px' }}
-                              title="Verified Email"
-                            >
-                              <FaCheck />
-                            </span>
-                          )}
-                          {lead.emailVerified === false && (
-                            <span
-                              style={{
-                                color: '#ef4444',
-                                fontWeight: 700,
-                                marginLeft: '4px',
-                                display: 'flex',
-                                alignItems: 'center'
-                              }}
-                              title="Invalid/Unverified Email"
-                            >
-                              <FaTimes />
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    )}
-
-                    {lead.website ? (
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.8rem',
-                          color: '#22c55e',
-                          fontWeight: 500
-                        }}
-                      >
-                        <FaGlobe /> Has website
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontSize: '0.8rem',
-                          color: '#f59e0b',
-                          fontStyle: 'italic'
-                        }}
-                      >
-                        <FaExclamationTriangle /> No website
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      paddingRight: '1rem',
-                      borderRight: '1px solid rgba(148, 163, 184, 0.2)',
-                      height: '24px'
-                    }}
-                  >
-                    <span style={{ color: '#fbbf24' }}>
-                      <FaStar />
-                    </span>
-                    <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>
-                      {lead.rating}
-                    </span>
-                    <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                      ({lead.reviewCount})
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => openInGoogleMaps(lead)}
-                    title="View on Maps"
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(99, 102, 241, 0.15)',
-                      color: '#6366f1',
-                      fontSize: '1rem'
-                    }}
-                  >
-                    <FaMapMarkerAlt />
-                  </button>
-
-                  {/* Reviews Button with Cache Indicator */}
-                  <div style={{ position: 'relative' }}>
-                    <button
-                      onClick={() => handleFetchReviews(lead)}
-                      title={
-                        lead.reviews?.length
-                          ? `View ${lead.reviews.length} Cached Reviews`
-                          : 'Fetch Reviews'
-                      }
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background:
-                          lead.reviews && lead.reviews.length > 0
-                            ? 'rgba(251, 191, 36, 0.15)'
-                            : 'rgba(148, 163, 184, 0.15)',
-                        color: lead.reviews && lead.reviews.length > 0 ? '#fbbf24' : '#94a3b8',
-                        fontSize: '1rem'
-                      }}
-                    >
-                      <FaStar />
-                    </button>
-                    {lead.reviews && lead.reviews.length > 0 && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: -5,
-                          right: -5,
-                          background: '#fbbf24',
-                          color: '#0f172a',
-                          fontSize: '0.6rem',
-                          fontWeight: 'bold',
-                          borderRadius: '50%',
-                          width: '18px',
-                          height: '18px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '2px solid #1e293b'
-                        }}
-                      >
-                        {lead.reviews.length}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* WhatsApp Actions */}
-                  {lead.phone && lead.hasWhatsApp == null && (
-                    <button
-                      onClick={() => handleCheckWhatsApp(lead.id)}
-                      disabled={loadingWhatsAppIds.has(lead.id) || !whatsAppReady}
-                      title={whatsAppReady ? 'Check WhatsApp' : 'Connect WhatsApp first'}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(148, 163, 184, 0.15)', // Grayish for "Check"
-                        color: '#94a3b8',
-                        fontSize: '1rem',
-                        opacity: !whatsAppReady && !loadingWhatsAppIds.has(lead.id) ? 0.5 : 1
-                      }}
-                    >
-                      {loadingWhatsAppIds.has(lead.id) ? (
-                        <div className="action-spinner" style={{ width: 14, height: 14 }}></div>
-                      ) : (
-                        <FaWhatsapp />
-                      )}
-                    </button>
-                  )}
-
-                  {lead.hasWhatsApp === true && (
-                    <>
-                      {/* Generate Pitch Button (if no pitch yet) */}
-                      {!lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
-                        <button
-                          onClick={() => handleGeneratePitch(lead)}
-                          disabled={!selectedCampaignId}
-                          title={
-                            !selectedCampaignId
-                              ? 'Select a campaign first'
-                              : 'Generate Pitch with AI'
-                          }
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            cursor: !selectedCampaignId ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: !selectedCampaignId
-                              ? 'rgba(148, 163, 184, 0.1)'
-                              : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
-                            color: !selectedCampaignId ? '#94a3b8' : '#8b5cf6',
-                            fontSize: '1rem',
-                            opacity: !selectedCampaignId ? 0.5 : 1
-                          }}
-                        >
-                          <FaMagic />
-                        </button>
-                      )}
-
-                      {/* Loading state while generating */}
-                      {generatingPitchIds.has(lead.id) && (
                         <div
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '0.5rem',
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '8px',
-                            background: 'rgba(139, 92, 246, 0.1)',
-                            color: '#8b5cf6',
-                            fontSize: '0.75rem'
+                            gap: '0.75rem',
+                            flexWrap: 'wrap'
                           }}
                         >
-                          <div className="action-spinner" style={{ width: 12, height: 12 }} />
-                          <span>{pitchStatus[lead.id]?.message || 'Processing...'}</span>
+                          <h3
+                            style={{
+                              color: '#f1f5f9',
+                              fontSize: '1rem',
+                              fontWeight: 600,
+                              margin: 0
+                            }}
+                          >
+                            {lead.name}
+                          </h3>
+                          <span
+                            style={{
+                              padding: '2px 10px',
+                              borderRadius: '20px',
+                              fontSize: '0.75rem',
+                              background: 'rgba(99, 102, 241, 0.12)',
+                              color: '#6366f1'
+                            }}
+                          >
+                            {lead.category}
+                          </span>
                         </div>
-                      )}
+                      </div>
 
-                      {/* Send WhatsApp Button (if pitch exists) */}
-                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                      {/* Address */}
+                      <p
+                        style={{
+                          color: '#64748b',
+                          fontSize: '0.8rem',
+                          margin: '0 0 0.5rem 0',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {lead.address}
+                      </p>
+
+                      {/* Contact Row */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1rem',
+                          flexWrap: 'wrap'
+                        }}
+                      >
+                        {lead.phone ? (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#f1f5f9'
+                            }}
+                          >
+                            <FaPhoneAlt style={{ color: '#64748b' }} /> {lead.phone}
+                            {lead.hasWhatsApp === true && (
+                              <span
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  background: 'rgba(37, 211, 102, 0.2)',
+                                  color: '#25d366'
+                                }}
+                              >
+                                WA
+                              </span>
+                            )}
+                            {lead.hasWhatsApp === false && (
+                              <span
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  background: 'rgba(239, 68, 68, 0.2)',
+                                  color: '#ef4444'
+                                }}
+                              >
+                                No WA
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}
+                          >
+                            No phone
+                          </span>
+                        )}
+
+                        {lead.email && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                fontSize: '0.8rem',
+                                color: '#d97706',
+                                fontWeight: 500
+                              }}
+                            >
+                              <FaEnvelope /> {lead.email}
+                              {lead.emailVerified === true && (
+                                <span
+                                  style={{ color: '#22c55e', fontWeight: 700, marginLeft: '4px' }}
+                                  title="Verified Email"
+                                >
+                                  <FaCheck />
+                                </span>
+                              )}
+                              {lead.emailVerified === false && (
+                                <span
+                                  style={{
+                                    color: '#ef4444',
+                                    fontWeight: 700,
+                                    marginLeft: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                  }}
+                                  title="Invalid/Unverified Email"
+                                >
+                                  <FaTimes />
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {lead.website ? (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#22c55e',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaGlobe /> Has website
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.8rem',
+                              color: '#f59e0b',
+                              fontStyle: 'italic'
+                            }}
+                          >
+                            <FaExclamationTriangle /> No website
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          paddingRight: '1rem',
+                          borderRight: '1px solid rgba(148, 163, 184, 0.2)',
+                          height: '24px'
+                        }}
+                      >
+                        <span style={{ color: '#fbbf24' }}>
+                          <FaStar />
+                        </span>
+                        <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>
+                          {lead.rating}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                          ({lead.reviewCount})
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => openInGoogleMaps(lead)}
+                        title="View on Maps"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          color: '#6366f1',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        <FaMapMarkerAlt />
+                      </button>
+
+                      {/* Reviews Button with Cache Indicator */}
+                      <div style={{ position: 'relative' }}>
                         <button
-                          onClick={() => openWhatsAppWithPitch(lead)}
-                          title="Send WhatsApp with Generated Pitch"
+                          onClick={() => handleFetchReviews(lead)}
+                          title={
+                            lead.reviews?.length
+                              ? `View ${lead.reviews.length} Cached Reviews`
+                              : 'Fetch Reviews'
+                          }
                           style={{
                             width: '36px',
                             height: '36px',
@@ -1965,982 +1902,1248 @@ function SavedLeadsPage(): JSX.Element {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'rgba(37, 211, 102, 0.15)',
-                            color: '#25d366',
+                            background:
+                              lead.reviews && lead.reviews.length > 0
+                                ? 'rgba(251, 191, 36, 0.15)'
+                                : 'rgba(148, 163, 184, 0.15)',
+                            color: lead.reviews && lead.reviews.length > 0 ? '#fbbf24' : '#94a3b8',
                             fontSize: '1rem'
                           }}
                         >
-                          <FaWhatsapp />
+                          <FaStar />
+                        </button>
+                        {lead.reviews && lead.reviews.length > 0 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: -5,
+                              right: -5,
+                              background: '#fbbf24',
+                              color: '#0f172a',
+                              fontSize: '0.6rem',
+                              fontWeight: 'bold',
+                              borderRadius: '50%',
+                              width: '18px',
+                              height: '18px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: '2px solid #1e293b'
+                            }}
+                          >
+                            {lead.reviews.length}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Actions */}
+                      {lead.phone && lead.hasWhatsApp == null && (
+                        <button
+                          onClick={() => handleCheckWhatsApp(lead.id)}
+                          disabled={loadingWhatsAppIds.has(lead.id) || !whatsAppReady}
+                          title={whatsAppReady ? 'Check WhatsApp' : 'Connect WhatsApp first'}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(148, 163, 184, 0.15)', // Grayish for "Check"
+                            color: '#94a3b8',
+                            fontSize: '1rem',
+                            opacity: !whatsAppReady && !loadingWhatsAppIds.has(lead.id) ? 0.5 : 1
+                          }}
+                        >
+                          {loadingWhatsAppIds.has(lead.id) ? (
+                            <div className="action-spinner" style={{ width: 14, height: 14 }}></div>
+                          ) : (
+                            <FaWhatsapp />
+                          )}
                         </button>
                       )}
-                    </>
-                  )}
 
-                  {lead.phone && (
-                    <button
-                      onClick={() => openTelegram(lead)}
-                      title="Telegram"
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(0, 136, 204, 0.15)',
-                        color: '#0088cc',
-                        fontSize: '1rem'
-                      }}
-                    >
-                      <FaTelegramPlane />
-                    </button>
-                  )}
+                      {lead.hasWhatsApp === true && (
+                        <>
+                          {/* Generate Pitch Button (if no pitch yet) */}
+                          {!lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                            <button
+                              onClick={() => handleGeneratePitch(lead)}
+                              disabled={!selectedCampaignId}
+                              title={
+                                !selectedCampaignId
+                                  ? 'Select a campaign first'
+                                  : 'Generate Pitch with AI'
+                              }
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                cursor: !selectedCampaignId ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: !selectedCampaignId
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))',
+                                color: !selectedCampaignId ? '#94a3b8' : '#8b5cf6',
+                                fontSize: '1rem',
+                                opacity: !selectedCampaignId ? 0.5 : 1
+                              }}
+                            >
+                              <FaMagic />
+                            </button>
+                          )}
 
-                  {/* Find Email Button (only if website exists and no email) */}
-                  {lead.website && !lead.email && (
-                    <button
-                      onClick={() => handleFindEmail(lead.id)}
-                      disabled={loadingEmailIds.has(lead.id)}
-                      title="Find Email"
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        cursor: loadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: loadingEmailIds.has(lead.id)
-                          ? 'rgba(99, 102, 241, 0.1)'
-                          : 'rgba(99, 102, 241, 0.15)',
-                        color: '#6366f1',
-                        fontSize: '1rem',
-                        opacity: loadingEmailIds.has(lead.id) ? 0.7 : 1
-                      }}
-                    >
-                      {loadingEmailIds.has(lead.id) ? (
-                        <div
-                          className="action-spinner"
-                          style={{
-                            width: '14px',
-                            height: '14px',
-                            border: '2px solid rgba(99, 102, 241, 0.3)',
-                            borderTop: '2px solid #6366f1'
-                          }}
-                        ></div>
-                      ) : (
-                        <FaEnvelope />
+                          {/* Loading state while generating */}
+                          {generatingPitchIds.has(lead.id) && (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: '8px',
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                color: '#8b5cf6',
+                                fontSize: '0.75rem'
+                              }}
+                            >
+                              <div className="action-spinner" style={{ width: 12, height: 12 }} />
+                              <span>{pitchStatus[lead.id]?.message || 'Processing...'}</span>
+                            </div>
+                          )}
+
+                          {/* Send WhatsApp Button (if pitch exists) */}
+                          {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                            <button
+                              onClick={() => openWhatsAppWithPitch(lead)}
+                              title="Send WhatsApp with Generated Pitch"
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(37, 211, 102, 0.15)',
+                                color: '#25d366',
+                                fontSize: '1rem'
+                              }}
+                            >
+                              <FaWhatsapp />
+                            </button>
+                          )}
+                        </>
                       )}
-                    </button>
-                  )}
-                  {/* Expand/Collapse Button (moved to end) */}
-                  {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
-                    <button
-                      onClick={() => toggleExpanded(lead.id)}
-                      title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(99, 102, 241, 0.1)',
-                        color: '#6366f1',
-                        fontSize: '1rem'
-                      }}
-                    >
-                      {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
-                    </button>
-                  )}
 
-                  <button
-                    onClick={() => handleRemoveLead(lead.id)}
-                    title="Remove"
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      color: '#ef4444',
-                      fontSize: '1rem'
-                    }}
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-              </div>
+                      {lead.phone && (
+                        <button
+                          onClick={() => openTelegram(lead)}
+                          title="Telegram"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(0, 136, 204, 0.15)',
+                            color: '#0088cc',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          <FaTelegramPlane />
+                        </button>
+                      )}
 
-              {expandedLeadIds.has(lead.id) && lead.generatedPitch && (
-                <div
-                  style={{
-                    marginTop: '1rem',
-                    padding: '1rem',
-                    background: 'rgba(99, 102, 241, 0.08)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(99, 102, 241, 0.2)',
-                    animation: 'slideDown 0.3s ease-out'
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.75rem'
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        color: '#8b5cf6',
-                        fontWeight: 600,
-                        fontSize: '0.85rem'
-                      }}
-                    >
-                      <FaMagic /> Generated Pitch (Editable)
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {/* Find Email Button (only if website exists and no email) */}
+                      {lead.website && !lead.email && (
+                        <button
+                          onClick={() => handleFindEmail(lead.id)}
+                          disabled={loadingEmailIds.has(lead.id)}
+                          title="Find Email"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: loadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: loadingEmailIds.has(lead.id)
+                              ? 'rgba(99, 102, 241, 0.1)'
+                              : 'rgba(99, 102, 241, 0.15)',
+                            color: '#6366f1',
+                            fontSize: '1rem',
+                            opacity: loadingEmailIds.has(lead.id) ? 0.7 : 1
+                          }}
+                        >
+                          {loadingEmailIds.has(lead.id) ? (
+                            <div
+                              className="action-spinner"
+                              style={{
+                                width: '14px',
+                                height: '14px',
+                                border: '2px solid rgba(99, 102, 241, 0.3)',
+                                borderTop: '2px solid #6366f1'
+                              }}
+                            ></div>
+                          ) : (
+                            <FaEnvelope />
+                          )}
+                        </button>
+                      )}
+                      {/* Expand/Collapse Button (moved to end) */}
+                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
+                        <button
+                          onClick={() => toggleExpanded(lead.id)}
+                          title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(99, 102, 241, 0.1)',
+                            color: '#6366f1',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
+                        </button>
+                      )}
+
                       <button
-                        onClick={() =>
-                          copyToClipboard(editedPitches[lead.id] ?? lead.generatedPitch ?? '')
-                        }
-                        title="Copy to Clipboard"
+                        onClick={() => handleRemoveLead(lead.id)}
+                        title="Remove"
                         style={{
-                          padding: '0.4rem 0.75rem',
-                          borderRadius: '8px',
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
                           border: 'none',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.35rem',
-                          background: 'rgba(99, 102, 241, 0.15)',
-                          color: '#6366f1',
-                          fontSize: '0.75rem',
-                          fontWeight: 500
+                          justifyContent: 'center',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          color: '#ef4444',
+                          fontSize: '1rem'
                         }}
                       >
-                        <FaCopy /> Copy
-                      </button>
-                      <button
-                        onClick={() => handleGeneratePitch(lead)}
-                        title={
-                          !selectedCampaignId
-                            ? 'Select a campaign to regenerate'
-                            : 'Regenerate Pitch'
-                        }
-                        disabled={generatingPitchIds.has(lead.id) || !selectedCampaignId}
-                        style={{
-                          padding: '0.4rem 0.75rem',
-                          borderRadius: '8px',
-                          border: 'none',
-                          cursor:
-                            generatingPitchIds.has(lead.id) || !selectedCampaignId
-                              ? 'not-allowed'
-                              : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          background:
-                            !selectedCampaignId || generatingPitchIds.has(lead.id)
-                              ? 'rgba(148, 163, 184, 0.1)'
-                              : 'rgba(139, 92, 246, 0.15)',
-                          color:
-                            !selectedCampaignId || generatingPitchIds.has(lead.id)
-                              ? '#94a3b8'
-                              : '#8b5cf6',
-                          fontSize: '0.75rem',
-                          fontWeight: 500,
-                          opacity: !selectedCampaignId ? 0.7 : 1
-                        }}
-                      >
-                        <FaRedo /> Regenerate
+                        <FaTimes />
                       </button>
                     </div>
                   </div>
 
-                  {/* TOOLBAR */}
-                  <div
-                    className="markdown-toolbar"
-                    style={{
-                      display: 'flex',
-                      gap: '0.5rem',
-                      marginBottom: '0.5rem',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      padding: '0.25rem',
-                      borderRadius: '4px',
-                      width: 'fit-content'
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '*',
-                          '*',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Bold (*text*)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      B
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '_',
-                          '_',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Italic (_text_)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        fontStyle: 'italic',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      I
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '~',
-                          '~',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Strikethrough (~text~)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        textDecoration: 'line-through',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      S
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '```',
-                          '```',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Monospace (```text```)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        fontFamily: 'monospace',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      {'<>'}
-                    </button>
-
-                    {/* DIVIDER */}
+                  {expandedLeadIds.has(lead.id) && lead.generatedPitch && (
                     <div
                       style={{
-                        width: '1px',
-                        height: '16px',
-                        background: '#475569',
-                        margin: '0 4px'
-                      }}
-                    ></div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '- ',
-                          '',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Bullet List (- item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(99, 102, 241, 0.2)',
+                        animation: 'slideDown 0.3s ease-out'
                       }}
                     >
-                      <span style={{ fontSize: '12px' }}>●</span> List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '1. ',
-                          '',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Numbered List (1. item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      1. List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
-                        insertMarkdown(
-                          textarea,
-                          '> ',
-                          '',
-                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
-                          currentVal
-                        )
-                      }}
-                      title="Quote (> item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      &gt; Quote
-                    </button>
-                  </div>
-
-                  {/* EDITABLE TEXTAREA */}
-                  <textarea
-                    value={editedPitches[lead.id] ?? lead.generatedPitch ?? ''}
-                    onChange={(e) =>
-                      setEditedPitches((prev) => ({ ...prev, [lead.id]: e.target.value }))
-                    }
-                    style={{
-                      width: '100%',
-                      minHeight: '120px',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      border: '1px solid rgba(148, 163, 184, 0.2)',
-                      borderRadius: '8px',
-                      padding: '0.75rem',
-                      color: '#f1f5f9',
-                      fontSize: '0.9rem',
-                      lineHeight: '1.6',
-                      marginBottom: '0.75rem',
-                      fontFamily: 'inherit',
-                      resize: 'vertical'
-                    }}
-                    placeholder="Type your custom pitch here..."
-                  />
-
-                  {/* PREVIEW TOGGLE */}
-                  <div style={{ marginBottom: '1rem' }}>
-                    <button
-                      onClick={() =>
-                        setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
-                      }
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#94a3b8',
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: 0
-                      }}
-                    >
-                      {showPreviews[lead.id] ? (
-                        <FaChevronUp size={10} />
-                      ) : (
-                        <FaChevronDown size={10} />
-                      )}
-                      {showPreviews[lead.id] ? 'Hide WhatsApp Preview' : 'Show WhatsApp Preview'}
-                    </button>
-
-                    {/* VISUAL PREVIEW BOX */}
-                    {showPreviews[lead.id] && (
                       <div
                         style={{
-                          marginTop: '1.3rem',
-                          padding: '0.75rem',
-                          background: '#0f172a', // Dark WhatsApp-ish bg
-                          borderRadius: '8px',
-                          borderLeft: '4px solid #25d366',
-                          fontSize: '0.9rem',
-                          color: '#e2e8f0',
-                          position: 'relative'
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.75rem'
                         }}
                       >
-                        <div
+                        <span
                           style={{
-                            position: 'absolute',
-                            top: -10,
-                            left: 10,
-                            fontSize: '0.65rem',
-                            background: '#25d366',
-                            color: '#000',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontWeight: 'bold'
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            color: '#8b5cf6',
+                            fontWeight: 600,
+                            fontSize: '0.85rem'
                           }}
                         >
-                          PREVIEW
+                          <FaMagic /> Generated Pitch (Editable)
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() =>
+                              copyToClipboard(editedPitches[lead.id] ?? lead.generatedPitch ?? '')
+                            }
+                            title="Copy to Clipboard"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(99, 102, 241, 0.15)',
+                              color: '#6366f1',
+                              fontSize: '0.75rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaCopy /> Copy
+                          </button>
+                          <button
+                            onClick={() => handleGeneratePitch(lead)}
+                            title={
+                              !selectedCampaignId
+                                ? 'Select a campaign to regenerate'
+                                : 'Regenerate Pitch'
+                            }
+                            disabled={generatingPitchIds.has(lead.id) || !selectedCampaignId}
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor:
+                                generatingPitchIds.has(lead.id) || !selectedCampaignId
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background:
+                                !selectedCampaignId || generatingPitchIds.has(lead.id)
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'rgba(139, 92, 246, 0.15)',
+                              color:
+                                !selectedCampaignId || generatingPitchIds.has(lead.id)
+                                  ? '#94a3b8'
+                                  : '#8b5cf6',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: !selectedCampaignId ? 0.7 : 1
+                            }}
+                          >
+                            <FaRedo /> Regenerate
+                          </button>
                         </div>
-                        {renderWhatsAppMarkdown(
-                          editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                      </div>
+
+                      {/* TOOLBAR */}
+                      <div
+                        className="markdown-toolbar"
+                        style={{
+                          display: 'flex',
+                          gap: '0.5rem',
+                          marginBottom: '0.5rem',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          padding: '0.25rem',
+                          borderRadius: '4px',
+                          width: 'fit-content'
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '*',
+                              '*',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Bold (*text*)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '_',
+                              '_',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Italic (_text_)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontStyle: 'italic',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          I
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '~',
+                              '~',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Strikethrough (~text~)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            textDecoration: 'line-through',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          S
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '```',
+                              '```',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Monospace (```text```)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            fontFamily: 'monospace',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          {'<>'}
+                        </button>
+
+                        {/* DIVIDER */}
+                        <div
+                          style={{
+                            width: '1px',
+                            height: '16px',
+                            background: '#475569',
+                            margin: '0 4px'
+                          }}
+                        ></div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '- ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Bullet List (- item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          <span style={{ fontSize: '12px' }}>●</span> List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '1. ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Numbered List (1. item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          1. List
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            const textarea = e.currentTarget.parentElement
+                              ?.nextElementSibling as HTMLTextAreaElement
+                            const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            insertMarkdown(
+                              textarea,
+                              '> ',
+                              '',
+                              (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                              currentVal
+                            )
+                          }}
+                          title="Quote (> item)"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#cbd5e1',
+                            cursor: 'pointer',
+                            padding: '0 0.25rem'
+                          }}
+                        >
+                          &gt; Quote
+                        </button>
+                      </div>
+
+                      {/* EDITABLE TEXTAREA */}
+                      <textarea
+                        value={editedPitches[lead.id] ?? lead.generatedPitch ?? ''}
+                        onChange={(e) =>
+                          setEditedPitches((prev) => ({ ...prev, [lead.id]: e.target.value }))
+                        }
+                        style={{
+                          width: '100%',
+                          minHeight: '120px',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '8px',
+                          padding: '0.75rem',
+                          color: '#f1f5f9',
+                          fontSize: '0.9rem',
+                          lineHeight: '1.6',
+                          marginBottom: '0.75rem',
+                          fontFamily: 'inherit',
+                          resize: 'vertical'
+                        }}
+                        placeholder="Type your custom pitch here..."
+                      />
+
+                      {/* PREVIEW TOGGLE */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <button
+                          onClick={() =>
+                            setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                          }
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: 0
+                          }}
+                        >
+                          {showPreviews[lead.id] ? (
+                            <FaChevronUp size={10} />
+                          ) : (
+                            <FaChevronDown size={10} />
+                          )}
+                          {showPreviews[lead.id]
+                            ? 'Hide WhatsApp Preview'
+                            : 'Show WhatsApp Preview'}
+                        </button>
+
+                        {/* VISUAL PREVIEW BOX */}
+                        {showPreviews[lead.id] && (
+                          <div
+                            style={{
+                              marginTop: '1.3rem',
+                              padding: '0.75rem',
+                              background: '#0f172a', // Dark WhatsApp-ish bg
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #25d366',
+                              fontSize: '0.9rem',
+                              color: '#e2e8f0',
+                              position: 'relative'
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: -10,
+                                left: 10,
+                                fontSize: '0.65rem',
+                                background: '#25d366',
+                                color: '#000',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              PREVIEW
+                            </div>
+                            {renderWhatsAppMarkdown(
+                              editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                            )}
+                          </div>
                         )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => openWhatsAppWithPitch(lead)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: 'linear-gradient(135deg, #25d366, #128c7e)',
+                            color: 'white',
+                            fontSize: '0.85rem',
+                            fontWeight: 600
+                          }}
+                        >
+                          <FaWhatsapp /> Send via WhatsApp
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* No results for filter */}
+          {!isLoading && leads.length > 0 && filteredLeads.length === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '4rem',
+                textAlign: 'center'
+              }}
+            >
+              <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>
+                No leads in this category
+              </h3>
+              <p style={{ color: '#64748b' }}>Try switching to a different filter.</p>
+            </div>
+          )}
+
+          {/* Toast */}
+          {toast && (
+            <div
+              style={{
+                position: 'fixed',
+                bottom: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                color: 'white',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                zIndex: 1000,
+                background:
+                  toast.type === 'error'
+                    ? 'rgba(239, 68, 68, 0.95)'
+                    : toast.type === 'success'
+                      ? 'rgba(34, 197, 94, 0.95)'
+                      : 'rgba(99, 102, 241, 0.95)'
+              }}
+            >
+              {toast.message}
+            </div>
+          )}
+          {/* Reviews Panel - Slide-in from right */}
+          <div className={`reviews-panel ${reviewsPanelOpen ? 'open' : ''}`}>
+            <div className="reviews-panel-header">
+              <div className="reviews-panel-title">
+                <h2>{selectedLead?.name || 'Reviews'}</h2>
+                {selectedLead && (
+                  <span className="reviews-panel-subtitle">{selectedLead.category}</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                {/* Clear Button */}
+                {selectedLead?.reviews && selectedLead.reviews.length > 0 && (
+                  <button
+                    className="reviews-panel-action"
+                    onClick={handleClearReviews}
+                    title="Clear cached reviews"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <FaTrashAlt />
+                  </button>
+                )}
+
+                {/* Refresh Button */}
+                <button
+                  className="reviews-panel-action"
+                  onClick={() => selectedLead && handleFetchReviews(selectedLead, true)}
+                  title="Refresh reviews"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#22c55e',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '1rem'
+                  }}
+                >
+                  <FaRedo />
+                </button>
+
+                <button className="reviews-panel-close" onClick={closeReviewsPanel}>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="reviews-panel-content">
+              {isLoadingReviews && (
+                <div className="reviews-loading">
+                  <div className="action-spinner"></div>
+                  <p>Loading reviews...</p>
+                </div>
+              )}
+
+              {reviewsError && (
+                <div className="reviews-error">
+                  <p>{reviewsError}</p>
+                </div>
+              )}
+
+              {reviewsData && !isLoadingReviews && (
+                <>
+                  {/* Reviews Summary */}
+                  <div className="reviews-summary">
+                    <div className="reviews-rating-big">
+                      <span className="rating-number">
+                        {typeof reviewsData.averageRating === 'number'
+                          ? reviewsData.averageRating.toFixed(1)
+                          : '0.0'}
+                      </span>
+                      {renderStars(reviewsData.averageRating)}
+                    </div>
+                    <span className="reviews-total">{reviewsData.totalReviews ?? 0} reviews</span>
+                  </div>
+
+                  {/* Reviews List */}
+                  <div className="reviews-list">
+                    {reviewsData.reviews && reviewsData.reviews.length > 0 ? (
+                      reviewsData.reviews.map((review, index) => (
+                        <div key={index} className="review-card">
+                          <div className="review-header">
+                            <span className="review-author">{review.author || 'Anonymous'}</span>
+                            <div className="review-meta">
+                              {renderStars(review.rating)}
+                              {review.date && <span className="review-date">{review.date}</span>}
+                            </div>
+                          </div>
+                          {review.text && <p className="review-text">{review.text}</p>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="reviews-empty">
+                        <p>No reviews available</p>
                       </div>
                     )}
                   </div>
+                </>
+              )}
+            </div>
+          </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {/* Overlay when panel is open */}
+          {reviewsPanelOpen && <div className="reviews-overlay" onClick={closeReviewsPanel}></div>}
+
+          {/* WhatsApp QR Code Modal */}
+          {showWhatsAppModal && whatsAppQrCode && (
+            <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
+              <div className="whatsapp-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="whatsapp-modal-header">
+                  <h3>Scan QR Code with WhatsApp</h3>
+                  <button
+                    className="whatsapp-modal-close"
+                    onClick={() => setShowWhatsAppModal(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="whatsapp-modal-body">
+                  <p>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</p>
+                  <div className="whatsapp-qr-container">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(
+                        whatsAppQrCode
+                      )}`}
+                      alt="WhatsApp QR Code"
+                      className="whatsapp-qr-image"
+                    />
+                  </div>
+                  <p className="whatsapp-warning">
+                    ⚠️ Use a secondary/burner WhatsApp account for checking numbers, not your main
+                    business account.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filter Panel */}
+          <div className={`reviews-panel ${filterPanelOpen ? 'open' : ''}`}>
+            <div className="reviews-panel-header">
+              <div className="reviews-panel-title">
+                <h2>Filter Leads</h2>
+                <span className="reviews-panel-subtitle">Advanced filtering options</span>
+              </div>
+              <button className="reviews-panel-close" onClick={() => setFilterPanelOpen(false)}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <div className="reviews-panel-content" style={{ padding: '1.5rem' }}>
+              {/* Location Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span>Location / City / Country</span>
+                <input
+                  type="text"
+                  placeholder="e.g. New York, USA"
+                  value={filters.location}
+                  onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f1f5f9',
+                    marginTop: '0.5rem'
+                  }}
+                />
+              </div>
+
+              {/* Category Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span>Category</span>
+                <input
+                  type="text"
+                  placeholder="e.g. Restaurant, Agency"
+                  value={filters.category}
+                  onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f1f5f9',
+                    marginTop: '0.5rem'
+                  }}
+                />
+              </div>
+
+              {/* Rating Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '0.5rem'
+                  }}
+                >
+                  <span>Min Rating</span>
+                  <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+                    {filters.minRating}+ Stars
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.5"
+                  value={filters.minRating}
+                  onChange={(e) =>
+                    setFilters({ ...filters, minRating: parseFloat(e.target.value) })
+                  }
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              {/* Reviews Count Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span>Min Reviews Count</span>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={filters.minReviews}
+                  onChange={(e) =>
+                    setFilters({ ...filters, minReviews: parseInt(e.target.value) || 0 })
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f1f5f9',
+                    marginTop: '0.5rem'
+                  }}
+                />
+              </div>
+
+              {/* Score Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span style={{ display: 'block', marginBottom: '0.5rem' }}>Quality Score</span>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      color: '#f1f5f9'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.scores.gold}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          scores: { ...filters.scores, gold: e.target.checked }
+                        })
+                      }
+                    />
+                    Gold
+                  </label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      color: '#f1f5f9'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.scores.silver}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          scores: { ...filters.scores, silver: e.target.checked }
+                        })
+                      }
+                    />
+                    Silver
+                  </label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      cursor: 'pointer',
+                      color: '#f1f5f9'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.scores.bronze}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          scores: { ...filters.scores, bronze: e.target.checked }
+                        })
+                      }
+                    />
+                    Bronze
+                  </label>
+                </div>
+              </div>
+
+              {/* WhatsApp Status Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span>WhatsApp Status</span>
+                <select
+                  value={filters.hasWhatsApp}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      hasWhatsApp: e.target.value as AdvancedFilters['hasWhatsApp']
+                    })
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f1f5f9',
+                    marginTop: '0.5rem',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="all">All</option>
+                  <option value="yes">Has WhatsApp</option>
+                  <option value="no">No WhatsApp</option>
+                  <option value="unknown">Unknown (Not Checked)</option>
+                </select>
+              </div>
+
+              {/* Email Status Filter */}
+              <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
+                <span>Email Status</span>
+                <select
+                  value={filters.hasEmail}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      hasEmail: e.target.value as AdvancedFilters['hasEmail']
+                    })
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    color: '#f1f5f9',
+                    marginTop: '0.5rem',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="all">All</option>
+                  <option value="yes">Has Email</option>
+                  <option value="verified">Verified Email Only</option>
+                </select>
+              </div>
+
+              {/* Reset Button */}
+              <button
+                onClick={() => setFilters(DEFAULT_FILTERS)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginTop: '1rem'
+                }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
+
+          {/* Overlay when filter panel is open */}
+          {filterPanelOpen && (
+            <div
+              className="reviews-overlay"
+              onClick={() => setFilterPanelOpen(false)}
+              style={{ zIndex: 998 }}
+            ></div>
+          )}
+        </>
+      )}
+
+      {/* Facebook Leads Content */}
+      {sourceTab === 'facebook' && (
+        <div style={{ padding: '0 2rem' }}>
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1.5rem'
+            }}
+          >
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f1f5f9' }}>
+                Saved Facebook Leads
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                {facebookLeads.length} leads from Facebook page scraping
+              </p>
+            </div>
+            <button
+              className="scout-btn outline"
+              onClick={async () => {
+                if (!confirm('Are you sure you want to clear all Facebook leads?')) return
+                await window.api.clearSavedFacebookLeads()
+                setFacebookLeads([])
+                showToast('All Facebook leads cleared', 'success')
+              }}
+              disabled={facebookLeads.length === 0}
+            >
+              <FaTrashAlt /> Clear All
+            </button>
+          </div>
+
+          {/* Leads List */}
+          {facebookLeads.length === 0 ? (
+            <div className="scout-empty">
+              <FaFacebook style={{ fontSize: '3rem', opacity: 0.5, marginBottom: '1rem' }} />
+              <h3>No Facebook Leads Saved</h3>
+              <p>Search for Facebook pages and save leads to see them here.</p>
+            </div>
+          ) : (
+            <div className="scout-leads">
+              {facebookLeads.map((lead, index) => (
+                <div key={`${lead.id}-${index}`} className={`scout-lead ${lead.score}`}>
+                  {/* Score indicator */}
+                  <div className={`lead-indicator ${lead.score}`}></div>
+
+                  {/* Main Content */}
+                  <div className="lead-main">
+                    <div className="lead-top">
+                      <h3 className="lead-name">{lead.title}</h3>
+                      <span className="lead-category">{lead.categories[0] || 'Page'}</span>
+                      {lead.isBusinessPageActive && <span className="active-badge">Active</span>}
+                    </div>
+                    <p className="lead-address">{lead.address || 'No address available'}</p>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="lead-stats">
+                    <div className="lead-stat">
+                      <span className="stat-value">
+                        <FaStar style={{ color: '#fbbf24', marginRight: '4px' }} />
+                        {lead.rating || 'N/A'}
+                      </span>
+                      <span className="stat-label">
+                        {lead.followers?.toLocaleString() || 0} followers
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Contact */}
+                  <div className="lead-contact">
+                    {lead.phone && <span className="contact-phone">{lead.phone}</span>}
+                    {lead.email && <span className="contact-email">{lead.email}</span>}
+                    {!lead.website && <span className="contact-no-web">No website</span>}
+                    {lead.website && <span className="contact-has-web">Has website</span>}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="lead-actions">
                     <button
-                      onClick={() => openWhatsAppWithPitch(lead)}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        background: 'linear-gradient(135deg, #25d366, #128c7e)',
-                        color: 'white',
-                        fontSize: '0.85rem',
-                        fontWeight: 600
+                      className="lead-action"
+                      title="Open Facebook Page"
+                      onClick={() => window.api.openExternalUrl(lead.facebookUrl)}
+                    >
+                      <FaFacebook />
+                    </button>
+                    {lead.phone && (
+                      <button
+                        className="lead-action"
+                        title="WhatsApp"
+                        onClick={() =>
+                          window.api.openExternalUrl(
+                            `https://wa.me/${lead.phone!.replace(/[^0-9]/g, '')}`
+                          )
+                        }
+                      >
+                        <FaWhatsapp style={{ color: '#25D366' }} />
+                      </button>
+                    )}
+                    <button
+                      className="lead-action remove-action"
+                      title="Remove"
+                      onClick={async () => {
+                        await window.api.removeSavedFacebookLead(lead.id)
+                        setFacebookLeads((prev) => prev.filter((l) => l.id !== lead.id))
+                        showToast('Lead removed', 'info')
                       }}
                     >
-                      <FaWhatsapp /> Send via WhatsApp
+                      <FaTimes />
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* No results for filter */}
-      {!isLoading && leads.length > 0 && filteredLeads.length === 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '4rem',
-            textAlign: 'center'
-          }}
-        >
-          <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>No leads in this category</h3>
-          <p style={{ color: '#64748b' }}>Try switching to a different filter.</p>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '12px 20px',
-            borderRadius: '12px',
-            color: 'white',
-            fontSize: '0.9rem',
-            fontWeight: 500,
-            zIndex: 1000,
-            background:
-              toast.type === 'error'
-                ? 'rgba(239, 68, 68, 0.95)'
-                : toast.type === 'success'
-                  ? 'rgba(34, 197, 94, 0.95)'
-                  : 'rgba(99, 102, 241, 0.95)'
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-      {/* Reviews Panel - Slide-in from right */}
-      <div className={`reviews-panel ${reviewsPanelOpen ? 'open' : ''}`}>
-        <div className="reviews-panel-header">
-          <div className="reviews-panel-title">
-            <h2>{selectedLead?.name || 'Reviews'}</h2>
-            {selectedLead && (
-              <span className="reviews-panel-subtitle">{selectedLead.category}</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {/* Clear Button */}
-            {selectedLead?.reviews && selectedLead.reviews.length > 0 && (
-              <button
-                className="reviews-panel-action"
-                onClick={handleClearReviews}
-                title="Clear cached reviews"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <FaTrashAlt />
-              </button>
-            )}
-
-            {/* Refresh Button */}
-            <button
-              className="reviews-panel-action"
-              onClick={() => selectedLead && handleFetchReviews(selectedLead, true)}
-              title="Refresh reviews"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#22c55e',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '1rem'
-              }}
-            >
-              <FaRedo />
-            </button>
-
-            <button className="reviews-panel-close" onClick={closeReviewsPanel}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="reviews-panel-content">
-          {isLoadingReviews && (
-            <div className="reviews-loading">
-              <div className="action-spinner"></div>
-              <p>Loading reviews...</p>
+              ))}
             </div>
           )}
-
-          {reviewsError && (
-            <div className="reviews-error">
-              <p>{reviewsError}</p>
-            </div>
-          )}
-
-          {reviewsData && !isLoadingReviews && (
-            <>
-              {/* Reviews Summary */}
-              <div className="reviews-summary">
-                <div className="reviews-rating-big">
-                  <span className="rating-number">
-                    {typeof reviewsData.averageRating === 'number'
-                      ? reviewsData.averageRating.toFixed(1)
-                      : '0.0'}
-                  </span>
-                  {renderStars(reviewsData.averageRating)}
-                </div>
-                <span className="reviews-total">{reviewsData.totalReviews ?? 0} reviews</span>
-              </div>
-
-              {/* Reviews List */}
-              <div className="reviews-list">
-                {reviewsData.reviews && reviewsData.reviews.length > 0 ? (
-                  reviewsData.reviews.map((review, index) => (
-                    <div key={index} className="review-card">
-                      <div className="review-header">
-                        <span className="review-author">{review.author || 'Anonymous'}</span>
-                        <div className="review-meta">
-                          {renderStars(review.rating)}
-                          {review.date && <span className="review-date">{review.date}</span>}
-                        </div>
-                      </div>
-                      {review.text && <p className="review-text">{review.text}</p>}
-                    </div>
-                  ))
-                ) : (
-                  <div className="reviews-empty">
-                    <p>No reviews available</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </div>
-      </div>
-
-      {/* Overlay when panel is open */}
-      {reviewsPanelOpen && <div className="reviews-overlay" onClick={closeReviewsPanel}></div>}
-
-      {/* WhatsApp QR Code Modal */}
-      {showWhatsAppModal && whatsAppQrCode && (
-        <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
-          <div className="whatsapp-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="whatsapp-modal-header">
-              <h3>Scan QR Code with WhatsApp</h3>
-              <button className="whatsapp-modal-close" onClick={() => setShowWhatsAppModal(false)}>
-                ×
-              </button>
-            </div>
-            <div className="whatsapp-modal-body">
-              <p>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</p>
-              <div className="whatsapp-qr-container">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(
-                    whatsAppQrCode
-                  )}`}
-                  alt="WhatsApp QR Code"
-                  className="whatsapp-qr-image"
-                />
-              </div>
-              <p className="whatsapp-warning">
-                ⚠️ Use a secondary/burner WhatsApp account for checking numbers, not your main
-                business account.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Filter Panel */}
-      <div className={`reviews-panel ${filterPanelOpen ? 'open' : ''}`}>
-        <div className="reviews-panel-header">
-          <div className="reviews-panel-title">
-            <h2>Filter Leads</h2>
-            <span className="reviews-panel-subtitle">Advanced filtering options</span>
-          </div>
-          <button className="reviews-panel-close" onClick={() => setFilterPanelOpen(false)}>
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-
-        <div className="reviews-panel-content" style={{ padding: '1.5rem' }}>
-          {/* Location Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span>Location / City / Country</span>
-            <input
-              type="text"
-              placeholder="e.g. New York, USA"
-              value={filters.location}
-              onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: 'rgba(15, 23, 42, 0.6)',
-                color: '#f1f5f9',
-                marginTop: '0.5rem'
-              }}
-            />
-          </div>
-
-          {/* Category Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span>Category</span>
-            <input
-              type="text"
-              placeholder="e.g. Restaurant, Agency"
-              value={filters.category}
-              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: 'rgba(15, 23, 42, 0.6)',
-                color: '#f1f5f9',
-                marginTop: '0.5rem'
-              }}
-            />
-          </div>
-
-          {/* Rating Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}
-            >
-              <span>Min Rating</span>
-              <span style={{ color: '#fbbf24', fontWeight: 600 }}>{filters.minRating}+ Stars</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="5"
-              step="0.5"
-              value={filters.minRating}
-              onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* Reviews Count Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span>Min Reviews Count</span>
-            <input
-              type="number"
-              min="0"
-              placeholder="0"
-              value={filters.minReviews}
-              onChange={(e) =>
-                setFilters({ ...filters, minReviews: parseInt(e.target.value) || 0 })
-              }
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: 'rgba(15, 23, 42, 0.6)',
-                color: '#f1f5f9',
-                marginTop: '0.5rem'
-              }}
-            />
-          </div>
-
-          {/* Score Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span style={{ display: 'block', marginBottom: '0.5rem' }}>Quality Score</span>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer',
-                  color: '#f1f5f9'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.scores.gold}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      scores: { ...filters.scores, gold: e.target.checked }
-                    })
-                  }
-                />
-                Gold
-              </label>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer',
-                  color: '#f1f5f9'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.scores.silver}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      scores: { ...filters.scores, silver: e.target.checked }
-                    })
-                  }
-                />
-                Silver
-              </label>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer',
-                  color: '#f1f5f9'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={filters.scores.bronze}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      scores: { ...filters.scores, bronze: e.target.checked }
-                    })
-                  }
-                />
-                Bronze
-              </label>
-            </div>
-          </div>
-
-          {/* WhatsApp Status Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span>WhatsApp Status</span>
-            <select
-              value={filters.hasWhatsApp}
-              onChange={(e) =>
-                setFilters({
-                  ...filters,
-                  hasWhatsApp: e.target.value as AdvancedFilters['hasWhatsApp']
-                })
-              }
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: 'rgba(15, 23, 42, 0.6)',
-                color: '#f1f5f9',
-                marginTop: '0.5rem',
-                outline: 'none'
-              }}
-            >
-              <option value="all">All</option>
-              <option value="yes">Has WhatsApp</option>
-              <option value="no">No WhatsApp</option>
-              <option value="unknown">Unknown (Not Checked)</option>
-            </select>
-          </div>
-
-          {/* Email Status Filter */}
-          <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
-            <span>Email Status</span>
-            <select
-              value={filters.hasEmail}
-              onChange={(e) =>
-                setFilters({
-                  ...filters,
-                  hasEmail: e.target.value as AdvancedFilters['hasEmail']
-                })
-              }
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(148, 163, 184, 0.2)',
-                background: 'rgba(15, 23, 42, 0.6)',
-                color: '#f1f5f9',
-                marginTop: '0.5rem',
-                outline: 'none'
-              }}
-            >
-              <option value="all">All</option>
-              <option value="yes">Has Email</option>
-              <option value="verified">Verified Email Only</option>
-            </select>
-          </div>
-
-          {/* Reset Button */}
-          <button
-            onClick={() => setFilters(DEFAULT_FILTERS)}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: '1rem'
-            }}
-          >
-            Reset Filters
-          </button>
-        </div>
-      </div>
-
-      {/* Overlay when filter panel is open */}
-      {filterPanelOpen && (
-        <div
-          className="reviews-overlay"
-          onClick={() => setFilterPanelOpen(false)}
-          style={{ zIndex: 998 }} // Ensure it's below the panel (zIndex usually 999 or 1000)
-        ></div>
       )}
     </div>
   )

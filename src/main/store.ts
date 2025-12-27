@@ -164,6 +164,30 @@ export interface SavedMapsLead {
   savedAt: number // timestamp
 }
 
+// Saved Facebook Lead (from Social/Facebook Page tab)
+export interface SavedFacebookLead {
+  id: string
+  facebookUrl: string
+  title: string
+  categories: string[]
+  email: string | null
+  phone: string | null
+  website: string | null
+  address: string | null
+  messenger: string | null
+  likes: number
+  followers: number
+  rating: number | null
+  ratingCount: number | null
+  intro: string | null
+  adStatus: string | null
+  createdAt: string | null
+  isBusinessPageActive: boolean
+  score: 'gold' | 'silver' | 'bronze'
+  hasWhatsApp?: boolean | null
+  savedAt: number // timestamp
+}
+
 export interface CampaignGroup {
   id: string
   name: string
@@ -224,6 +248,8 @@ interface StoreSchema {
   emailPitches: Record<string, StoredEmailPitch>
   // Saved Maps Scout leads
   savedMapsLeads: SavedMapsLead[]
+  // Saved Facebook leads
+  savedFacebookLeads: SavedFacebookLead[]
   // WhatsApp Campaigns
   whatsappCampaigns: Campaign[]
   whatsappCampaignGroups: CampaignGroup[]
@@ -268,6 +294,8 @@ const store = new Store<StoreSchema>({
     emailPitches: {},
     // Saved Maps Scout leads (empty by default)
     savedMapsLeads: [],
+    // Saved Facebook leads (empty by default)
+    savedFacebookLeads: [],
     // WhatsApp Campaigns
     whatsappCampaigns: [],
     whatsappCampaignGroups: []
@@ -670,6 +698,49 @@ export function removeSavedMapsLead(id: string): void {
 
 export function clearSavedMapsLeads(): void {
   store.set('savedMapsLeads', [])
+}
+
+// Saved Facebook Leads functions
+export function getSavedFacebookLeads(): SavedFacebookLead[] {
+  return store.get('savedFacebookLeads', [])
+}
+
+export function saveFacebookLeads(leads: SavedFacebookLead[]): number {
+  const existingLeads = getSavedFacebookLeads()
+  const existingIds = new Set(existingLeads.map((l) => l.id))
+  const timestamp = Date.now()
+
+  // Filter out leads that already exist
+  const newLeads = leads
+    .filter((lead) => !existingIds.has(lead.id))
+    .map((lead) => ({ ...lead, savedAt: timestamp }))
+
+  // Prepend new leads (add to top)
+  const updatedLeads = [...newLeads, ...existingLeads]
+
+  store.set('savedFacebookLeads', updatedLeads)
+
+  return newLeads.length
+}
+
+export function updateSavedFacebookLead(updatedLead: SavedFacebookLead): boolean {
+  const leads = getSavedFacebookLeads()
+  const index = leads.findIndex((l) => l.id === updatedLead.id)
+  if (index !== -1) {
+    leads[index] = updatedLead
+    store.set('savedFacebookLeads', leads)
+    return true
+  }
+  return false
+}
+
+export function removeSavedFacebookLead(id: string): void {
+  const leads = getSavedFacebookLeads().filter((l) => l.id !== id)
+  store.set('savedFacebookLeads', leads)
+}
+
+export function clearSavedFacebookLeads(): void {
+  store.set('savedFacebookLeads', [])
 }
 
 // WhatsApp Campaigns Functions

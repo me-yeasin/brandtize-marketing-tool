@@ -9,6 +9,7 @@ import {
   FaFilter,
   FaGlobe,
   FaLink,
+  FaSave,
   FaSearch,
   FaStar,
   FaTimes,
@@ -227,6 +228,32 @@ function SocialLeadsPage(): JSX.Element {
     a.click()
     URL.revokeObjectURL(url)
     showToast(`Exported ${filteredLeads.length} leads to CSV`, 'success')
+  }
+
+  // Save leads to database
+  const handleSaveLeads = async (): Promise<void> => {
+    if (filteredLeads.length === 0) return
+
+    try {
+      // Convert to SavedFacebookLead format (add savedAt timestamp)
+      const leadsToSave = filteredLeads.map((lead) => ({
+        ...lead,
+        savedAt: Date.now()
+      }))
+
+      const result = await window.api.saveFacebookLeads(leadsToSave)
+
+      if (result.success) {
+        if (result.count > 0) {
+          showToast(`Saved ${result.count} new leads`, 'success')
+        } else {
+          showToast('All leads already saved', 'info')
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save leads:', err)
+      showToast('Failed to save leads', 'error')
+    }
   }
 
   // Open Facebook page
@@ -497,6 +524,13 @@ https://www.facebook.com/businesspage2"
                     disabled={filteredLeads.length === 0}
                   >
                     <FaDownload /> Export CSV
+                  </button>
+                  <button
+                    className="scout-btn primary"
+                    onClick={handleSaveLeads}
+                    disabled={filteredLeads.length === 0}
+                  >
+                    <FaSave /> Save Leads
                   </button>
                 </div>
               </div>

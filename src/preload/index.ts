@@ -30,6 +30,30 @@ export interface SavedMapsLead {
   savedAt: number
 }
 
+// Saved Facebook Lead type
+export interface SavedFacebookLead {
+  id: string
+  facebookUrl: string
+  title: string
+  categories: string[]
+  email: string | null
+  phone: string | null
+  website: string | null
+  address: string | null
+  messenger: string | null
+  likes: number
+  followers: number
+  rating: number | null
+  ratingCount: number | null
+  intro: string | null
+  adStatus: string | null
+  createdAt: string | null
+  isBusinessPageActive: boolean
+  score: 'gold' | 'silver' | 'bronze'
+  hasWhatsApp?: boolean | null
+  savedAt: number
+}
+
 // Campaign Group Type
 export interface CampaignGroup {
   id: string
@@ -291,6 +315,24 @@ contextBridge.exposeInMainWorld('api', {
 
   clearSavedMapsLeads: (): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('clear-saved-maps-leads'),
+
+  // ========================================
+  // SAVED FACEBOOK LEADS
+  // ========================================
+  getSavedFacebookLeads: (): Promise<SavedFacebookLead[]> =>
+    ipcRenderer.invoke('get-saved-facebook-leads'),
+
+  saveFacebookLeads: (leads: SavedFacebookLead[]): Promise<{ success: boolean; count: number }> =>
+    ipcRenderer.invoke('save-facebook-leads', leads),
+
+  updateSavedFacebookLead: (lead: SavedFacebookLead): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('update-saved-facebook-lead', lead),
+
+  removeSavedFacebookLead: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('remove-saved-facebook-lead', id),
+
+  clearSavedFacebookLeads: (): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('clear-saved-facebook-leads'),
 
   // ========================================
   // WHATSAPP PITCH GENERATOR

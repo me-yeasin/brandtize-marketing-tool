@@ -204,6 +204,13 @@ export interface BrandtizeAPI {
   removeSavedMapsLead: (id: string) => Promise<{ success: boolean }>
   clearSavedMapsLeads: () => Promise<{ success: boolean }>
 
+  // Saved Facebook Leads
+  getSavedFacebookLeads: () => Promise<SavedFacebookLead[]>
+  saveFacebookLeads: (leads: SavedFacebookLead[]) => Promise<{ success: boolean; count: number }>
+  updateSavedFacebookLead: (lead: SavedFacebookLead) => Promise<{ success: boolean }>
+  removeSavedFacebookLead: (id: string) => Promise<{ success: boolean }>
+  clearSavedFacebookLeads: () => Promise<{ success: boolean }>
+
   // WhatsApp Pitch Generator
   generateWhatsAppPitch: (input: PitchGenerationInput) => Promise<PitchGenerationResult>
   onPitchGenerationStatus: (callback: (status: PitchGenerationStatus) => void) => void
@@ -293,6 +300,11 @@ export interface FacebookPageLead {
   score: 'gold' | 'silver' | 'bronze'
   savedAt?: number
   hasWhatsApp?: boolean | null
+}
+
+// Saved Facebook Lead (with required savedAt)
+export interface SavedFacebookLead extends FacebookPageLead {
+  savedAt: number
 }
 
 declare global {

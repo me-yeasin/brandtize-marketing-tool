@@ -7,6 +7,7 @@ import {
   logoutWhatsApp
 } from './services/whatsapp-service'
 import {
+  clearSavedFacebookLeads,
   clearSavedMapsLeads,
   deleteWhatsappCampaign,
   deleteWhatsappCampaignGroup,
@@ -14,21 +15,21 @@ import {
   getApifyApiKey,
   getApifyApiKeys,
   getGoogleApiKeys,
-  // Multi-key getters/setters
   getGroqApiKeys,
   getHunterApiKeys,
   getJinaApiKeys,
   getMistralApiKeys,
   getReoonApiKeys,
-  // Saved Maps Leads
+  getSavedFacebookLeads,
   getSavedMapsLeads,
-  // AI Provider selection
   getSelectedAiProvider,
   getSerperApiKeys,
   getSnovApiKeys,
   getWhatsappCampaignGroups,
   getWhatsappCampaigns,
+  removeSavedFacebookLead,
   removeSavedMapsLead,
+  saveFacebookLeads,
   saveMapsLeads,
   saveWhatsappCampaign,
   saveWhatsappCampaignGroup,
@@ -52,11 +53,13 @@ import {
   setSnovApiKeys,
   setSnovClientId,
   setSnovClientSecret,
+  updateSavedFacebookLead,
   updateSavedMapsLead,
   type AiProvider,
   type ApiKeyEntry,
   type Campaign,
   type CampaignGroup,
+  type SavedFacebookLead,
   type SavedMapsLead
 } from './store'
 
@@ -517,6 +520,39 @@ export function registerIpcHandlers(): void {
   // Clear all saved maps leads
   ipcMain.handle('clear-saved-maps-leads', () => {
     clearSavedMapsLeads()
+    return { success: true }
+  })
+
+  // ========================================
+  // SAVED FACEBOOK LEADS
+  // ========================================
+
+  // Get all saved facebook leads
+  ipcMain.handle('get-saved-facebook-leads', () => {
+    return getSavedFacebookLeads()
+  })
+
+  // Save facebook leads
+  ipcMain.handle('save-facebook-leads', (_event, leads: SavedFacebookLead[]) => {
+    const count = saveFacebookLeads(leads)
+    return { success: true, count }
+  })
+
+  // Update a single saved facebook lead
+  ipcMain.handle('update-saved-facebook-lead', (_event, lead: SavedFacebookLead) => {
+    const success = updateSavedFacebookLead(lead)
+    return { success }
+  })
+
+  // Remove a saved facebook lead
+  ipcMain.handle('remove-saved-facebook-lead', (_event, id: string) => {
+    removeSavedFacebookLead(id)
+    return { success: true }
+  })
+
+  // Clear all saved facebook leads
+  ipcMain.handle('clear-saved-facebook-leads', () => {
+    clearSavedFacebookLeads()
     return { success: true }
   })
 
