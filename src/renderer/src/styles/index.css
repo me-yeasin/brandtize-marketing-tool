@@ -3494,7 +3494,9 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .custom-select:focus {
@@ -3523,7 +3525,8 @@ body {
 }
 
 /* Copy and WhatsApp Buttons */
-.copy-btn, .whatsapp-btn {
+.copy-btn,
+.whatsapp-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3547,14 +3550,14 @@ body {
 
 .whatsapp-btn:hover {
   background: rgba(37, 211, 102, 0.1);
-  color: #25D366;
+  color: #25d366;
   border-color: rgba(37, 211, 102, 0.2);
 }
 
 /* Contact Badges */
 .contact-no-phone {
   font-size: 0.7rem;
-  color: #ef4444; 
+  color: #ef4444;
   font-weight: 500;
   display: flex;
   align-items: center;

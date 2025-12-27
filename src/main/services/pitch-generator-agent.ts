@@ -151,7 +151,9 @@ function parseEmailPitchResponse(response: string): Omit<StoredEmailPitch, 'lead
   const strategy_explanation =
     typeof parsed.strategy_explanation === 'string' ? parsed.strategy_explanation.trim() : ''
   const target_audience_analysis =
-    typeof parsed.target_audience_analysis === 'string' ? parsed.target_audience_analysis.trim() : ''
+    typeof parsed.target_audience_analysis === 'string'
+      ? parsed.target_audience_analysis.trim()
+      : ''
   const psychological_triggers_used =
     typeof parsed.psychological_triggers_used === 'string'
       ? parsed.psychological_triggers_used.trim()
@@ -754,7 +756,7 @@ const EmailPitchAgentState = Annotation.Root({
     reducer: (_prev, next) => next ?? false
   }),
   refinementCount: Annotation<number>({
-    reducer: (prev, next) => (typeof next === 'number' ? next : prev ?? 0),
+    reducer: (prev, next) => (typeof next === 'number' ? next : (prev ?? 0)),
     default: () => 0
   }),
   finalPitch: Annotation<Omit<StoredEmailPitch, 'leadId'> | null>({
@@ -804,7 +806,11 @@ Keep the analysis concise and actionable.
 System Role: You are a business analyst specializing in local businesses and marketing needs.`
 
   try {
-    const analysis = await executeWithAiRotation(prompt, parseStringResponse, 'Analysis unavailable')
+    const analysis = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      'Analysis unavailable'
+    )
     return { analysis, status: 'generating' }
   } catch (error) {
     return {
@@ -964,7 +970,11 @@ Respond with ONLY one of these formats:
 `
 
   try {
-    const observation = await executeWithAiRotation(prompt, parseStringResponse, 'REFINE: Improve clarity')
+    const observation = await executeWithAiRotation(
+      prompt,
+      parseStringResponse,
+      'REFINE: Improve clarity'
+    )
     const needsRefinement = observation.startsWith('REFINE')
     return {
       observation,
@@ -1015,7 +1025,9 @@ async function refineEmailPitchNode(
       : ''
 
   const languageContext =
-    lead.language === 'bn' ? `\nLANGUAGE REQUIREMENT: Output must be entirely in BANGLA (বাংলা).\n` : ''
+    lead.language === 'bn'
+      ? `\nLANGUAGE REQUIREMENT: Output must be entirely in BANGLA (বাংলা).\n`
+      : ''
 
   const instructionContext =
     lead.instruction && lead.instruction.trim().length > 0
