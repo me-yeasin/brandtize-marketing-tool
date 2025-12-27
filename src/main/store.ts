@@ -171,6 +171,7 @@ export interface SavedFacebookLead {
   title: string
   categories: string[]
   email: string | null
+  emailVerified?: boolean
   phone: string | null
   website: string | null
   address: string | null

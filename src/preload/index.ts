@@ -37,6 +37,7 @@ export interface SavedFacebookLead {
   title: string
   categories: string[]
   email: string | null
+  emailVerified?: boolean
   phone: string | null
   website: string | null
   address: string | null
@@ -235,7 +236,7 @@ contextBridge.exposeInMainWorld('api', {
   ): Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }> =>
     ipcRenderer.invoke('find-email-for-domain', domain, firstName, lastName),
 
-  verifyEmail: (email: string): Promise<{ verified: boolean; status?: string; error?: string }> =>
+  verifyEmail: (email: string): Promise<{ verified: boolean; source: string; switched: boolean }> =>
     ipcRenderer.invoke('verify-email', email),
 
   fetchReviews: (

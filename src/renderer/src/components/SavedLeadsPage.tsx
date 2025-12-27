@@ -5,6 +5,7 @@ import {
   FaChevronUp,
   FaClipboardList,
   FaCopy,
+  FaEdit,
   FaEnvelope,
   FaExclamationTriangle,
   FaFacebook,
@@ -389,6 +390,7 @@ function SavedLeadsPage(): JSX.Element {
   const [fbActiveTab, setFbActiveTab] = useState<TabFilter>('all')
   const [fbFilterPanelOpen, setFbFilterPanelOpen] = useState(false)
   const [fbLoadingWhatsAppIds, setFbLoadingWhatsAppIds] = useState<Set<string>>(new Set())
+  const [fbVerifyingEmailIds, setFbVerifyingEmailIds] = useState<Set<string>>(new Set())
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
@@ -720,6 +722,7 @@ function SavedLeadsPage(): JSX.Element {
 
   // --- Email Finding Logic ---
   const [loadingEmailIds, setLoadingEmailIds] = useState<Set<string>>(new Set())
+  const [verifyingEmailIds, setVerifyingEmailIds] = useState<Set<string>>(new Set())
 
   const extractDomain = (url: string): string => {
     try {
@@ -731,6 +734,40 @@ function SavedLeadsPage(): JSX.Element {
       return hostname.replace(/^www\./, '')
     } catch {
       return url
+    }
+  }
+
+  const handleVerifyEmail = async (leadId: string): Promise<void> => {
+    const lead = leads.find((l) => l.id === leadId)
+    if (!lead?.email) return
+
+    setVerifyingEmailIds((prev) => new Set(prev).add(leadId))
+
+    try {
+      const verifyResult = await window.api.verifyEmail(lead.email)
+
+      if (verifyResult.switched) {
+        showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+      }
+
+      const updatedLead: SavedMapsLead = { ...lead, emailVerified: verifyResult.verified }
+
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+      await window.api.updateSavedMapsLead(updatedLead)
+
+      showToast(
+        verifyResult.verified ? `Email verified: ${lead.email}` : `Invalid email: ${lead.email}`,
+        verifyResult.verified ? 'success' : 'error'
+      )
+    } catch (err) {
+      console.error('Email verification error:', err)
+      showToast('Failed to verify email', 'error')
+    } finally {
+      setVerifyingEmailIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
     }
   }
 
@@ -1006,6 +1043,40 @@ function SavedLeadsPage(): JSX.Element {
       showToast('Failed to check WhatsApp status', 'error')
     } finally {
       setFbLoadingWhatsAppIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
+
+  const handleFbVerifyEmail = async (leadId: string): Promise<void> => {
+    const lead = facebookLeads.find((l) => l.id === leadId)
+    if (!lead?.email) return
+
+    setFbVerifyingEmailIds((prev) => new Set(prev).add(leadId))
+
+    try {
+      const verifyResult = await window.api.verifyEmail(lead.email)
+
+      if (verifyResult.switched) {
+        showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+      }
+
+      const updatedLead: SavedFacebookLead = { ...lead, emailVerified: verifyResult.verified }
+
+      setFacebookLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+      await window.api.updateSavedFacebookLead(updatedLead)
+
+      showToast(
+        verifyResult.verified ? `Email verified: ${lead.email}` : `Invalid email: ${lead.email}`,
+        verifyResult.verified ? 'success' : 'error'
+      )
+    } catch (err) {
+      console.error('Email verification error:', err)
+      showToast('Failed to verify email', 'error')
+    } finally {
+      setFbVerifyingEmailIds((prev) => {
         const next = new Set(prev)
         next.delete(leadId)
         return next
@@ -2231,11 +2302,26 @@ function SavedLeadsPage(): JSX.Element {
                                 alignItems: 'center',
                                 gap: '0.35rem',
                                 fontSize: '0.8rem',
-                                color: '#d97706',
+                                color:
+                                  lead.emailVerified === true
+                                    ? '#22c55e'
+                                    : lead.emailVerified === false
+                                      ? '#ef4444'
+                                      : '#d97706',
                                 fontWeight: 500
                               }}
                             >
-                              <FaEnvelope /> {lead.email}
+                              <FaEnvelope
+                                style={{
+                                  color:
+                                    lead.emailVerified === true
+                                      ? '#22c55e'
+                                      : lead.emailVerified === false
+                                        ? '#ef4444'
+                                        : '#d97706'
+                                }}
+                              />{' '}
+                              {lead.email}
                               {lead.emailVerified === true && (
                                 <span
                                   style={{ color: '#22c55e', fontWeight: 700, marginLeft: '4px' }}
@@ -2512,6 +2598,58 @@ function SavedLeadsPage(): JSX.Element {
                           }}
                         >
                           <FaTelegramPlane />
+                        </button>
+                      )}
+
+                      {lead.email && (
+                        <button
+                          onClick={() => handleVerifyEmail(lead.id)}
+                          disabled={verifyingEmailIds.has(lead.id)}
+                          title={
+                            lead.emailVerified === true || lead.emailVerified === false
+                              ? 'Re-verify Email'
+                              : 'Verify Email'
+                          }
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: verifyingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background:
+                              lead.emailVerified === true
+                                ? 'rgba(34, 197, 94, 0.15)'
+                                : lead.emailVerified === false
+                                  ? 'rgba(239, 68, 68, 0.12)'
+                                  : 'rgba(99, 102, 241, 0.15)',
+                            color:
+                              lead.emailVerified === true
+                                ? '#22c55e'
+                                : lead.emailVerified === false
+                                  ? '#ef4444'
+                                  : '#6366f1',
+                            fontSize: '1rem',
+                            opacity: verifyingEmailIds.has(lead.id) ? 0.7 : 1
+                          }}
+                        >
+                          {verifyingEmailIds.has(lead.id) ? (
+                            <div
+                              className="action-spinner"
+                              style={{
+                                width: '14px',
+                                height: '14px',
+                                border: '2px solid rgba(148, 163, 184, 0.3)',
+                                borderTop: '2px solid currentColor'
+                              }}
+                            ></div>
+                          ) : lead.emailVerified === true || lead.emailVerified === false ? (
+                            <FaEdit />
+                          ) : (
+                            <FaEnvelope />
+                          )}
                         </button>
                       )}
 
@@ -4294,11 +4432,26 @@ function SavedLeadsPage(): JSX.Element {
                               alignItems: 'center',
                               gap: '0.35rem',
                               fontSize: '0.8rem',
-                              color: '#d97706',
+                              color:
+                                lead.emailVerified === true
+                                  ? '#22c55e'
+                                  : lead.emailVerified === false
+                                    ? '#ef4444'
+                                    : '#d97706',
                               fontWeight: 500
                             }}
                           >
-                            <FaEnvelope /> {lead.email}
+                            <FaEnvelope
+                              style={{
+                                color:
+                                  lead.emailVerified === true
+                                    ? '#22c55e'
+                                    : lead.emailVerified === false
+                                      ? '#ef4444'
+                                      : '#d97706'
+                              }}
+                            />{' '}
+                            {lead.email}
                           </span>
                         )}
 
@@ -4502,6 +4655,58 @@ function SavedLeadsPage(): JSX.Element {
                           }}
                         >
                           <FaTelegramPlane />
+                        </button>
+                      )}
+
+                      {lead.email && (
+                        <button
+                          onClick={() => handleFbVerifyEmail(lead.id)}
+                          disabled={fbVerifyingEmailIds.has(lead.id)}
+                          title={
+                            lead.emailVerified === true || lead.emailVerified === false
+                              ? 'Re-verify Email'
+                              : 'Verify Email'
+                          }
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: fbVerifyingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background:
+                              lead.emailVerified === true
+                                ? 'rgba(34, 197, 94, 0.15)'
+                                : lead.emailVerified === false
+                                  ? 'rgba(239, 68, 68, 0.12)'
+                                  : 'rgba(99, 102, 241, 0.15)',
+                            color:
+                              lead.emailVerified === true
+                                ? '#22c55e'
+                                : lead.emailVerified === false
+                                  ? '#ef4444'
+                                  : '#6366f1',
+                            fontSize: '1rem',
+                            opacity: fbVerifyingEmailIds.has(lead.id) ? 0.7 : 1
+                          }}
+                        >
+                          {fbVerifyingEmailIds.has(lead.id) ? (
+                            <div
+                              className="action-spinner"
+                              style={{
+                                width: '14px',
+                                height: '14px',
+                                border: '2px solid rgba(148, 163, 184, 0.3)',
+                                borderTop: '2px solid currentColor'
+                              }}
+                            ></div>
+                          ) : lead.emailVerified === true || lead.emailVerified === false ? (
+                            <FaEdit />
+                          ) : (
+                            <FaEnvelope />
+                          )}
                         </button>
                       )}
 
