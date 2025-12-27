@@ -1608,170 +1608,202 @@ function SavedLeadsPage(): JSX.Element {
               </button>
             </div>
           </div>
-
-          {/* WhatsApp Connection Status Bar (if not connected or if wanting to show status) */}
+          {/* WhatsApp Pitch Section */}
           <div
             style={{
               padding: '0 2rem',
               marginBottom: '1.5rem',
               display: 'flex',
               justifyContent: 'flex-end',
-              gap: '1rem' // Added gap for spacing between dropdown and button
+              gap: '1rem'
             }}
           >
-            {/* Campaign Group Selector */}
-            {campaignGroups.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) => {
-                    const newGroupId = e.target.value
-                    setSelectedGroupId(newGroupId)
-                    localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
-
-                    // Auto-select first campaign in the new group
-                    const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
-                    if (groupCampaigns.length > 0) {
-                      const newCampaignId = groupCampaigns[0].id
-                      setSelectedCampaignId(newCampaignId)
-                      localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
-                    } else {
-                      setSelectedCampaignId('')
-                      localStorage.removeItem('savedLeads_selectedCampaignId')
-                    }
-                  }}
-                  style={{
-                    appearance: 'none',
-                    padding: '0.75rem 2.5rem 0.75rem 1rem',
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(148, 163, 184, 0.2)',
-                    borderRadius: '12px',
-                    color: '#f1f5f9',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    maxWidth: '150px'
-                  }}
-                >
-                  {campaignGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-                <FaChevronDown
-                  style={{
-                    position: 'absolute',
-                    right: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#94a3b8',
-                    pointerEvents: 'none',
-                    fontSize: '0.75rem'
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Campaign Selector */}
-            {campaigns.length > 0 &&
-              (() => {
-                const relevantCampaigns =
-                  campaignGroups.length > 0
-                    ? campaigns.filter((c) => c.groupId === selectedGroupId)
-                    : campaigns.filter((c) => !c.groupId)
-
-                if (relevantCampaigns.length === 0) {
-                  return (
-                    <div
-                      style={{
-                        padding: '0.75rem 1rem',
-                        color: '#64748b',
-                        fontSize: '0.85rem',
-                        fontStyle: 'italic',
-                        background: 'rgba(15, 23, 42, 0.3)',
-                        borderRadius: '12px',
-                        border: '1px dashed rgba(148, 163, 184, 0.2)'
-                      }}
-                    >
-                      No campaigns found
-                    </div>
-                  )
-                }
-
-                return (
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={selectedCampaignId}
-                      onChange={(e) => {
-                        const newId = e.target.value
-                        setSelectedCampaignId(newId)
-                        localStorage.setItem('savedLeads_selectedCampaignId', newId)
-                      }}
-                      style={{
-                        appearance: 'none',
-                        padding: '0.75rem 2.5rem 0.75rem 1rem',
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        borderRadius: '12px',
-                        color: '#f1f5f9',
-                        fontSize: '0.9rem',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        maxWidth: '200px',
-                        minWidth: '150px'
-                      }}
-                    >
-                      {relevantCampaigns.map((campaign) => (
-                        <option key={campaign.id} value={campaign.id}>
-                          {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
-                          {campaign.name}
-                        </option>
-                      ))}
-                    </select>
-                    <FaChevronDown
-                      style={{
-                        position: 'absolute',
-                        right: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#94a3b8',
-                        pointerEvents: 'none',
-                        fontSize: '0.75rem'
-                      }}
-                    />
-                  </div>
-                )
-              })()}
-
-            {/* WhatsApp Connect Button */}
-            <button
-              onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
-              disabled={whatsAppInitializing}
+            {/* WhatsApp Pitch Container */}
+            <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: '0.75rem',
                 padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                border: whatsAppReady
-                  ? '1px solid rgba(34, 197, 94, 0.3)'
-                  : '1px solid rgba(148, 163, 184, 0.3)',
-                background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
-                color: whatsAppReady ? '#22c55e' : '#94a3b8',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
+                background: 'rgba(37, 211, 102, 0.08)',
+                border: '1px solid rgba(37, 211, 102, 0.2)',
+                borderRadius: '14px'
               }}
             >
-              <FaWhatsapp />
-              {whatsAppInitializing
-                ? 'Connecting...'
-                : whatsAppReady
-                  ? 'WhatsApp Connected'
-                  : 'Connect WhatsApp'}
-            </button>
+              {/* WhatsApp Section Label */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  paddingRight: '0.75rem',
+                  borderRight: '1px solid rgba(37, 211, 102, 0.3)'
+                }}
+              >
+                <FaWhatsapp style={{ color: '#25d366', fontSize: '1rem' }} />
+                <span
+                  style={{
+                    color: '#25d366',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  WhatsApp Pitch
+                </span>
+              </div>
+
+              {/* Campaign Group Selector */}
+              {campaignGroups.length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => {
+                      const newGroupId = e.target.value
+                      setSelectedGroupId(newGroupId)
+                      localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
+
+                      // Auto-select first campaign in the new group
+                      const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
+                      if (groupCampaigns.length > 0) {
+                        const newCampaignId = groupCampaigns[0].id
+                        setSelectedCampaignId(newCampaignId)
+                        localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
+                      } else {
+                        setSelectedCampaignId('')
+                        localStorage.removeItem('savedLeads_selectedCampaignId')
+                      }
+                    }}
+                    style={{
+                      appearance: 'none',
+                      padding: '0.5rem 2rem 0.5rem 0.75rem',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(37, 211, 102, 0.3)',
+                      borderRadius: '8px',
+                      color: '#f1f5f9',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      maxWidth: '130px'
+                    }}
+                  >
+                    {campaignGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FaChevronDown
+                    style={{
+                      position: 'absolute',
+                      right: '0.6rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#25d366',
+                      pointerEvents: 'none',
+                      fontSize: '0.65rem'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Campaign Selector */}
+              {campaigns.length > 0 &&
+                (() => {
+                  const relevantCampaigns =
+                    campaignGroups.length > 0
+                      ? campaigns.filter((c) => c.groupId === selectedGroupId)
+                      : campaigns.filter((c) => !c.groupId)
+
+                  if (relevantCampaigns.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          color: '#64748b',
+                          fontSize: '0.8rem',
+                          fontStyle: 'italic',
+                          background: 'rgba(15, 23, 42, 0.3)',
+                          borderRadius: '8px',
+                          border: '1px dashed rgba(37, 211, 102, 0.3)'
+                        }}
+                      >
+                        No campaigns
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={selectedCampaignId}
+                        onChange={(e) => {
+                          const newId = e.target.value
+                          setSelectedCampaignId(newId)
+                          localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                        }}
+                        style={{
+                          appearance: 'none',
+                          padding: '0.5rem 2rem 0.5rem 0.75rem',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(37, 211, 102, 0.3)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          maxWidth: '180px',
+                          minWidth: '120px'
+                        }}
+                      >
+                        {relevantCampaigns.map((campaign) => (
+                          <option key={campaign.id} value={campaign.id}>
+                            {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
+                            {campaign.name}
+                          </option>
+                        ))}
+                      </select>
+                      <FaChevronDown
+                        style={{
+                          position: 'absolute',
+                          right: '0.6rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#25d366',
+                          pointerEvents: 'none',
+                          fontSize: '0.65rem'
+                        }}
+                      />
+                    </div>
+                  )
+                })()}
+
+              {/* WhatsApp Connect Button */}
+              <button
+                onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
+                disabled={whatsAppInitializing}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: whatsAppReady
+                    ? '1px solid rgba(34, 197, 94, 0.4)'
+                    : '1px solid rgba(148, 163, 184, 0.3)',
+                  background: whatsAppReady ? 'rgba(34, 197, 94, 0.15)' : 'rgba(15, 23, 42, 0.6)',
+                  color: whatsAppReady ? '#22c55e' : '#94a3b8',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <FaWhatsapp />
+                {whatsAppInitializing ? 'Connecting...' : whatsAppReady ? 'Connected' : 'Connect'}
+              </button>
+            </div>
           </div>
 
           {/* Loading */}
@@ -3463,8 +3495,7 @@ function SavedLeadsPage(): JSX.Element {
               </button>
             </div>
           </div>
-
-          {/* WhatsApp Connection Status Bar */}
+          {/* WhatsApp Pitch Section */}
           <div
             style={{
               padding: '0 2rem',
@@ -3474,159 +3505,192 @@ function SavedLeadsPage(): JSX.Element {
               gap: '1rem'
             }}
           >
-            {/* Campaign Group Selector */}
-            {campaignGroups.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={selectedGroupId}
-                  onChange={(e) => {
-                    const newGroupId = e.target.value
-                    setSelectedGroupId(newGroupId)
-                    localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
-
-                    // Auto-select first campaign in the new group
-                    const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
-                    if (groupCampaigns.length > 0) {
-                      const newCampaignId = groupCampaigns[0].id
-                      setSelectedCampaignId(newCampaignId)
-                      localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
-                    } else {
-                      setSelectedCampaignId('')
-                      localStorage.removeItem('savedLeads_selectedCampaignId')
-                    }
-                  }}
-                  style={{
-                    appearance: 'none',
-                    padding: '0.75rem 2.5rem 0.75rem 1rem',
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(148, 163, 184, 0.2)',
-                    borderRadius: '12px',
-                    color: '#f1f5f9',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    maxWidth: '150px'
-                  }}
-                >
-                  {campaignGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-                <FaChevronDown
-                  style={{
-                    position: 'absolute',
-                    right: '1rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#94a3b8',
-                    pointerEvents: 'none',
-                    fontSize: '0.75rem'
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Campaign Selector */}
-            {campaigns.length > 0 &&
-              (() => {
-                const relevantCampaigns =
-                  campaignGroups.length > 0
-                    ? campaigns.filter((c) => c.groupId === selectedGroupId)
-                    : campaigns.filter((c) => !c.groupId)
-
-                if (relevantCampaigns.length === 0) {
-                  return (
-                    <div
-                      style={{
-                        padding: '0.75rem 1rem',
-                        color: '#64748b',
-                        fontSize: '0.85rem',
-                        fontStyle: 'italic',
-                        background: 'rgba(15, 23, 42, 0.3)',
-                        borderRadius: '12px',
-                        border: '1px dashed rgba(148, 163, 184, 0.2)'
-                      }}
-                    >
-                      No campaigns found
-                    </div>
-                  )
-                }
-
-                return (
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={selectedCampaignId}
-                      onChange={(e) => {
-                        const newId = e.target.value
-                        setSelectedCampaignId(newId)
-                        localStorage.setItem('savedLeads_selectedCampaignId', newId)
-                      }}
-                      style={{
-                        appearance: 'none',
-                        padding: '0.75rem 2.5rem 0.75rem 1rem',
-                        background: 'rgba(15, 23, 42, 0.6)',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        borderRadius: '12px',
-                        color: '#f1f5f9',
-                        fontSize: '0.9rem',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        maxWidth: '200px',
-                        minWidth: '150px'
-                      }}
-                    >
-                      {relevantCampaigns.map((campaign) => (
-                        <option key={campaign.id} value={campaign.id}>
-                          {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
-                          {campaign.name}
-                        </option>
-                      ))}
-                    </select>
-                    <FaChevronDown
-                      style={{
-                        position: 'absolute',
-                        right: '1rem',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#94a3b8',
-                        pointerEvents: 'none',
-                        fontSize: '0.75rem'
-                      }}
-                    />
-                  </div>
-                )
-              })()}
-
-            {/* WhatsApp Connect Button */}
-            <button
-              onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
-              disabled={whatsAppInitializing}
+            {/* WhatsApp Pitch Container */}
+            <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                gap: '0.75rem',
                 padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                border: whatsAppReady
-                  ? '1px solid rgba(34, 197, 94, 0.3)'
-                  : '1px solid rgba(148, 163, 184, 0.3)',
-                background: whatsAppReady ? 'rgba(34, 197, 94, 0.1)' : 'rgba(15, 23, 42, 0.6)',
-                color: whatsAppReady ? '#22c55e' : '#94a3b8',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
+                background: 'rgba(37, 211, 102, 0.08)',
+                border: '1px solid rgba(37, 211, 102, 0.2)',
+                borderRadius: '14px'
               }}
             >
-              <FaWhatsapp />
-              {whatsAppInitializing
-                ? 'Connecting...'
-                : whatsAppReady
-                  ? 'WhatsApp Connected'
-                  : 'Connect WhatsApp'}
-            </button>
+              {/* WhatsApp Section Label */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  paddingRight: '0.75rem',
+                  borderRight: '1px solid rgba(37, 211, 102, 0.3)'
+                }}
+              >
+                <FaWhatsapp style={{ color: '#25d366', fontSize: '1rem' }} />
+                <span
+                  style={{
+                    color: '#25d366',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  WhatsApp Pitch
+                </span>
+              </div>
+
+              {/* Campaign Group Selector */}
+              {campaignGroups.length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={selectedGroupId}
+                    onChange={(e) => {
+                      const newGroupId = e.target.value
+                      setSelectedGroupId(newGroupId)
+                      localStorage.setItem('savedLeads_selectedGroupId', newGroupId)
+
+                      // Auto-select first campaign in the new group
+                      const groupCampaigns = campaigns.filter((c) => c.groupId === newGroupId)
+                      if (groupCampaigns.length > 0) {
+                        const newCampaignId = groupCampaigns[0].id
+                        setSelectedCampaignId(newCampaignId)
+                        localStorage.setItem('savedLeads_selectedCampaignId', newCampaignId)
+                      } else {
+                        setSelectedCampaignId('')
+                        localStorage.removeItem('savedLeads_selectedCampaignId')
+                      }
+                    }}
+                    style={{
+                      appearance: 'none',
+                      padding: '0.5rem 2rem 0.5rem 0.75rem',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(37, 211, 102, 0.3)',
+                      borderRadius: '8px',
+                      color: '#f1f5f9',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      maxWidth: '130px'
+                    }}
+                  >
+                    {campaignGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FaChevronDown
+                    style={{
+                      position: 'absolute',
+                      right: '0.6rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#25d366',
+                      pointerEvents: 'none',
+                      fontSize: '0.65rem'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Campaign Selector */}
+              {campaigns.length > 0 &&
+                (() => {
+                  const relevantCampaigns =
+                    campaignGroups.length > 0
+                      ? campaigns.filter((c) => c.groupId === selectedGroupId)
+                      : campaigns.filter((c) => !c.groupId)
+
+                  if (relevantCampaigns.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          color: '#64748b',
+                          fontSize: '0.8rem',
+                          fontStyle: 'italic',
+                          background: 'rgba(15, 23, 42, 0.3)',
+                          borderRadius: '8px',
+                          border: '1px dashed rgba(37, 211, 102, 0.3)'
+                        }}
+                      >
+                        No campaigns
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={selectedCampaignId}
+                        onChange={(e) => {
+                          const newId = e.target.value
+                          setSelectedCampaignId(newId)
+                          localStorage.setItem('savedLeads_selectedCampaignId', newId)
+                        }}
+                        style={{
+                          appearance: 'none',
+                          padding: '0.5rem 2rem 0.5rem 0.75rem',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(37, 211, 102, 0.3)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          maxWidth: '180px',
+                          minWidth: '120px'
+                        }}
+                      >
+                        {relevantCampaigns.map((campaign) => (
+                          <option key={campaign.id} value={campaign.id}>
+                            {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
+                            {campaign.name}
+                          </option>
+                        ))}
+                      </select>
+                      <FaChevronDown
+                        style={{
+                          position: 'absolute',
+                          right: '0.6rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#25d366',
+                          pointerEvents: 'none',
+                          fontSize: '0.65rem'
+                        }}
+                      />
+                    </div>
+                  )
+                })()}
+
+              {/* WhatsApp Connect Button */}
+              <button
+                onClick={whatsAppReady ? window.api.whatsappDisconnect : handleInitWhatsApp}
+                disabled={whatsAppInitializing}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  border: whatsAppReady
+                    ? '1px solid rgba(34, 197, 94, 0.4)'
+                    : '1px solid rgba(148, 163, 184, 0.3)',
+                  background: whatsAppReady ? 'rgba(34, 197, 94, 0.15)' : 'rgba(15, 23, 42, 0.6)',
+                  color: whatsAppReady ? '#22c55e' : '#94a3b8',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <FaWhatsapp />
+                {whatsAppInitializing ? 'Connecting...' : whatsAppReady ? 'Connected' : 'Connect'}
+              </button>
+            </div>
           </div>
 
           {/* Loading */}
