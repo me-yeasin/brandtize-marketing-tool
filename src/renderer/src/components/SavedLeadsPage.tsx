@@ -223,6 +223,152 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
   return result
 }
 
+// Helper to insert/toggle markdown syntax at cursor
+// (Duplicated and slightly adapted from AiCopywriterPage)
+const insertMarkdown = (
+  textarea: HTMLTextAreaElement | null,
+  startChar: string,
+  endChar: string, // If empty, it treats it as a line-prefix (like "- " or "> ")
+  setFunction: (val: string) => void,
+  currentValue: string
+): void => {
+  if (!textarea) return
+
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  let selectedText = currentValue.substring(start, end)
+  let before = currentValue.substring(0, start)
+  let after = currentValue.substring(end)
+
+  // --- LINE PREFIX MODE (For Lists, Quotes) ---
+  if (!endChar) {
+    // Check if the current line already has the prefix
+    const lastNewLine = before.lastIndexOf('\n')
+    const currentLineStart = lastNewLine === -1 ? 0 : lastNewLine + 1
+    const currentLineContent = currentValue.substring(currentLineStart, end) + after.split('\n')[0]
+
+    // Simple toggle check on the current line
+    if (currentLineContent.trim().startsWith(startChar.trim())) {
+      // REMOVE Prefix
+      const prefixLength = startChar.length
+      // We need to find exactly where the prefix is relative to 'before'
+      const lineBeforeCursor = before.substring(currentLineStart)
+      if (lineBeforeCursor.startsWith(startChar)) {
+        // Prefix is before cursor
+        const newBefore =
+          before.substring(0, currentLineStart) + lineBeforeCursor.substring(prefixLength)
+        setFunction(`${newBefore}${selectedText}${after}`)
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(
+            Math.max(currentLineStart, start - prefixLength),
+            Math.max(currentLineStart, end - prefixLength)
+          )
+        }, 0)
+      } else {
+        // Cursor likely at start of line
+        const lineContent = currentValue.substring(currentLineStart)
+        if (lineContent.startsWith(startChar)) {
+          const newValue =
+            currentValue.substring(0, currentLineStart) + lineContent.substring(prefixLength)
+          setFunction(newValue)
+          setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(start, end)
+          }, 0)
+        }
+      }
+    } else {
+      // ADD Prefix
+      const newBefore =
+        before.substring(0, currentLineStart) + startChar + before.substring(currentLineStart)
+      setFunction(`${newBefore}${selectedText}${after}`)
+      setTimeout(() => {
+        textarea.focus()
+        textarea.setSelectionRange(start + startChar.length, end + startChar.length)
+      }, 0)
+    }
+    return
+  }
+
+  // --- WRAPPER MODE (Bold, Italic, etc) ---
+  // Exclusive Logic: Check if ALREADY wrapped by ANY known wrapper.
+  const wrappers = ['```', '*', '_', '~']
+
+  for (const wrapper of wrappers) {
+    // Case 1: Selection IS the wrapper (e.g. user selected "*text*")
+    if (
+      selectedText.startsWith(wrapper) &&
+      selectedText.endsWith(wrapper) &&
+      selectedText.length >= wrapper.length * 2
+    ) {
+      // Strip the existing wrapper
+      const unwrapped = selectedText.substring(wrapper.length, selectedText.length - wrapper.length)
+
+      // If we are applying the SAME wrapper -> We are effectively toggling OFF. return.
+      if (wrapper === startChar && wrapper === endChar) {
+        const newValue = `${before}${unwrapped}${after}`
+        setFunction(newValue)
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(start, start + unwrapped.length)
+        }, 0)
+        return
+      }
+
+      // If different wrapper, we stripped it, continue to apply the new one.
+      selectedText = unwrapped
+      // We found a match, break to stop checking others (assuming 1 layer)
+      break
+    }
+
+    // Case 2: Wrapper is surrounding the selection (e.g. user selected "text" inside "*text*")
+    if (before.endsWith(wrapper) && after.startsWith(wrapper)) {
+      // Strip the existing wrapper
+      before = before.substring(0, before.length - wrapper.length)
+      after = after.substring(wrapper.length)
+
+      // If SAME wrapper -> Toggling OFF.
+      if (wrapper === startChar && wrapper === endChar) {
+        const newValue = `${before}${selectedText}${after}`
+        setFunction(newValue)
+        setTimeout(() => {
+          textarea.focus()
+          // Shift selection back
+          textarea.setSelectionRange(start - wrapper.length, end - wrapper.length)
+        }, 0)
+        return
+      }
+
+      // If different, we removed the old one. Just proceed to wrap with new one.
+      break
+    }
+  }
+
+  // Case 3: Apply the NEW Wrapper
+  if (selectedText) {
+    const newValue = `${before}${startChar}${selectedText}${endChar}${after}`
+    setFunction(newValue)
+    setTimeout(() => {
+      textarea.focus()
+      // Select the text NOT including the new wrappers (so clicking again toggles case 2)
+      // Because 'before' might have changed length (if we stripped outer wrapper), calculate new offset
+      const newStart = before.length + startChar.length
+      textarea.setSelectionRange(newStart, newStart + selectedText.length)
+    }, 0)
+  } else {
+    // Insert placeholder
+    const newValue = `${before}${startChar}item${endChar}${after}`
+    setFunction(newValue)
+    setTimeout(() => {
+      textarea.focus()
+      // Select the placeholder "text"
+      const newStart = before.length + startChar.length
+      textarea.setSelectionRange(newStart, newStart + 4)
+    }, 0)
+  }
+}
+
 function SavedLeadsPage(): JSX.Element {
   const [leads, setLeads] = useState<SavedMapsLead[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -2021,6 +2167,211 @@ function SavedLeadsPage(): JSX.Element {
                         <FaRedo /> Regenerate
                       </button>
                     </div>
+                  </div>
+
+                  {/* TOOLBAR */}
+                  <div
+                    className="markdown-toolbar"
+                    style={{
+                      display: 'flex',
+                      gap: '0.5rem',
+                      marginBottom: '0.5rem',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      padding: '0.25rem',
+                      borderRadius: '4px',
+                      width: 'fit-content'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '*',
+                          '*',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Bold (*text*)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '_',
+                          '_',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Italic (_text_)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontStyle: 'italic',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      I
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '~',
+                          '~',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Strikethrough (~text~)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        textDecoration: 'line-through',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      S
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '```',
+                          '```',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Monospace (```text```)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontFamily: 'monospace',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      {'<>'}
+                    </button>
+
+                    {/* DIVIDER */}
+                    <div
+                      style={{
+                        width: '1px',
+                        height: '16px',
+                        background: '#475569',
+                        margin: '0 4px'
+                      }}
+                    ></div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '- ',
+                          '',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Bullet List (- item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px' }}>●</span> List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '1. ',
+                          '',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Numbered List (1. item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      1. List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const currentVal = editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        insertMarkdown(
+                          textarea,
+                          '> ',
+                          '',
+                          (val) => setEditedPitches((prev) => ({ ...prev, [lead.id]: val })),
+                          currentVal
+                        )
+                      }}
+                      title="Quote (> item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      &gt; Quote
+                    </button>
                   </div>
 
                   {/* EDITABLE TEXTAREA */}
