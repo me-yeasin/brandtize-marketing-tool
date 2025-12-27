@@ -32,6 +32,7 @@ export interface PitchGenerationInput {
   buyerPersona?: string
   examples?: string[]
   productLinks?: string[]
+  language?: 'en' | 'bn' // Language for pitch generation (English or Bangla)
 }
 
 export interface PitchGenerationStatus {
@@ -224,6 +225,21 @@ async function generatePitchNode(
 5. MARKDOWN FORMATTING: If the "Reference Examples" (or user instruction) wrap links in bold (*) or other markdown, you MUST apply the same markdown wrapper to these inserted links.`
   }
 
+  // Language-specific instruction for Bengali/Bangla
+  let languageContext = ''
+  if (lead.language === 'bn') {
+    languageContext = `
+🇧🇩 CRITICAL LANGUAGE INSTRUCTION - BANGLA (বাংলা):
+Write the ENTIRE message in BANGLA (বাংলা) language using proper Bengali script.
+- Use natural, fluent Bengali - not translated English
+- Keep the tone warm and professional (আন্তরিক ও পেশাদার)
+- Use common Bengali greetings like "আসসালামু আলাইকুম", "নমস্কার", or friendly "হ্যালো"
+- Include Bengali emojis contextually (🙏, 🇧🇩, ✨, etc.)
+- DO NOT mix English words unless absolutely necessary (like brand names or technical terms)
+- The entire pitch MUST be readable by a native Bengali speaker
+`
+  }
+
   let prompt = ''
 
   if (lead.instruction && lead.instruction.trim().length > 0) {
@@ -240,12 +256,14 @@ USER INSTRUCTION:
 ${personaContext}
 ${productLinksContext}
 ${exampleContext}
+${languageContext}
 Requirements:
 1. STRICTLY follow the User Instruction above.
 2. Keep it under 150 words (WhatsApp style).
 3. Include 1-2 relevant emojis naturally.
 4. Output ONLY the message text.
 5. If a Buyer Persona is provided, ensure the language resonates with them.
+${languageContext ? '6. FOLLOW THE LANGUAGE INSTRUCTION ABOVE - This is CRITICAL.' : ''}
 
 System Role: You are an expert at writing engaging, personalized outreach messages that feel genuine and helpful, not pushy or spammy.`
   } else {
@@ -259,6 +277,7 @@ Analysis: ${state.analysis}
 ${personaContext}
 ${productLinksContext}
 ${exampleContext}
+${languageContext}
 Requirements:
 1. Start with a friendly, personalized greeting mentioning their business name
 2. Show you understand their business (reference something specific)
@@ -269,6 +288,7 @@ Requirements:
 7. Include 1-2 relevant emojis naturally
 ${exampleContext ? '8. MIMIC THE STYLE OF THE EXAMPLES ABOVE' : ''}
 ${personaContext ? '9. Tailor the message to appeal to the defined BUYER PERSONA' : ''}
+${languageContext ? '10. FOLLOW THE LANGUAGE INSTRUCTION ABOVE - This is CRITICAL.' : ''}
 
 Write ONLY the message text, no explanations.
 
@@ -359,6 +379,12 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     }
   }
 
+  // Language check for Bengali
+  let languageCheck = ''
+  if (lead.language === 'bn') {
+    languageCheck = `\n*. LANGUAGE CHECK (CRITICAL): Is the ENTIRE message written in BANGLA (বাংলা) using Bengali script? (This is a FAIL if English is used except for brand names/URLs)`
+  }
+
   const prompt = `Evaluate this WhatsApp outreach message and decide if it needs improvement:
 
 Message:
@@ -373,6 +399,7 @@ ${instructionCheck ? '3' : '2'}. Is it concise (under 150 words)?
 ${instructionCheck ? '4' : '3'}. Does it feel genuine and not salesy?
 ${instructionCheck ? '5' : '4'}. Is there a clear but soft call-to-action?
 ${instructionCheck ? '6' : '5'}. Are any "[Insert Link]" or similar placeholders remaining? (This is a FAIL)
+${languageCheck}
 
 Respond with ONLY one of these formats:
 - If the message is good: "APPROVED: [brief reason]"
@@ -468,6 +495,17 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
 4. MARKDOWN MATCHING: If the Reference Examples wrap links in markdown (like *http...* or _http..._), you MUST wrap your inserted links in the same way.`
   }
 
+  // Language instruction for Bengali
+  let languageContext = ''
+  if (lead.language === 'bn') {
+    languageContext = `
+🇧🇩 CRITICAL LANGUAGE INSTRUCTION - BANGLA (বাংলা):
+The refined message MUST be written ENTIRELY in BANGLA (বাংলা) using Bengali script.
+- Use natural, fluent Bengali - not translated English
+- DO NOT mix English words unless absolutely necessary (like brand names/URLs)
+`
+  }
+
   const prompt = `Improve this WhatsApp message based on the feedback:
 
 Current Message:
@@ -477,6 +515,7 @@ Feedback: ${state.observation}
 
 Business: ${state.lead.name} (${state.lead.category})
 ${instructionContext}${personaContext}${productLinksContext}${exampleContext}
+${languageContext}
 
 Write an improved version that addresses the feedback while keeping:
 - Strict adherence to the USER INSTRUCTION
@@ -484,6 +523,7 @@ Write an improved version that addresses the feedback while keeping:
 - Personalization to this specific business
 - Concise length
 - Genuine, helpful tone
+${languageContext ? '- MUST be written in BANGLA (বাংলা) language' : ''}
 
 Write ONLY the improved message text.
 

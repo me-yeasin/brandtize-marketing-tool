@@ -767,7 +767,8 @@ function SavedLeadsPage(): JSX.Element {
         instruction: selectedCampaign?.instruction,
         buyerPersona: selectedCampaign?.buyerPersona,
         examples: selectedCampaign?.examples,
-        productLinks: selectedCampaign?.productLinks
+        productLinks: selectedCampaign?.productLinks,
+        language: selectedCampaign?.language || 'en'
       })
 
       if (result.success && result.pitch) {
@@ -1480,6 +1481,7 @@ function SavedLeadsPage(): JSX.Element {
                 >
                   {relevantCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
+                      {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
                       {campaign.name}
                     </option>
                   ))}

@@ -44,6 +44,10 @@ export interface Campaign {
   id: string
   name: string
   instruction: string // Instructions for the AI pitch generator
+  buyerPersona?: string // Optional buyer persona
+  examples?: string[] // Optional example pitches
+  productLinks?: string[] // Optional product or portfolio links
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
   platform: 'whatsapp'
   groupId?: string // Optional group association
   createdAt: number

@@ -21,6 +21,7 @@ export interface PitchGenerationInput {
   buyerPersona?: string
   examples?: string[]
   productLinks?: string[]
+  language?: 'en' | 'bn' // Language for pitch generation
 }
 
 export interface PitchGenerationStatus {
@@ -51,6 +52,7 @@ export interface Campaign {
   buyerPersona?: string // Optional buyer persona for better targeting
   examples?: string[] // Optional example pitches for few-shot learning
   productLinks?: string[] // Optional product or portfolio links
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
   platform: 'whatsapp'
   groupId?: string // Optional group association
   createdAt: number

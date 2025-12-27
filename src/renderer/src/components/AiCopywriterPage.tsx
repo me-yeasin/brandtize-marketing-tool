@@ -18,6 +18,7 @@ interface Campaign {
   buyerPersona?: string
   examples?: string[]
   productLinks?: string[]
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
   platform: 'whatsapp'
   groupId?: string
   createdAt: number
@@ -380,6 +381,7 @@ function WhatsAppCampaigns(): JSX.Element {
       buyerPersona: '',
       examples: [],
       productLinks: [],
+      language: 'en', // Default to English
       platform: 'whatsapp'
     })
     setView('editor')
@@ -474,6 +476,7 @@ function WhatsAppCampaigns(): JSX.Element {
         buyerPersona: currentCampaign.buyerPersona || undefined,
         examples: currentCampaign.examples || [],
         productLinks: currentCampaign.productLinks || [],
+        language: currentCampaign.language || 'en',
         platform: 'whatsapp',
         groupId: currentCampaign.groupId,
         createdAt: currentCampaign.createdAt || Date.now(),
@@ -554,6 +557,79 @@ function WhatsAppCampaigns(): JSX.Element {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Language Selection */}
+          <div className="form-group">
+            <label className="form-label">Pitch Language</label>
+            <p className="form-hint">
+              Select the language for AI-generated pitches. The AI will write the entire message in
+              this language.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                marginTop: '0.5rem'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCurrentCampaign((prev) => ({ ...prev, language: 'en' }))}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  border:
+                    currentCampaign.language === 'en'
+                      ? '2px solid #6366f1'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                  background:
+                    currentCampaign.language === 'en'
+                      ? 'rgba(99, 102, 241, 0.15)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                  color: currentCampaign.language === 'en' ? '#a5b4fc' : '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: currentCampaign.language === 'en' ? 600 : 400,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🇺🇸</span>
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentCampaign((prev) => ({ ...prev, language: 'bn' }))}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  border:
+                    currentCampaign.language === 'bn'
+                      ? '2px solid #10b981'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                  background:
+                    currentCampaign.language === 'bn'
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                  color: currentCampaign.language === 'bn' ? '#6ee7b7' : '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: currentCampaign.language === 'bn' ? 600 : 400,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🇧🇩</span>
+                বাংলা
+              </button>
+            </div>
           </div>
 
           {/* Buyer Persona */}
@@ -1377,7 +1453,24 @@ function WhatsAppCampaigns(): JSX.Element {
                                 day: 'numeric'
                               })}
                             </span>
-                            <span className="platform-badge">{campaign.platform}</span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  background:
+                                    campaign.language === 'bn'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : 'rgba(99, 102, 241, 0.15)',
+                                  color: campaign.language === 'bn' ? '#6ee7b7' : '#a5b4fc'
+                                }}
+                              >
+                                {campaign.language === 'bn' ? '🇧🇩 বাংলা' : '🇺🇸 EN'}
+                              </span>
+                              <span className="platform-badge">{campaign.platform}</span>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1440,7 +1533,24 @@ function WhatsAppCampaigns(): JSX.Element {
                                 day: 'numeric'
                               })}
                             </span>
-                            <span className="platform-badge">{campaign.platform}</span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  background:
+                                    campaign.language === 'bn'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : 'rgba(99, 102, 241, 0.15)',
+                                  color: campaign.language === 'bn' ? '#6ee7b7' : '#a5b4fc'
+                                }}
+                              >
+                                {campaign.language === 'bn' ? '🇧🇩 বাংলা' : '🇺🇸 EN'}
+                              </span>
+                              <span className="platform-badge">{campaign.platform}</span>
+                            </div>
                           </div>
                         </div>
                       ))}
