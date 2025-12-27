@@ -391,6 +391,8 @@ function SavedLeadsPage(): JSX.Element {
   const [fbFilterPanelOpen, setFbFilterPanelOpen] = useState(false)
   const [fbLoadingWhatsAppIds, setFbLoadingWhatsAppIds] = useState<Set<string>>(new Set())
   const [fbVerifyingEmailIds, setFbVerifyingEmailIds] = useState<Set<string>>(new Set())
+  const [fbLoadingEmailIds, setFbLoadingEmailIds] = useState<Set<string>>(new Set())
+  const [fbNoEmailFoundIds, setFbNoEmailFoundIds] = useState<Set<string>>(new Set())
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWhatsAppIds, setLoadingWhatsAppIds] = useState<Set<string>>(new Set())
@@ -723,6 +725,7 @@ function SavedLeadsPage(): JSX.Element {
   // --- Email Finding Logic ---
   const [loadingEmailIds, setLoadingEmailIds] = useState<Set<string>>(new Set())
   const [verifyingEmailIds, setVerifyingEmailIds] = useState<Set<string>>(new Set())
+  const [noEmailFoundIds, setNoEmailFoundIds] = useState<Set<string>>(new Set())
 
   const extractDomain = (url: string): string => {
     try {
@@ -776,6 +779,11 @@ function SavedLeadsPage(): JSX.Element {
     if (!lead || !lead.website) return
 
     setLoadingEmailIds((prev) => new Set(prev).add(leadId))
+    setNoEmailFoundIds((prev) => {
+      const next = new Set(prev)
+      next.delete(leadId)
+      return next
+    })
 
     try {
       const domain = extractDomain(lead.website)
@@ -784,6 +792,11 @@ function SavedLeadsPage(): JSX.Element {
       let updatedLead = { ...lead }
 
       if (result.email) {
+        setNoEmailFoundIds((prev) => {
+          const next = new Set(prev)
+          next.delete(leadId)
+          return next
+        })
         // Email found! Now verify it
         console.log(`[SavedLeads] Found email: ${result.email}, verifying...`)
 
@@ -819,7 +832,8 @@ function SavedLeadsPage(): JSX.Element {
         }
       } else {
         // No email found
-        showToast(`No email found for "${lead.name}"`, 'info')
+        setNoEmailFoundIds((prev) => new Set(prev).add(leadId))
+        showToast(`No email found for "${lead.name}" (${domain})`, 'info')
         updatedLead = {
           ...updatedLead,
           email: undefined,
@@ -1077,6 +1091,88 @@ function SavedLeadsPage(): JSX.Element {
       showToast('Failed to verify email', 'error')
     } finally {
       setFbVerifyingEmailIds((prev) => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
+
+  const handleFbFindEmail = async (leadId: string): Promise<void> => {
+    const lead = facebookLeads.find((l) => l.id === leadId)
+    if (!lead || !lead.website) return
+
+    setFbLoadingEmailIds((prev) => new Set(prev).add(leadId))
+    setFbNoEmailFoundIds((prev) => {
+      const next = new Set(prev)
+      next.delete(leadId)
+      return next
+    })
+
+    try {
+      const domain = extractDomain(lead.website)
+      const result = await window.api.findEmailForDomain(domain)
+
+      if (result.allKeysExhausted) {
+        showToast(
+          'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.',
+          'error'
+        )
+        return
+      }
+
+      let updatedLead: SavedFacebookLead = { ...lead }
+
+      if (result.email) {
+        setFbNoEmailFoundIds((prev) => {
+          const next = new Set(prev)
+          next.delete(leadId)
+          return next
+        })
+        try {
+          const verifyResult = await window.api.verifyEmail(result.email)
+
+          if (verifyResult.switched) {
+            showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+          }
+
+          updatedLead = {
+            ...updatedLead,
+            email: result.email,
+            emailVerified: verifyResult.verified
+          }
+
+          showToast(
+            verifyResult.verified
+              ? `Found verified email: ${result.email}`
+              : `Found email (unverified): ${result.email}`,
+            verifyResult.verified ? 'success' : 'info'
+          )
+        } catch (verifyErr) {
+          console.error('Email verification error:', verifyErr)
+          updatedLead = {
+            ...updatedLead,
+            email: result.email,
+            emailVerified: false
+          }
+          showToast(`Found email (verification failed): ${result.email}`, 'info')
+        }
+      } else {
+        setFbNoEmailFoundIds((prev) => new Set(prev).add(leadId))
+        showToast(`No email found for "${lead.title}" (${domain})`, 'info')
+        updatedLead = {
+          ...updatedLead,
+          email: null
+        }
+      }
+
+      setFacebookLeads((prev) => prev.map((l) => (l.id === leadId ? updatedLead : l)))
+      await window.api.updateSavedFacebookLead(updatedLead)
+    } catch (err) {
+      console.error('Email finder error:', err)
+      showToast('Failed to find email', 'error')
+    } finally {
+      setFbLoadingEmailIds((prev) => {
         const next = new Set(prev)
         next.delete(leadId)
         return next
@@ -2346,6 +2442,18 @@ function SavedLeadsPage(): JSX.Element {
                               )}
                             </span>
                           </div>
+                        )}
+
+                        {!lead.email && lead.website && noEmailFoundIds.has(lead.id) && (
+                          <span
+                            style={{
+                              fontSize: '0.8rem',
+                              color: '#64748b',
+                              fontStyle: 'italic'
+                            }}
+                          >
+                            No email found
+                          </span>
                         )}
 
                         {lead.website ? (
@@ -4455,6 +4563,18 @@ function SavedLeadsPage(): JSX.Element {
                           </span>
                         )}
 
+                        {!lead.email && lead.website && fbNoEmailFoundIds.has(lead.id) && (
+                          <span
+                            style={{
+                              fontSize: '0.8rem',
+                              color: '#64748b',
+                              fontStyle: 'italic'
+                            }}
+                          >
+                            No email found
+                          </span>
+                        )}
+
                         {lead.website ? (
                           <span
                             style={{
@@ -4704,6 +4824,45 @@ function SavedLeadsPage(): JSX.Element {
                             ></div>
                           ) : lead.emailVerified === true || lead.emailVerified === false ? (
                             <FaEdit />
+                          ) : (
+                            <FaEnvelope />
+                          )}
+                        </button>
+                      )}
+
+                      {/* Find Email Button (only if website exists and no email) */}
+                      {lead.website && !lead.email && (
+                        <button
+                          onClick={() => handleFbFindEmail(lead.id)}
+                          disabled={fbLoadingEmailIds.has(lead.id)}
+                          title="Find Email"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: fbLoadingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: fbLoadingEmailIds.has(lead.id)
+                              ? 'rgba(99, 102, 241, 0.1)'
+                              : 'rgba(99, 102, 241, 0.15)',
+                            color: '#6366f1',
+                            fontSize: '1rem',
+                            opacity: fbLoadingEmailIds.has(lead.id) ? 0.7 : 1
+                          }}
+                        >
+                          {fbLoadingEmailIds.has(lead.id) ? (
+                            <div
+                              className="action-spinner"
+                              style={{
+                                width: '14px',
+                                height: '14px',
+                                border: '2px solid rgba(99, 102, 241, 0.3)',
+                                borderTop: '2px solid #6366f1'
+                              }}
+                            ></div>
                           ) : (
                             <FaEnvelope />
                           )}
