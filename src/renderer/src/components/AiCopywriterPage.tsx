@@ -32,6 +32,122 @@ interface AiCopywriterPageProps {
 // WHATSAPP CAMPAIGN S COMPONENTS
 // ============================================
 
+// Helper to insert markdown syntax at cursor
+const insertMarkdown = (
+  textarea: HTMLTextAreaElement | null,
+  startChar: string,
+  endChar: string,
+  setFunction: (val: string) => void,
+  currentValue: string
+): void => {
+  if (!textarea) return
+
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const selectedText = currentValue.substring(start, end)
+  const before = currentValue.substring(0, start)
+  const after = currentValue.substring(end)
+
+  if (selectedText) {
+    // Wrap selection
+    const newValue = `${before}${startChar}${selectedText}${endChar}${after}`
+    setFunction(newValue)
+    // Restore selection including wrappers (optional, or just place cursor after)
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, end + startChar.length + endChar.length)
+    }, 0)
+  } else {
+    // Insert placeholder
+    const newValue = `${before}${startChar}text${endChar}${after}`
+    setFunction(newValue)
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + startChar.length, start + startChar.length + 4)
+    }, 0)
+  }
+}
+
+// Minimal WhatsApp Markdown Parser for Preview
+const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
+  if (!text) return []
+
+  // Split by newlines to handle paragraphs
+  return text.split('\n').map((line, i) => {
+    let content: (string | JSX.Element)[] = [line]
+
+    // 1. Monospace ` ```text``` `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(```.*?```)/g)
+      return parts.map((part) => {
+        if (part.startsWith('```') && part.endsWith('```')) {
+          return (
+            <code
+              key={Math.random()}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                padding: '2px 4px',
+                borderRadius: '3px',
+                fontFamily: 'monospace'
+              }}
+            >
+              {part.slice(3, -3)}
+            </code>
+          )
+        }
+        return part
+      })
+    })
+
+    // 2. Bold ` *text* `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(\*[^*\n]+\*)/g)
+      return parts.map((part) => {
+        if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+          return <strong key={Math.random()}>{part.slice(1, -1)}</strong>
+        }
+        return part
+      })
+    })
+
+    // 3. Italic ` _text_ `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(_[^_\n]+_)/g)
+      return parts.map((part) => {
+        if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+          return <em key={Math.random()}>{part.slice(1, -1)}</em>
+        }
+        return part
+      })
+    })
+
+    // 4. Strikethrough ` ~text~ `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(~[^~\n]+~)/g)
+      return parts.map((part) => {
+        if (part.startsWith('~') && part.endsWith('~') && part.length > 2) {
+          return (
+            <span key={Math.random()} style={{ textDecoration: 'line-through' }}>
+              {part.slice(1, -1)}
+            </span>
+          )
+        }
+        return part
+      })
+    })
+
+    return (
+      <div key={i} style={{ minHeight: '1.2em' }}>
+        {content}
+      </div>
+    )
+  })
+}
+
 function WhatsAppCampaigns(): JSX.Element {
   const [view, setView] = useState<'list' | 'editor' | 'group-editor'>('list')
   const [activeTab, setActiveTab] = useState<'campaigns' | 'groups'>('campaigns')
@@ -323,6 +439,135 @@ function WhatsAppCampaigns(): JSX.Element {
             >
               {(currentCampaign.examples || []).map((example, index) => (
                 <div key={index} className="example-item" style={{ position: 'relative' }}>
+                  <div
+                    className="markdown-toolbar"
+                    style={{
+                      display: 'flex',
+                      gap: '0.5rem',
+                      marginBottom: '0.5rem',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      padding: '0.25rem',
+                      borderRadius: '4px',
+                      width: 'fit-content'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '*',
+                          '*',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Bold (*text*)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '_',
+                          '_',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Italic (_text_)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontStyle: 'italic',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      I
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '~',
+                          '~',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Strikethrough (~text~)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        textDecoration: 'line-through',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      S
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '```',
+                          '```',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Monospace (```text```)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        fontFamily: 'monospace',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      {'<>'}
+                    </button>
+                  </div>
                   <textarea
                     value={example}
                     onChange={(e) => {
@@ -332,9 +577,38 @@ function WhatsAppCampaigns(): JSX.Element {
                     }}
                     placeholder={`Example Pitch #${index + 1}...`}
                     className="form-textarea"
-                    rows={3}
-                    style={{ fontSize: '0.9rem', marginBottom: 0 }}
+                    rows={4}
+                    style={{ fontSize: '0.9rem', marginBottom: 0, fontFamily: 'inherit' }}
                   />
+                  {/* LIVE PREVIEW BOX */}
+                  {example && (
+                    <div
+                      className="preview-box"
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.75rem',
+                        background: '#0f172a' /* Very dark bg like WhatsApp Dark mode */,
+                        borderLeft: '3px solid #6366f1',
+                        borderRadius: '0 4px 4px 0',
+                        fontSize: '0.9rem',
+                        color: '#e2e8f0',
+                        opacity: 0.9
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: '0.7rem',
+                          textTransform: 'uppercase',
+                          color: '#64748b',
+                          marginBottom: '4px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        WhatsApp Preview
+                      </div>
+                      {renderWhatsAppMarkdown(example)}
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       const newExamples = (currentCampaign.examples || []).filter(
