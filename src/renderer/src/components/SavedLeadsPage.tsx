@@ -3724,6 +3724,167 @@ function SavedLeadsPage(): JSX.Element {
               gap: '1rem'
             }}
           >
+            {/* Mail Pitch Container */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.5rem 1rem',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                borderRadius: '14px'
+              }}
+            >
+              {/* Mail Section Label */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  paddingRight: '0.75rem',
+                  borderRight: '1px solid rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <FaEnvelope style={{ color: '#6366f1', fontSize: '1rem' }} />
+                <span
+                  style={{
+                    color: '#6366f1',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  Mail Pitch
+                </span>
+              </div>
+
+              {/* Mail Group Selector */}
+              {mailCampaignGroups.length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={selectedMailGroupId}
+                    onChange={(e) => {
+                      const newGroupId = e.target.value
+                      setSelectedMailGroupId(newGroupId)
+                      localStorage.setItem('savedLeads_selectedMailGroupId', newGroupId)
+
+                      const groupCampaigns = mailCampaigns.filter((c) => c.groupId === newGroupId)
+                      if (groupCampaigns.length > 0) {
+                        const newCampaignId = groupCampaigns[0].id
+                        setSelectedMailCampaignId(newCampaignId)
+                        localStorage.setItem('savedLeads_selectedMailCampaignId', newCampaignId)
+                      } else {
+                        setSelectedMailCampaignId('')
+                        localStorage.removeItem('savedLeads_selectedMailCampaignId')
+                      }
+                    }}
+                    style={{
+                      appearance: 'none',
+                      padding: '0.5rem 2rem 0.5rem 0.75rem',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      borderRadius: '8px',
+                      color: '#f1f5f9',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      maxWidth: '130px'
+                    }}
+                  >
+                    {mailCampaignGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FaChevronDown
+                    style={{
+                      position: 'absolute',
+                      right: '0.6rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#6366f1',
+                      pointerEvents: 'none',
+                      fontSize: '0.65rem'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Mail Campaign Selector */}
+              {mailCampaigns.length > 0 &&
+                (() => {
+                  const relevantCampaigns =
+                    mailCampaignGroups.length > 0
+                      ? mailCampaigns.filter((c) => c.groupId === selectedMailGroupId)
+                      : mailCampaigns.filter((c) => !c.groupId)
+
+                  if (relevantCampaigns.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          color: '#64748b',
+                          fontSize: '0.8rem',
+                          fontStyle: 'italic',
+                          background: 'rgba(15, 23, 42, 0.3)',
+                          borderRadius: '8px',
+                          border: '1px dashed rgba(99, 102, 241, 0.3)'
+                        }}
+                      >
+                        No campaigns
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={selectedMailCampaignId}
+                        onChange={(e) => {
+                          const newId = e.target.value
+                          setSelectedMailCampaignId(newId)
+                          localStorage.setItem('savedLeads_selectedMailCampaignId', newId)
+                        }}
+                        style={{
+                          appearance: 'none',
+                          padding: '0.5rem 2rem 0.5rem 0.75rem',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          maxWidth: '180px',
+                          minWidth: '120px'
+                        }}
+                      >
+                        {relevantCampaigns.map((campaign) => (
+                          <option key={campaign.id} value={campaign.id}>
+                            {campaign.language === 'bn' ? '🇧🇩 ' : '🇺🇸 '}
+                            {campaign.name}
+                          </option>
+                        ))}
+                      </select>
+                      <FaChevronDown
+                        style={{
+                          position: 'absolute',
+                          right: '0.6rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: '#6366f1',
+                          pointerEvents: 'none',
+                          fontSize: '0.65rem'
+                        }}
+                      />
+                    </div>
+                  )
+                })()}
+            </div>
+
             {/* WhatsApp Pitch Container */}
             <div
               style={{
