@@ -4,6 +4,7 @@ import MapsScoutPage from './components/MapsScoutPage'
 import SavedLeadsPage from './components/SavedLeadsPage'
 import SettingsPage from './components/SettingsPage'
 import Sidebar from './components/Sidebar'
+import SocialLeadsPage from './components/SocialLeadsPage'
 import './styles/index.css'
 
 // Page types
@@ -36,6 +37,8 @@ function App(): JSX.Element {
         return <MapsScoutPage />
       case 'saved-leads':
         return <SavedLeadsPage />
+      case 'social-leads':
+        return <SocialLeadsPage />
       case 'ai-copywriter-mail':
         return <AiCopywriterPage initialTab="mail" />
       case 'ai-copywriter-whatsapp':
