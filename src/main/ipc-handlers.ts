@@ -228,6 +228,16 @@ export function registerIpcHandlers(): void {
     return true
   })
 
+  ipcMain.handle('set-snov-client-id', (_event, clientId: string) => {
+    setSnovClientId(clientId)
+    return true
+  })
+
+  ipcMain.handle('set-snov-client-secret', (_event, clientSecret: string) => {
+    setSnovClientSecret(clientSecret)
+    return true
+  })
+
   ipcMain.handle('get-snov-api-keys', () => {
     return getSnovApiKeys()
   })

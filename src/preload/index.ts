@@ -142,6 +142,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('get-snov-credentials'),
   setSnovCredentials: (clientId: string, clientSecret: string): Promise<boolean> =>
     ipcRenderer.invoke('set-snov-credentials', clientId, clientSecret),
+  setSnovClientId: (clientId: string): Promise<boolean> =>
+    ipcRenderer.invoke('set-snov-client-id', clientId),
+  setSnovClientSecret: (clientSecret: string): Promise<boolean> =>
+    ipcRenderer.invoke('set-snov-client-secret', clientSecret),
   getSnovApiKeys: (): Promise<ApiKeyEntry[]> => ipcRenderer.invoke('get-snov-api-keys'),
   setSnovApiKeys: (keys: ApiKeyEntry[]): Promise<boolean> =>
     ipcRenderer.invoke('set-snov-api-keys', keys),

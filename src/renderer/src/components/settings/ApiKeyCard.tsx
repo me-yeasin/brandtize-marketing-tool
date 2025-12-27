@@ -1,4 +1,4 @@
-import { JSX, useState } from 'react'
+import { JSX, useEffect, useState } from 'react'
 
 interface ApiKeyEntry {
   key: string
@@ -42,7 +42,21 @@ function ApiKeyCard({
   const [localMultiKeys, setLocalMultiKeys] = useState<ApiKeyEntry[]>(multiKeys)
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
+
+  // Sync state with props when they change
+  useEffect(() => {
+    setInputValue(apiKey)
+  }, [apiKey])
+
+  useEffect(() => {
+    setSecondInputValue(secondFieldValue)
+  }, [secondFieldValue])
+
+  useEffect(() => {
+    setLocalMultiKeys(multiKeys)
+  }, [multiKeys])
 
   // Mask API key for display
   const maskKey = (key: string): string => {
@@ -53,6 +67,7 @@ function ApiKeyCard({
   // Save primary key
   const handleSaveKey = async (): Promise<void> => {
     setIsSaving(true)
+    setSaveError(null)
     try {
       await onSaveKey(inputValue)
       if (hasSecondField && onSaveSecondField) {
@@ -62,17 +77,27 @@ function ApiKeyCard({
       setTimeout(() => setShowSuccess(false), 2000)
     } catch (error) {
       console.error('Failed to save key:', error)
+      setSaveError('Failed to save')
     }
     setIsSaving(false)
   }
 
+  const [newSecondKeyInput, setNewSecondKeyInput] = useState('')
+
   // Add new key to multi-key list
   const handleAddKey = async (): Promise<void> => {
     if (!newKeyInput.trim() || !onSaveMultiKeys) return
+    if (hasSecondField && !newSecondKeyInput.trim()) return
 
-    const newKeys = [...localMultiKeys, { key: newKeyInput.trim() }]
+    const newEntry: ApiKeyEntry = {
+      key: newKeyInput.trim(),
+      userId: hasSecondField ? newSecondKeyInput.trim() : undefined
+    }
+
+    const newKeys = [...localMultiKeys, newEntry]
     setLocalMultiKeys(newKeys)
     setNewKeyInput('')
+    setNewSecondKeyInput('')
 
     try {
       await onSaveMultiKeys(newKeys)
@@ -107,6 +132,11 @@ function ApiKeyCard({
           <p>{description}</p>
         </div>
         {showSuccess && <span className="success-badge">✓ Saved</span>}
+        {saveError && (
+          <span className="error-badge" style={{ color: '#ff4d4f', marginLeft: '10px' }}>
+            {saveError}
+          </span>
+        )}
       </div>
 
       {/* Primary Key Input */}
@@ -187,9 +217,31 @@ function ApiKeyCard({
           {localMultiKeys.length > 0 && (
             <div className="multi-key-list">
               {localMultiKeys.map((keyEntry, index) => (
-                <div key={index} className="multi-key-item">
-                  <span className="multi-key-value">{maskKey(keyEntry.key)}</span>
-                  <button className="multi-key-remove-btn" onClick={() => handleRemoveKey(index)}>
+                <div key={index} className="multi-key-item" style={{ alignItems: 'flex-start' }}>
+                  <div
+                    className="multi-key-values"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
+                  >
+                    <span className="multi-key-value">
+                      {hasSecondField ? (
+                        <span style={{ opacity: 0.7, fontSize: '0.9em' }}>ID: </span>
+                      ) : (
+                        ''
+                      )}
+                      {maskKey(keyEntry.key)}
+                    </span>
+                    {hasSecondField && keyEntry.userId && (
+                      <span className="multi-key-value-secondary" style={{ fontSize: '0.9em' }}>
+                        <span style={{ opacity: 0.7 }}>Secret: </span>
+                        {maskKey(keyEntry.userId)}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    className="multi-key-remove-btn"
+                    onClick={() => handleRemoveKey(index)}
+                    style={{ marginTop: '4px' }}
+                  >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="14"
@@ -209,15 +261,34 @@ function ApiKeyCard({
           )}
 
           {/* Add New Key */}
-          <div className="add-key-row">
-            <input
-              type="text"
-              value={newKeyInput}
-              onChange={(e) => setNewKeyInput(e.target.value)}
-              placeholder="Add another API key..."
-              className="api-key-input"
-            />
-            <button className="add-key-btn" onClick={handleAddKey} disabled={!newKeyInput.trim()}>
+          <div className="add-key-row" style={{ alignItems: 'flex-start' }}>
+            <div
+              className="add-key-inputs"
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}
+            >
+              <input
+                type="text"
+                value={newKeyInput}
+                onChange={(e) => setNewKeyInput(e.target.value)}
+                placeholder={hasSecondField ? 'API Key (Client ID)' : 'Add another API key...'}
+                className="api-key-input"
+              />
+              {hasSecondField && (
+                <input
+                  type="text"
+                  value={newSecondKeyInput}
+                  onChange={(e) => setNewSecondKeyInput(e.target.value)}
+                  placeholder={secondFieldLabel || 'Client Secret'}
+                  className="api-key-input"
+                />
+              )}
+            </div>
+            <button
+              className="add-key-btn"
+              onClick={handleAddKey}
+              disabled={!newKeyInput.trim() || (hasSecondField && !newSecondKeyInput.trim())}
+              style={{ height: '40px', marginTop: '0' }}
+            >
               Add
             </button>
           </div>

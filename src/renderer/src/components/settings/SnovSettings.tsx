@@ -31,13 +31,13 @@ function SnovSettings(): JSX.Element {
 
   const handleSaveKey = async (key: string): Promise<boolean> => {
     // For Snov, the "key" field is the Client ID
-    const result = await window.api.setSnovCredentials(key, clientSecret)
+    const result = await window.api.setSnovClientId(key)
     setClientId(key)
     return result
   }
 
   const handleSaveSecondField = async (value: string): Promise<boolean> => {
-    const result = await window.api.setSnovCredentials(clientId, value)
+    const result = await window.api.setSnovClientSecret(value)
     setClientSecret(value)
     return result
   }

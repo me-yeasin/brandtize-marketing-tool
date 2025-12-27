@@ -119,6 +119,8 @@ export interface BrandtizeAPI {
   // Snov
   getSnovCredentials: () => Promise<{ clientId: string; clientSecret: string }>
   setSnovCredentials: (clientId: string, clientSecret: string) => Promise<boolean>
+  setSnovClientId: (clientId: string) => Promise<boolean>
+  setSnovClientSecret: (clientSecret: string) => Promise<boolean>
   getSnovApiKeys: () => Promise<ApiKeyEntry[]>
   setSnovApiKeys: (keys: ApiKeyEntry[]) => Promise<boolean>
 
