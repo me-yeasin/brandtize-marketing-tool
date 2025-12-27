@@ -289,6 +289,7 @@ export interface FacebookPageLead {
   intro: string | null
   adStatus: string | null
   createdAt: string | null
+  isBusinessPageActive: boolean
   score: 'gold' | 'silver' | 'bronze'
   savedAt?: number
   hasWhatsApp?: boolean | null

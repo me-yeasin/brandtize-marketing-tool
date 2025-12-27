@@ -1,10 +1,12 @@
 import { JSX, useEffect, useState } from 'react'
 import {
   FaCheck,
-  FaCopy, // Changed from FaXmark
+  FaChevronDown,
+  FaCopy,
   FaDownload,
   FaExternalLinkAlt,
   FaFacebook,
+  FaFilter,
   FaGlobe,
   FaLink,
   FaSearch,
@@ -32,6 +34,7 @@ interface FacebookPageLead {
   intro: string | null
   adStatus: string | null
   createdAt: string | null
+  isBusinessPageActive: boolean
   score: 'gold' | 'silver' | 'bronze'
   savedAt?: number
   hasWhatsApp?: boolean | null
@@ -46,7 +49,13 @@ function SocialLeadsPage(): JSX.Element {
   const [bulkUrls, setBulkUrls] = useState('')
   const [maxResults, setMaxResults] = useState(50)
 
-  // Filter state
+  // Advanced options state
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [minRating, setMinRating] = useState<number>(0)
+  const [minFollowers, setMinFollowers] = useState<number>(0)
+  const [activePagesOnly, setActivePagesOnly] = useState(false)
+
+  // Filter state (post-search filters)
   const [noWebsiteOnly, setNoWebsiteOnly] = useState(false)
   const [hasEmailOnly, setHasEmailOnly] = useState(false)
   const [hasPhoneOnly, setHasPhoneOnly] = useState(false)
@@ -92,6 +101,18 @@ function SocialLeadsPage(): JSX.Element {
   useEffect(() => {
     let filtered = [...leads]
 
+    // Advanced filters (rating, followers, active pages)
+    if (minRating > 0) {
+      filtered = filtered.filter((lead) => (lead.rating || 0) >= minRating)
+    }
+    if (minFollowers > 0) {
+      filtered = filtered.filter((lead) => lead.followers >= minFollowers)
+    }
+    if (activePagesOnly) {
+      filtered = filtered.filter((lead) => lead.isBusinessPageActive)
+    }
+
+    // Post-search filters
     if (noWebsiteOnly) {
       filtered = filtered.filter((lead) => !lead.website)
     }
@@ -103,7 +124,7 @@ function SocialLeadsPage(): JSX.Element {
     }
 
     setFilteredLeads(filtered)
-  }, [leads, noWebsiteOnly, hasEmailOnly, hasPhoneOnly])
+  }, [leads, noWebsiteOnly, hasEmailOnly, hasPhoneOnly, minRating, minFollowers, activePagesOnly])
 
   // Handle search
   const handleSearch = async (): Promise<void> => {
@@ -176,6 +197,7 @@ function SocialLeadsPage(): JSX.Element {
       'Likes',
       'Followers',
       'Rating',
+      'Active Page',
       'Score',
       'Facebook URL'
     ]
@@ -189,6 +211,7 @@ function SocialLeadsPage(): JSX.Element {
       lead.likes.toString(),
       lead.followers.toString(),
       lead.rating?.toString() || '',
+      lead.isBusinessPageActive ? 'Yes' : 'No',
       lead.score,
       lead.facebookUrl
     ])
@@ -287,7 +310,7 @@ function SocialLeadsPage(): JSX.Element {
                   <label>Search Query</label>
                   <input
                     type="text"
-                    placeholder="e.g., restaurants dhaka, beauty salons new york"
+                    placeholder="e.g., restaurants in dhaka, beauty salons new york"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -322,7 +345,86 @@ https://www.facebook.com/businesspage2"
               </div>
             )}
 
-            {/* Filters */}
+            {/* Advanced Options Toggle */}
+            <button
+              className="advanced-toggle"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              type="button"
+            >
+              <FaChevronDown
+                style={{
+                  transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s'
+                }}
+              />
+              {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+            </button>
+
+            {/* Advanced Options Panel */}
+            {showAdvanced && (
+              <div className="advanced-options">
+                <div className="advanced-options-row">
+                  {/* Minimum Rating */}
+                  <div className="scout-filter">
+                    <span>
+                      <FaStar style={{ color: '#fbbf24', marginRight: '4px' }} />
+                      Min rating
+                    </span>
+                    <select
+                      value={minRating}
+                      onChange={(e) => setMinRating(parseFloat(e.target.value))}
+                    >
+                      <option value={0}>Any</option>
+                      <option value={3}>3.0+</option>
+                      <option value={3.5}>3.5+</option>
+                      <option value={4}>4.0+</option>
+                      <option value={4.5}>4.5+</option>
+                    </select>
+                  </div>
+
+                  {/* Minimum Followers */}
+                  <div className="scout-filter">
+                    <span>Min followers</span>
+                    <select
+                      value={minFollowers}
+                      onChange={(e) => setMinFollowers(parseInt(e.target.value))}
+                    >
+                      <option value={0}>Any</option>
+                      <option value={100}>100+</option>
+                      <option value={500}>500+</option>
+                      <option value={1000}>1K+</option>
+                      <option value={5000}>5K+</option>
+                      <option value={10000}>10K+</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Pages Toggle */}
+                <label className="scout-toggle">
+                  <input
+                    type="checkbox"
+                    checked={activePagesOnly}
+                    onChange={(e) => setActivePagesOnly(e.target.checked)}
+                  />
+                  <span className="toggle-track"></span>
+                  <span>
+                    Active pages only{' '}
+                    <span className="option-hint">(pages currently running Facebook ads)</span>
+                  </span>
+                </label>
+
+                {/* Info Box */}
+                <div className="option-info">
+                  <FaFilter style={{ flexShrink: 0, marginTop: '2px', color: '#6366f1' }} />
+                  <span>
+                    Advanced filters help you find high-quality leads. Active pages are businesses
+                    actively investing in Facebook advertising.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Post-Search Filters */}
             <div className="scout-filters">
               <label className="scout-toggle">
                 <input
@@ -422,8 +524,13 @@ https://www.facebook.com/businesspage2"
                             {lead.title}
                           </h3>
                           <span className="lead-category" title={lead.categories.join(', ')}>
-                            {lead.categories[0]}
+                            {lead.categories[0] || 'Page'}
                           </span>
+                          {lead.isBusinessPageActive && (
+                            <span className="active-badge" title="Currently running Facebook ads">
+                              Active
+                            </span>
+                          )}
                         </div>
                         <p className="lead-address">
                           {lead.address ? (

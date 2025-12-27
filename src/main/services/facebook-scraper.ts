@@ -30,6 +30,7 @@ export interface FacebookPageLead {
   intro: string | null // Page description
   adStatus: string | null // Ad running status
   createdAt: string | null // Page creation date
+  isBusinessPageActive: boolean // Whether page is actively running ads
 
   // App-specific fields
   score: 'gold' | 'silver' | 'bronze' // Lead quality score
@@ -117,6 +118,8 @@ function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
     intro: (item.intro as string) || null,
     adStatus: (item.ad_status as string) || null,
     createdAt: (item.creation_date as string) || null,
+    isBusinessPageActive:
+      (item.pageAdLibrary as Record<string, unknown>)?.is_business_page_active === true,
 
     savedAt: undefined,
     hasWhatsApp: undefined
