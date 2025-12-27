@@ -1,5 +1,18 @@
 import { JSX, useEffect, useState } from 'react'
-import { FaFacebook } from 'react-icons/fa'
+import {
+  FaCheck,
+  FaCopy, // Changed from FaXmark
+  FaDownload,
+  FaExternalLinkAlt,
+  FaFacebook,
+  FaGlobe,
+  FaLink,
+  FaSearch,
+  FaStar,
+  FaTimes,
+  FaWhatsapp
+} from 'react-icons/fa'
+import { MdOutlineEmail, MdOutlineLocationOn, MdOutlinePhone } from 'react-icons/md'
 
 // Facebook Page Lead interface
 interface FacebookPageLead {
@@ -211,24 +224,7 @@ function SocialLeadsPage(): JSX.Element {
     return num.toString()
   }
 
-  // Get score badge color
-  const getScoreBadgeStyle = (
-    score: 'gold' | 'silver' | 'bronze'
-  ): { background: string; color: string } => {
-    switch (score) {
-      case 'gold':
-        return { background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff' }
-      case 'silver':
-        return { background: 'linear-gradient(135deg, #9ca3af, #6b7280)', color: '#fff' }
-      case 'bronze':
-        return { background: 'linear-gradient(135deg, #b45309, #92400e)', color: '#fff' }
-    }
-  }
-
   // Stats counts
-  const statsWithEmail = filteredLeads.filter((l) => l.email).length
-  const statsWithPhone = filteredLeads.filter((l) => l.phone).length
-  const statsNoWebsite = filteredLeads.filter((l) => !l.website).length
   const goldCount = filteredLeads.filter((l) => l.score === 'gold').length
   const silverCount = filteredLeads.filter((l) => l.score === 'silver').length
   const bronzeCount = filteredLeads.filter((l) => l.score === 'bronze').length
@@ -237,53 +233,16 @@ function SocialLeadsPage(): JSX.Element {
     <div className="scout-page">
       {/* Toast Notification */}
       {toast && (
-        <div
-          className="toast"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            zIndex: 1000,
-            background:
-              toast.type === 'error' ? '#ef4444' : toast.type === 'success' ? '#10b981' : '#6366f1',
-            color: '#fff',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
-          }}
-        >
-          {toast.message}
+        <div className={`toast-notification ${toast.type}`}>
+          <span>{toast.message}</span>
         </div>
       )}
 
       {/* Tabs */}
-      <div
-        className="tabs-container"
-        style={{
-          display: 'flex',
-          gap: '1rem',
-          borderBottom: '1px solid rgba(148, 163, 184, 0.1)',
-          marginBottom: '1.5rem',
-          paddingBottom: '0'
-        }}
-      >
+      <div className="tabs-container">
         <button
           className={`tab-btn ${activeTab === 'facebook-page' ? 'active' : ''}`}
           onClick={() => setActiveTab('facebook-page')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.75rem 1.5rem',
-            background: 'transparent',
-            border: 'none',
-            borderBottom:
-              activeTab === 'facebook-page' ? '2px solid #6366f1' : '2px solid transparent',
-            color: activeTab === 'facebook-page' ? '#f1f5f9' : '#94a3b8',
-            fontWeight: activeTab === 'facebook-page' ? 600 : 500,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
         >
           <FaFacebook />
           Facebook Page
@@ -292,81 +251,33 @@ function SocialLeadsPage(): JSX.Element {
 
       {/* Check Config */}
       {isCheckingConfig ? (
-        <div style={{ textAlign: 'center', padding: '3rem' }}>
-          <div className="loading-spinner"></div>
-          <p style={{ color: '#94a3b8', marginTop: '1rem' }}>Checking configuration...</p>
+        <div className="scout-loading">
+          <div className="scout-loading-spinner"></div>
+          <p>Checking configuration...</p>
         </div>
       ) : !isApifyConfigured ? (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '12px',
-            padding: '2rem',
-            textAlign: 'center'
-          }}
-        >
-          <FaFacebook size={48} style={{ color: '#ef4444', marginBottom: '1rem' }} />
-          <h3 style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>Apify API Key Required</h3>
-          <p style={{ color: '#94a3b8', marginBottom: '1rem' }}>
-            To scrape Facebook pages, please configure your Apify API key in Settings → API Keys →
-            Apify.
-          </p>
-          <p style={{ color: '#64748b', fontSize: '0.85rem' }}>
-            Get your free API key at{' '}
-            <a
-              href="https://console.apify.com/sign-up"
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: '#6366f1' }}
-            >
-              console.apify.com
-            </a>
-          </p>
+        <div className="scout-empty">
+          <FaFacebook className="scout-empty-icon" style={{ color: '#ef4444' }} />
+          <h3>Apify API Key Required</h3>
+          <p>To scrape Facebook pages, please configure your Apify API key in Settings.</p>
         </div>
       ) : (
         <>
           {/* Search Section */}
           <section className="scout-search">
             {/* Search Mode Toggle */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '0.5rem',
-                marginBottom: '1rem'
-              }}
-            >
+            <div className="mode-toggle">
               <button
+                className={searchMode === 'keyword' ? 'active' : ''}
                 onClick={() => setSearchMode('keyword')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background:
-                    searchMode === 'keyword' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(30, 41, 59, 0.5)',
-                  color: searchMode === 'keyword' ? '#818cf8' : '#94a3b8',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  fontSize: '0.85rem'
-                }}
               >
-                🔍 Search by Keyword
+                <FaSearch /> Search by Keyword
               </button>
               <button
+                className={searchMode === 'urls' ? 'active' : ''}
                 onClick={() => setSearchMode('urls')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background:
-                    searchMode === 'urls' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(30, 41, 59, 0.5)',
-                  color: searchMode === 'urls' ? '#818cf8' : '#94a3b8',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  fontSize: '0.85rem'
-                }}
               >
-                📋 Scrape URLs
+                <FaLink /> Scrape URLs
               </button>
             </div>
 
@@ -382,17 +293,20 @@ function SocialLeadsPage(): JSX.Element {
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
-                <div className="scout-field">
+                <div className="scout-field" style={{ maxWidth: '200px' }}>
                   <label>Max Results</label>
-                  <select
-                    value={maxResults}
-                    onChange={(e) => setMaxResults(parseInt(e.target.value))}
-                  >
-                    <option value={25}>25 pages (~$0.25)</option>
-                    <option value={50}>50 pages (~$0.50)</option>
-                    <option value={100}>100 pages (~$1.00)</option>
-                    <option value={200}>200 pages (~$2.00)</option>
-                  </select>
+                  <div className="custom-select-wrapper">
+                    <select
+                      value={maxResults}
+                      onChange={(e) => setMaxResults(parseInt(e.target.value))}
+                      className="custom-select"
+                    >
+                      <option value={25}>25 pages (~$0.25)</option>
+                      <option value={50}>50 pages (~$0.50)</option>
+                      <option value={100}>100 pages (~$1.00)</option>
+                      <option value={200}>200 pages (~$2.00)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -400,22 +314,10 @@ function SocialLeadsPage(): JSX.Element {
                 <label>Facebook Page URLs (one per line)</label>
                 <textarea
                   placeholder="https://www.facebook.com/businesspage1
-https://www.facebook.com/businesspage2
-https://www.facebook.com/businesspage3"
+https://www.facebook.com/businesspage2"
                   value={bulkUrls}
                   onChange={(e) => setBulkUrls(e.target.value)}
-                  style={{
-                    width: '100%',
-                    minHeight: '120px',
-                    resize: 'vertical',
-                    background: 'rgba(30, 41, 59, 0.5)',
-                    border: '1px solid rgba(148, 163, 184, 0.2)',
-                    borderRadius: '8px',
-                    color: '#f1f5f9',
-                    padding: '0.75rem',
-                    fontSize: '0.9rem',
-                    fontFamily: 'monospace'
-                  }}
+                  className="bulk-textarea"
                 />
               </div>
             )}
@@ -454,28 +356,22 @@ https://www.facebook.com/businesspage3"
               </button>
             </div>
 
-            {error && (
-              <div
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.75rem',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '6px',
-                  color: '#f87171'
-                }}
-              >
-                {error}
-              </div>
-            )}
+            {error && <div className="scout-error">{error}</div>}
           </section>
 
           {/* Results */}
           {isSearching && (
-            <div style={{ textAlign: 'center', padding: '3rem' }}>
-              <div className="loading-spinner"></div>
-              <p style={{ color: '#94a3b8', marginTop: '1rem' }}>
-                Scraping Facebook pages... This may take a few minutes.
+            <div className="scout-empty">
+              <div
+                className="scout-loading-spinner"
+                style={{ width: '60px', height: '60px' }}
+              ></div>
+              <h3 style={{ marginTop: '1.5rem', fontSize: '1.25rem', color: '#f1f5f9' }}>
+                Scraping Facebook Data...
+              </h3>
+              <p style={{ color: '#94a3b8', maxWidth: '400px' }}>
+                Please wait while we gather business information. This may take a moment depending
+                on the number of results.
               </p>
             </div>
           )}
@@ -483,308 +379,153 @@ https://www.facebook.com/businesspage3"
           {hasSearched && !isSearching && (
             <>
               {/* Stats Bar */}
-              <div
-                className="stats-bar"
-                style={{
-                  display: 'flex',
-                  gap: '1rem',
-                  flexWrap: 'wrap',
-                  marginBottom: '1.5rem'
-                }}
-              >
-                <div className="stat-item">
-                  <span className="stat-label">Total</span>
-                  <span className="stat-value">{filteredLeads.length}</span>
+              <div className="scout-summary">
+                <div className="scout-summary-left">
+                  <span className="scout-count">{filteredLeads.length} leads</span>
+                  <div className="scout-badges">
+                    <span className="badge gold">{goldCount} gold</span>
+                    <span className="badge silver">{silverCount} silver</span>
+                    <span className="badge bronze">{bronzeCount} bronze</span>
+                  </div>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-label">With Email</span>
-                  <span className="stat-value" style={{ color: '#10b981' }}>
-                    {statsWithEmail}
-                  </span>
+                <div className="scout-actions">
+                  <button
+                    className="scout-btn outline"
+                    onClick={handleExport}
+                    disabled={filteredLeads.length === 0}
+                  >
+                    <FaDownload /> Export CSV
+                  </button>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-label">With Phone</span>
-                  <span className="stat-value" style={{ color: '#6366f1' }}>
-                    {statsWithPhone}
-                  </span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">No Website</span>
-                  <span className="stat-value" style={{ color: '#f59e0b' }}>
-                    {statsNoWebsite}
-                  </span>
-                </div>
-                <div className="stat-divider"></div>
-                <div className="stat-item">
-                  <span className="stat-label">🥇 Gold</span>
-                  <span className="stat-value">{goldCount}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">🥈 Silver</span>
-                  <span className="stat-value">{silverCount}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">🥉 Bronze</span>
-                  <span className="stat-value">{bronzeCount}</span>
-                </div>
-
-                <button
-                  onClick={handleExport}
-                  disabled={filteredLeads.length === 0}
-                  style={{
-                    marginLeft: 'auto',
-                    padding: '0.5rem 1rem',
-                    background: 'rgba(16, 185, 129, 0.1)',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                    borderRadius: '6px',
-                    color: '#10b981',
-                    cursor: filteredLeads.length === 0 ? 'not-allowed' : 'pointer',
-                    fontWeight: 500,
-                    opacity: filteredLeads.length === 0 ? 0.5 : 1
-                  }}
-                >
-                  📥 Export CSV
-                </button>
               </div>
 
               {/* Results List */}
               {filteredLeads.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '3rem',
-                    background: 'rgba(30, 41, 59, 0.5)',
-                    borderRadius: '12px'
-                  }}
-                >
-                  <p style={{ color: '#94a3b8' }}>
-                    No results match your filters. Try adjusting the filter options.
-                  </p>
+                <div className="scout-empty">
+                  <div className="scout-empty-icon">
+                    <FaSearch />
+                  </div>
+                  <h3>No Leads Found</h3>
+                  <p>Try adjusting your filters or search terms</p>
                 </div>
               ) : (
-                <div
-                  className="leads-grid"
-                  style={{
-                    display: 'grid',
-                    gap: '1rem',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))'
-                  }}
-                >
-                  {filteredLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      className="lead-card"
-                      style={{
-                        background: 'rgba(30, 41, 59, 0.6)',
-                        border: '1px solid rgba(148, 163, 184, 0.1)',
-                        borderRadius: '12px',
-                        padding: '1.25rem',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {/* Header */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          marginBottom: '1rem'
-                        }}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h3
-                            style={{
-                              fontSize: '1.1rem',
-                              fontWeight: 600,
-                              color: '#f1f5f9',
-                              marginBottom: '0.25rem',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
+                <div className="scout-leads">
+                  {filteredLeads.map((lead, index) => (
+                    <div key={`${lead.id}-${index}`} className={`scout-lead ${lead.score}`}>
+                      {/* Left: Score indicator */}
+                      <div className={`lead-indicator ${lead.score}`}></div>
+
+                      {/* Main Content */}
+                      <div className="lead-main">
+                        <div className="lead-top">
+                          <h3 className="lead-name" title={lead.title}>
                             {lead.title}
                           </h3>
-                          <p
-                            style={{
-                              fontSize: '0.85rem',
-                              color: '#94a3b8'
-                            }}
-                          >
-                            {lead.categories.slice(0, 2).join(' • ')}
-                          </p>
+                          <span className="lead-category" title={lead.categories.join(', ')}>
+                            {lead.categories[0]}
+                          </span>
                         </div>
-                        <span
-                          style={{
-                            ...getScoreBadgeStyle(lead.score),
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '12px',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            textTransform: 'uppercase'
-                          }}
-                        >
-                          {lead.score}
-                        </span>
+                        <p className="lead-address">
+                          {lead.address ? (
+                            <>
+                              <MdOutlineLocationOn
+                                style={{
+                                  display: 'inline',
+                                  verticalAlign: 'text-bottom',
+                                  marginRight: '4px'
+                                }}
+                              />
+                              {lead.address}
+                            </>
+                          ) : (
+                            'No address available'
+                          )}
+                        </p>
                       </div>
 
-                      {/* Contact Info */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.5rem',
-                          marginBottom: '1rem'
-                        }}
-                      >
-                        {lead.email && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.5rem',
-                              padding: '0.5rem',
-                              background: 'rgba(16, 185, 129, 0.1)',
-                              borderRadius: '6px'
-                            }}
-                          >
-                            <span style={{ color: '#10b981' }}>✉️</span>
-                            <span
-                              style={{
-                                color: '#10b981',
-                                flex: 1,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
+                      {/* Stats */}
+                      <div className="lead-stats">
+                        <div className="lead-stat">
+                          <span className="stat-value">
+                            <FaStar className="star full" style={{ marginRight: '4px' }} />
+                            {lead.rating || 'N/A'}
+                          </span>
+                          <span className="stat-label">
+                            ({lead.ratingCount || 0} reviews) • {formatNumber(lead.followers)}{' '}
+                            followers
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Contact */}
+                      <div className="lead-contact">
+                        {lead.phone ? (
+                          <span className="contact-phone-wrapper">
+                            <span className="contact-phone">
+                              <MdOutlinePhone style={{ marginRight: '4px' }} />
+                              {lead.phone}
+                            </span>
+                            <button
+                              className="copy-btn"
+                              onClick={() => copyToClipboard(lead.phone!, 'Phone')}
+                              title="Copy Phone"
                             >
+                              <FaCopy />
+                            </button>
+                            <button
+                              className="whatsapp-btn"
+                              onClick={() =>
+                                window.api.openExternalUrl(
+                                  `https://wa.me/${lead.phone!.replace(/[^0-9]/g, '')}`
+                                )
+                              }
+                              title="Message on WhatsApp"
+                            >
+                              <FaWhatsapp />
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="contact-no-phone">
+                            <FaTimes style={{ marginRight: '4px' }} /> No phone
+                          </span>
+                        )}
+
+                        {lead.email ? (
+                          <span className="contact-email-wrapper">
+                            <span className="contact-email" title={lead.email}>
+                              <MdOutlineEmail style={{ marginRight: '4px' }} />
                               {lead.email}
                             </span>
                             <button
+                              className="copy-btn"
                               onClick={() => copyToClipboard(lead.email!, 'Email')}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#10b981',
-                                cursor: 'pointer',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem'
-                              }}
+                              title="Copy Email"
                             >
-                              Copy
+                              <FaCopy />
                             </button>
-                          </div>
-                        )}
-                        {lead.phone && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.5rem',
-                              padding: '0.5rem',
-                              background: 'rgba(99, 102, 241, 0.1)',
-                              borderRadius: '6px'
-                            }}
-                          >
-                            <span style={{ color: '#818cf8' }}>📞</span>
-                            <span style={{ color: '#818cf8', flex: 1 }}>{lead.phone}</span>
-                            <button
-                              onClick={() => copyToClipboard(lead.phone!, 'Phone')}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#818cf8',
-                                cursor: 'pointer',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem'
-                              }}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        )}
-                        {!lead.website && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.5rem',
-                              padding: '0.5rem',
-                              background: 'rgba(245, 158, 11, 0.1)',
-                              borderRadius: '6px'
-                            }}
-                          >
-                            <span style={{ color: '#f59e0b' }}>🌐</span>
-                            <span style={{ color: '#f59e0b', fontSize: '0.85rem' }}>
-                              No website - needs your services!
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                          </span>
+                        ) : null}
 
-                      {/* Engagement Stats */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '1rem',
-                          marginBottom: '1rem',
-                          fontSize: '0.85rem',
-                          color: '#94a3b8'
-                        }}
-                      >
-                        <span>👍 {formatNumber(lead.likes)}</span>
-                        <span>👥 {formatNumber(lead.followers)}</span>
-                        {lead.rating && <span>⭐ {lead.rating}%</span>}
+                        {!lead.website ? (
+                          <span className="contact-no-web">
+                            <FaGlobe style={{ marginRight: '4px' }} /> No website
+                          </span>
+                        ) : (
+                          <span className="contact-has-web">
+                            <FaCheck style={{ marginRight: '4px' }} /> Has website
+                          </span>
+                        )}
                       </div>
 
                       {/* Actions */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '0.5rem',
-                          flexWrap: 'wrap'
-                        }}
-                      >
+                      <div className="lead-actions">
                         <button
+                          className="lead-action"
+                          title="Open Facebook Page"
                           onClick={() => openFacebookPage(lead.facebookUrl)}
-                          style={{
-                            padding: '0.5rem 1rem',
-                            background: 'linear-gradient(135deg, #1877f2, #3b82f6)',
-                            border: 'none',
-                            borderRadius: '6px',
-                            color: '#fff',
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            fontSize: '0.85rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                          }}
                         >
-                          <FaFacebook /> Open Page
+                          <FaExternalLinkAlt />
                         </button>
-                        {lead.phone && (
-                          <button
-                            onClick={() =>
-                              window.api.openExternalUrl(
-                                `https://wa.me/${lead.phone!.replace(/[^0-9]/g, '')}`
-                              )
-                            }
-                            style={{
-                              padding: '0.5rem 1rem',
-                              background: 'linear-gradient(135deg, #25d366, #128c7e)',
-                              border: 'none',
-                              borderRadius: '6px',
-                              color: '#fff',
-                              cursor: 'pointer',
-                              fontWeight: 500,
-                              fontSize: '0.85rem'
-                            }}
-                          >
-                            WhatsApp
-                          </button>
-                        )}
                       </div>
                     </div>
                   ))}
