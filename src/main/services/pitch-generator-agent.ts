@@ -201,7 +201,8 @@ async function generatePitchNode(
   // Shared Contexts
   let exampleContext = ''
   if (lead.examples && lead.examples.length > 0) {
-    exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, and length (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+    exampleContext = `\n\nRefer to these EXAMPLE PITCHES for style, tone, length, and MARKDOWN FORMATTING (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+    exampleContext += `\nSTYLE & FORMATTING INSTRUCTION: Carefully analyze how the examples use Markdown (Bold *, Italic _, Lists, Quotes). You MUST replicate this specific formatting style. e.g. If specific words or Links are bolded in the examples, bold them in your output.`
   }
 
   let personaContext = ''
@@ -219,7 +220,8 @@ async function generatePitchNode(
    - REPLACE that single placeholder with ALL available links.
    - Format: Vertical list (New line for each URL).
 3. INTELLIGENT REPLACEMENT: Replace placeholders with raw HTTP URLs (e.g., https://site.com).
-4. NO BRACKETS: Do not wrap the final URLs in brackets.`
+4. NO BRACKETS: Do not wrap the final URLs in brackets.
+5. MARKDOWN FORMATTING: If the "Reference Examples" (or user instruction) wrap links in bold (*) or other markdown, you MUST apply the same markdown wrapper to these inserted links.`
   }
 
   let prompt = ''
@@ -450,7 +452,8 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
 
   let exampleContext = ''
   if (lead.examples && lead.examples.length > 0) {
-    exampleContext = `\n\nReference Examples (Mimic this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
+    exampleContext = `\n\nReference Examples (Mimic this style AND MARKDOWN FORMATTING):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
+    exampleContext += `\nSTYLE & FORMATTING INSTRUCTION: Carefully analyze how the examples use Markdown (Bold *, Italic _, Lists, Quotes). You MUST replicate this specific formatting style. e.g. If specific words or Links are bolded in the examples, bold them in your output.`
   }
 
   let productLinksContext = ''
@@ -461,7 +464,8 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
    - If user defines specific spots ("Link 1", "Link 2"): Fill those specific spots.
    - If user uses GENERIC placeholder ("[Link]"): Replace it with ALL available links (one per line).
 2. QUANTITY: If using generic mode, you MUST include ALL ${lead.productLinks.length} available links.
-3. FORMATTING: Put EACH URL on its own line. No brackets.`
+3. FORMATTING: Put EACH URL on its own line. No brackets.
+4. MARKDOWN MATCHING: If the Reference Examples wrap links in markdown (like *http...* or _http..._), you MUST wrap your inserted links in the same way.`
   }
 
   const prompt = `Improve this WhatsApp message based on the feedback:
