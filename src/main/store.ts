@@ -196,12 +196,14 @@ interface StoreSchema {
   jinaApiKey: string
   snovClientId: string
   snovClientSecret: string
+  apifyApiKey: string // Apify API key for Facebook scraping
   // Multi-key arrays for rotation
   serperApiKeys: ApiKeyEntry[]
   jinaApiKeys: ApiKeyEntry[]
   hunterApiKeys: ApiKeyEntry[]
   reoonApiKeys: ApiKeyEntry[]
   snovApiKeys: ApiKeyEntry[] // Each entry has key (clientId) + userId (clientSecret)
+  apifyApiKeys: ApiKeyEntry[] // Apify API keys for rotation
   // AI Provider multi-key arrays for rotation
   groqApiKeys: ApiKeyEntry[]
   mistralApiKeys: ApiKeyEntry[]
@@ -238,12 +240,14 @@ const store = new Store<StoreSchema>({
     jinaApiKey: '',
     snovClientId: '',
     snovClientSecret: '',
+    apifyApiKey: '',
     // Multi-key arrays (empty by default)
     serperApiKeys: [],
     jinaApiKeys: [],
     hunterApiKeys: [],
     reoonApiKeys: [],
     snovApiKeys: [],
+    apifyApiKeys: [],
     // AI Provider multi-key arrays
     groqApiKeys: [],
     mistralApiKeys: [],
@@ -466,6 +470,23 @@ export function getSnovApiKeys(): ApiKeyEntry[] {
 
 export function setSnovApiKeys(keys: ApiKeyEntry[]): void {
   store.set('snovApiKeys', keys)
+}
+
+// Apify API key getters and setters
+export function getApifyApiKey(): string {
+  return store.get('apifyApiKey', '')
+}
+
+export function setApifyApiKey(key: string): void {
+  store.set('apifyApiKey', key)
+}
+
+export function getApifyApiKeys(): ApiKeyEntry[] {
+  return store.get('apifyApiKeys', [])
+}
+
+export function setApifyApiKeys(keys: ApiKeyEntry[]): void {
+  store.set('apifyApiKeys', keys)
 }
 
 // AI Provider multi-key getters and setters

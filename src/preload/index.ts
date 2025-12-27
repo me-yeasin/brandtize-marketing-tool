@@ -317,5 +317,69 @@ contextBridge.exposeInMainWorld('api', {
     }) => void
   ): void => {
     ipcRenderer.on('pitch-generation-status', (_event, status) => callback(status))
-  }
+  },
+
+  // ========================================
+  // APIFY
+  // ========================================
+  getApifyApiKey: (): Promise<string> => ipcRenderer.invoke('get-apify-api-key'),
+  setApifyApiKey: (key: string): Promise<boolean> => ipcRenderer.invoke('set-apify-api-key', key),
+  getApifyApiKeys: (): Promise<ApiKeyEntry[]> => ipcRenderer.invoke('get-apify-api-keys'),
+  setApifyApiKeys: (keys: ApiKeyEntry[]): Promise<boolean> =>
+    ipcRenderer.invoke('set-apify-api-keys', keys),
+
+  // ========================================
+  // FACEBOOK SCRAPER (via Apify)
+  // ========================================
+  searchFacebookPages: (params: {
+    searchQuery?: string
+    pageUrls?: string[]
+    maxResults?: number
+  }): Promise<
+    {
+      id: string
+      facebookUrl: string
+      title: string
+      categories: string[]
+      email: string | null
+      phone: string | null
+      website: string | null
+      address: string | null
+      messenger: string | null
+      likes: number
+      followers: number
+      rating: number | null
+      ratingCount: number | null
+      intro: string | null
+      adStatus: string | null
+      createdAt: string | null
+      score: 'gold' | 'silver' | 'bronze'
+    }[]
+  > => ipcRenderer.invoke('search-facebook-pages', params),
+
+  scrapeFacebookPageUrls: (
+    urls: string[]
+  ): Promise<
+    {
+      id: string
+      facebookUrl: string
+      title: string
+      categories: string[]
+      email: string | null
+      phone: string | null
+      website: string | null
+      address: string | null
+      messenger: string | null
+      likes: number
+      followers: number
+      rating: number | null
+      ratingCount: number | null
+      intro: string | null
+      adStatus: string | null
+      createdAt: string | null
+      score: 'gold' | 'silver' | 'bronze'
+    }[]
+  > => ipcRenderer.invoke('scrape-facebook-page-urls', urls),
+
+  isApifyConfigured: (): Promise<boolean> => ipcRenderer.invoke('is-apify-configured')
 })

@@ -124,6 +124,12 @@ export interface BrandtizeAPI {
   getSnovApiKeys: () => Promise<ApiKeyEntry[]>
   setSnovApiKeys: (keys: ApiKeyEntry[]) => Promise<boolean>
 
+  // Apify
+  getApifyApiKey: () => Promise<string>
+  setApifyApiKey: (key: string) => Promise<boolean>
+  getApifyApiKeys: () => Promise<ApiKeyEntry[]>
+  setApifyApiKeys: (keys: ApiKeyEntry[]) => Promise<boolean>
+
   // AI Provider Selection
   getSelectedAiProvider: () => Promise<'groq' | 'mistral' | 'google'>
   setSelectedAiProvider: (provider: 'groq' | 'mistral' | 'google') => Promise<boolean>
@@ -201,6 +207,15 @@ export interface BrandtizeAPI {
   // WhatsApp Pitch Generator
   generateWhatsAppPitch: (input: PitchGenerationInput) => Promise<PitchGenerationResult>
   onPitchGenerationStatus: (callback: (status: PitchGenerationStatus) => void) => void
+
+  // Facebook Scraper (via Apify)
+  searchFacebookPages: (params: {
+    searchQuery?: string
+    pageUrls?: string[]
+    maxResults?: number
+  }) => Promise<FacebookPageLead[]>
+  scrapeFacebookPageUrls: (urls: string[]) => Promise<FacebookPageLead[]>
+  isApifyConfigured: () => Promise<boolean>
 }
 
 // Saved Maps Lead type
@@ -254,6 +269,29 @@ export interface ReviewsResult {
   totalReviews: number
   averageRating: number
   reviews: Review[]
+}
+
+// Facebook Page Lead type (from Apify Facebook Scraper)
+export interface FacebookPageLead {
+  id: string
+  facebookUrl: string
+  title: string
+  categories: string[]
+  email: string | null
+  phone: string | null
+  website: string | null
+  address: string | null
+  messenger: string | null
+  likes: number
+  followers: number
+  rating: number | null
+  ratingCount: number | null
+  intro: string | null
+  adStatus: string | null
+  createdAt: string | null
+  score: 'gold' | 'silver' | 'bronze'
+  savedAt?: number
+  hasWhatsApp?: boolean | null
 }
 
 declare global {

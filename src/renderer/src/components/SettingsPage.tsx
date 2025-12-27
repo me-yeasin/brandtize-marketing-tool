@@ -1,6 +1,7 @@
 import { JSX, useState } from 'react'
 import {
   AIHubSettings,
+  ApifySettings,
   GeminiSettings,
   GroqSettings,
   HunterSettings,
@@ -251,6 +252,25 @@ const settingsNavigationGroups: SettingsNavGroup[] = [
             <line x1="22" y1="11" x2="16" y2="11"></line>
           </svg>
         )
+      },
+      {
+        id: 'apify',
+        label: 'Apify',
+        icon: (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+          </svg>
+        )
       }
     ]
   },
@@ -424,6 +444,7 @@ function SettingsPage({ onBack }: SettingsPageProps): JSX.Element {
         {activeSettingsRoute === 'hunter' && <HunterSettings />}
         {activeSettingsRoute === 'reoon' && <ReoonSettings />}
         {activeSettingsRoute === 'snov' && <SnovSettings />}
+        {activeSettingsRoute === 'apify' && <ApifySettings />}
         {(activeSettingsRoute === 'agency-profile' || activeSettingsRoute === 'voice-profile') && (
           <div className="settings-content-inner">
             <h1>Coming Soon</h1>

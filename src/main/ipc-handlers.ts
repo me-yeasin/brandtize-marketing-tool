@@ -11,6 +11,8 @@ import {
   deleteWhatsappCampaign,
   deleteWhatsappCampaignGroup,
   getApiKeys,
+  getApifyApiKey,
+  getApifyApiKeys,
   getGoogleApiKeys,
   // Multi-key getters/setters
   getGroqApiKeys,
@@ -30,6 +32,8 @@ import {
   saveMapsLeads,
   saveWhatsappCampaign,
   saveWhatsappCampaignGroup,
+  setApifyApiKey,
+  setApifyApiKeys,
   setGoogleApiKey,
   setGoogleApiKeys,
   setGroqApiKey,
@@ -257,6 +261,55 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('set-selected-ai-provider', (_event, provider: AiProvider) => {
     setSelectedAiProvider(provider)
     return true
+  })
+
+  // ========================================
+  // APIFY
+  // ========================================
+  ipcMain.handle('get-apify-api-key', () => {
+    return getApifyApiKey()
+  })
+
+  ipcMain.handle('set-apify-api-key', (_event, key: string) => {
+    setApifyApiKey(key)
+    return true
+  })
+
+  ipcMain.handle('get-apify-api-keys', () => {
+    return getApifyApiKeys()
+  })
+
+  ipcMain.handle('set-apify-api-keys', (_event, keys: ApiKeyEntry[]) => {
+    setApifyApiKeys(keys)
+    return true
+  })
+
+  // ========================================
+  // FACEBOOK SCRAPER (via Apify)
+  // ========================================
+  ipcMain.handle(
+    'search-facebook-pages',
+    async (
+      _event,
+      params: {
+        searchQuery?: string
+        pageUrls?: string[]
+        maxResults?: number
+      }
+    ) => {
+      const { searchFacebookPages } = await import('./services/facebook-scraper')
+      return searchFacebookPages(params)
+    }
+  )
+
+  ipcMain.handle('scrape-facebook-page-urls', async (_event, urls: string[]) => {
+    const { scrapeFacebookPageUrls } = await import('./services/facebook-scraper')
+    return scrapeFacebookPageUrls(urls)
+  })
+
+  ipcMain.handle('is-apify-configured', async () => {
+    const { isApifyConfigured } = await import('./services/facebook-scraper')
+    return isApifyConfigured()
   })
 
   // ========================================

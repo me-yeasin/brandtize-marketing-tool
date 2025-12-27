@@ -1,4 +1,5 @@
 export { default as AIHubSettings } from './AIHubSettings'
+export { default as ApifySettings } from './ApifySettings'
 export { default as ApiKeyCard } from './ApiKeyCard'
 export { default as GeminiSettings } from './GeminiSettings'
 export { default as GroqSettings } from './GroqSettings'
