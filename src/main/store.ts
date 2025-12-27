@@ -808,4 +808,84 @@ export function deleteWhatsappCampaignGroup(id: string): void {
   store.set('whatsappCampaigns', updatedCampaigns)
 }
 
+// Mail Campaign Type
+export interface MailCampaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  buyerPersona?: string // Optional buyer persona
+  examples?: string[] // Optional example pitches
+  productLinks?: string[] // Optional product or portfolio links
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
+  platform: 'mail'
+  groupId?: string // Optional group association
+  createdAt: number
+  updatedAt: number
+}
+
+// Mail Campaigns Functions
+export function getMailCampaigns(): MailCampaign[] {
+  return store.get('mailCampaigns', [])
+}
+
+export function saveMailCampaign(campaign: MailCampaign): void {
+  const campaigns = getMailCampaigns()
+  const existingIndex = campaigns.findIndex((c) => c.id === campaign.id)
+
+  if (existingIndex >= 0) {
+    // Update existing
+    campaigns[existingIndex] = { ...campaign, updatedAt: Date.now() }
+  } else {
+    // Add new
+    const newCampaign = {
+      ...campaign,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    campaigns.push(newCampaign)
+  }
+  store.set('mailCampaigns', campaigns)
+}
+
+export function deleteMailCampaign(id: string): void {
+  const campaigns = getMailCampaigns().filter((c) => c.id !== id)
+  store.set('mailCampaigns', campaigns)
+}
+
+// Mail Campaign Groups Functions
+export function getMailCampaignGroups(): CampaignGroup[] {
+  return store.get('mailCampaignGroups', [])
+}
+
+export function saveMailCampaignGroup(group: CampaignGroup): void {
+  const groups = getMailCampaignGroups()
+  const existingIndex = groups.findIndex((g) => g.id === group.id)
+
+  if (existingIndex >= 0) {
+    // Update existing
+    groups[existingIndex] = { ...group, updatedAt: Date.now() }
+  } else {
+    // Add new
+    const newGroup = {
+      ...group,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    groups.push(newGroup)
+  }
+  store.set('mailCampaignGroups', groups)
+}
+
+export function deleteMailCampaignGroup(id: string): void {
+  const groups = getMailCampaignGroups().filter((g) => g.id !== id)
+  store.set('mailCampaignGroups', groups)
+
+  // Remove group association from campaigns
+  const campaigns = getMailCampaigns()
+  const updatedCampaigns = campaigns.map((c) =>
+    c.groupId === id ? { ...c, groupId: undefined } : c
+  )
+  store.set('mailCampaigns', updatedCampaigns)
+}
+
 export { store }

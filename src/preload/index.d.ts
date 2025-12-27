@@ -59,6 +59,20 @@ export interface Campaign {
   updatedAt: number
 }
 
+export interface MailCampaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  buyerPersona?: string // Optional buyer persona for better targeting
+  examples?: string[] // Optional example pitches for few-shot learning
+  productLinks?: string[] // Optional product or portfolio links
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
+  platform: 'mail'
+  groupId?: string // Optional group association
+  createdAt: number
+  updatedAt: number
+}
+
 // API interface for renderer
 export interface BrandtizeAPI {
   // Get all API keys
@@ -187,6 +201,16 @@ export interface BrandtizeAPI {
   getWhatsappCampaignGroups: () => Promise<CampaignGroup[]>
   saveWhatsappCampaignGroup: (group: CampaignGroup) => Promise<{ success: boolean }>
   deleteWhatsappCampaignGroup: (id: string) => Promise<{ success: boolean }>
+
+  // Mail Campaigns
+  getMailCampaigns: () => Promise<MailCampaign[]>
+  saveMailCampaign: (campaign: MailCampaign) => Promise<{ success: boolean }>
+  deleteMailCampaign: (id: string) => Promise<{ success: boolean }>
+
+  // Mail Campaign Groups
+  getMailCampaignGroups: () => Promise<CampaignGroup[]>
+  saveMailCampaignGroup: (group: CampaignGroup) => Promise<{ success: boolean }>
+  deleteMailCampaignGroup: (id: string) => Promise<{ success: boolean }>
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void) => void

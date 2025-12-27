@@ -78,6 +78,21 @@ export interface Campaign {
   updatedAt: number
 }
 
+// Mail Campaign Type
+export interface MailCampaign {
+  id: string
+  name: string
+  instruction: string // Instructions for the AI pitch generator
+  buyerPersona?: string // Optional buyer persona
+  examples?: string[] // Optional example pitches
+  productLinks?: string[] // Optional product or portfolio links
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
+  platform: 'mail'
+  groupId?: string // Optional group association
+  createdAt: number
+  updatedAt: number
+}
+
 // Expose API to renderer
 contextBridge.exposeInMainWorld('api', {
   // ========================================
@@ -275,6 +290,21 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('save-whatsapp-campaign-group', group),
   deleteWhatsappCampaignGroup: (id: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('delete-whatsapp-campaign-group', id),
+
+  // Mail Campaigns
+  getMailCampaigns: (): Promise<MailCampaign[]> => ipcRenderer.invoke('get-mail-campaigns'),
+  saveMailCampaign: (campaign: MailCampaign): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('save-mail-campaign', campaign),
+  deleteMailCampaign: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('delete-mail-campaign', id),
+
+  // Mail Campaign Groups
+  getMailCampaignGroups: (): Promise<CampaignGroup[]> =>
+    ipcRenderer.invoke('get-mail-campaign-groups'),
+  saveMailCampaignGroup: (group: CampaignGroup): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('save-mail-campaign-group', group),
+  deleteMailCampaignGroup: (id: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('delete-mail-campaign-group', id),
 
   // WhatsApp event listeners
   onWhatsAppQr: (callback: (qr: string) => void): void => {

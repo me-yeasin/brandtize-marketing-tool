@@ -1,5 +1,14 @@
 import { JSX, useEffect, useState } from 'react'
-import { FaEdit, FaFolder, FaPlus, FaSave, FaTimes, FaTrash, FaWhatsapp } from 'react-icons/fa'
+import {
+  FaEdit,
+  FaEnvelope,
+  FaFolder,
+  FaPlus,
+  FaSave,
+  FaTimes,
+  FaTrash,
+  FaWhatsapp
+} from 'react-icons/fa'
 // Campaign is defined locally to avoid import issues
 type TabType = 'mail' | 'whatsapp' | 'telegram'
 
@@ -20,6 +29,20 @@ interface Campaign {
   productLinks?: string[]
   language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
   platform: 'whatsapp'
+  groupId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface MailCampaign {
+  id: string
+  name: string
+  instruction: string
+  buyerPersona?: string
+  examples?: string[]
+  productLinks?: string[]
+  language: 'en' | 'bn' // Language for pitch generation (English or Bangla)
+  platform: 'mail'
   groupId?: string
   createdAt: number
   updatedAt: number
@@ -1755,6 +1778,1120 @@ function WhatsAppCampaigns(): JSX.Element {
   )
 }
 
+// ============================================
+// MAIL CAMPAIGNS COMPONENT
+// ============================================
+
+function MailCampaigns(): JSX.Element {
+  const [view, setView] = useState<'list' | 'editor' | 'group-editor'>('list')
+  const [activeTab, setActiveTab] = useState<'campaigns' | 'groups'>('campaigns')
+  const [campaigns, setCampaigns] = useState<MailCampaign[]>([])
+  const [campaignGroups, setCampaignGroups] = useState<CampaignGroup[]>([])
+  const [currentCampaign, setCurrentCampaign] = useState<Partial<MailCampaign>>({})
+  const [currentGroup, setCurrentGroup] = useState<Partial<CampaignGroup>>({})
+  const [loading, setLoading] = useState(false)
+
+  // Load campaigns on mount
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async (): Promise<void> => {
+    setLoading(true)
+    try {
+      const [campaignsData, groupsData] = await Promise.all([
+        window.api.getMailCampaigns(),
+        window.api.getMailCampaignGroups()
+      ])
+      setCampaigns(campaignsData.filter((c) => c.platform === 'mail'))
+      setCampaignGroups(groupsData)
+    } catch (error) {
+      console.error('Failed to load mail data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreate = (): void => {
+    setCurrentCampaign({
+      name: '',
+      instruction: '',
+      buyerPersona: '',
+      examples: [],
+      productLinks: [],
+      language: 'en',
+      platform: 'mail'
+    })
+    setView('editor')
+  }
+
+  const handleEdit = (campaign: MailCampaign): void => {
+    setCurrentCampaign({ ...campaign })
+    setView('editor')
+  }
+
+  const handleDelete = async (id: string): Promise<void> => {
+    if (confirm('Are you sure you want to delete this campaign?')) {
+      await window.api.deleteMailCampaign(id)
+      loadData()
+    }
+  }
+
+  // Group management functions
+  const handleCreateGroup = (): void => {
+    setCurrentGroup({
+      name: '',
+      description: ''
+    })
+    setView('group-editor')
+  }
+
+  const handleEditGroup = (group: CampaignGroup): void => {
+    setCurrentGroup({ ...group })
+    setView('group-editor')
+  }
+
+  const handleDeleteGroup = async (id: string): Promise<void> => {
+    if (
+      confirm(
+        'Are you sure you want to delete this group? Campaigns in this group will become ungrouped.'
+      )
+    ) {
+      await window.api.deleteMailCampaignGroup(id)
+      loadData()
+    }
+  }
+
+  const handleSaveGroup = async (): Promise<void> => {
+    if (!currentGroup.name) {
+      alert('Please fill in the group name.')
+      return
+    }
+
+    try {
+      const id =
+        currentGroup.id ||
+        (window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+
+      const groupToSave: CampaignGroup = {
+        id,
+        name: currentGroup.name,
+        description: currentGroup.description,
+        createdAt: currentGroup.createdAt || Date.now(),
+        updatedAt: Date.now()
+      }
+
+      await window.api.saveMailCampaignGroup(groupToSave)
+      setView('list')
+      loadData()
+    } catch (err) {
+      console.error('Error saving group:', err)
+      alert('Failed to save group. Check console for details.')
+    }
+  }
+
+  const handleSave = async (): Promise<void> => {
+    console.log('Saving mail campaign...', currentCampaign)
+    if (!currentCampaign.name) {
+      alert('Please fill in the Campaign Name.')
+      return
+    }
+
+    try {
+      const id =
+        currentCampaign.id ||
+        (window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : `camp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+
+      const campaignToSave: MailCampaign = {
+        id,
+        name: currentCampaign.name,
+        instruction: currentCampaign.instruction || '',
+        buyerPersona: currentCampaign.buyerPersona || undefined,
+        examples: currentCampaign.examples || [],
+        productLinks: currentCampaign.productLinks || [],
+        language: currentCampaign.language || 'en',
+        platform: 'mail',
+        groupId: currentCampaign.groupId,
+        createdAt: currentCampaign.createdAt || Date.now(),
+        updatedAt: Date.now()
+      }
+
+      console.log('Sending to API:', campaignToSave)
+      await window.api.saveMailCampaign(campaignToSave)
+      console.log('Saved successfully')
+
+      setView('list')
+      loadData()
+    } catch (err) {
+      console.error('Error saving campaign:', err)
+      alert('Failed to save campaign. Check console for details.')
+    }
+  }
+
+  const handleCancel = (): void => {
+    setView('list')
+    setCurrentCampaign({})
+    setCurrentGroup({})
+  }
+
+  // --- RENDER EDITOR ---
+  if (view === 'editor') {
+    return (
+      <div
+        className="editor-container"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden'
+        }}
+      >
+        <div className="editor-header">
+          <h2 className="editor-title">
+            <span className="title-icon-box">
+              <FaEnvelope className="icon" />
+            </span>
+            {currentCampaign.id ? 'Edit Mail Campaign' : 'New Mail Campaign'}
+          </h2>
+          <button onClick={handleCancel} className="close-btn">
+            <FaTimes size={20} />
+          </button>
+        </div>
+
+        <div className="editor-form" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+          {/* Campaign Name */}
+          <div className="form-group">
+            <label className="form-label">Campaign Name</label>
+            <input
+              type="text"
+              value={currentCampaign.name}
+              onChange={(e) => setCurrentCampaign((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Restaurant Owners Email Outreach"
+              className="form-input"
+            />
+          </div>
+
+          {/* Group Selection */}
+          <div className="form-group">
+            <label className="form-label">Campaign Group (Optional)</label>
+            <p className="form-hint">Assign this campaign to a group for better organization.</p>
+            <select
+              value={currentCampaign.groupId || ''}
+              onChange={(e) =>
+                setCurrentCampaign((prev) => ({ ...prev, groupId: e.target.value || undefined }))
+              }
+              className="form-input"
+            >
+              <option value="">No Group</option>
+              {campaignGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Language Selection */}
+          <div className="form-group">
+            <label className="form-label">Email Language</label>
+            <p className="form-hint">
+              Select the language for AI-generated emails. The AI will write the entire message in
+              this language.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.75rem',
+                marginTop: '0.5rem'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCurrentCampaign((prev) => ({ ...prev, language: 'en' }))}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  border:
+                    currentCampaign.language === 'en'
+                      ? '2px solid #6366f1'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                  background:
+                    currentCampaign.language === 'en'
+                      ? 'rgba(99, 102, 241, 0.15)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                  color: currentCampaign.language === 'en' ? '#a5b4fc' : '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: currentCampaign.language === 'en' ? 600 : 400,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🇺🇸</span>
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentCampaign((prev) => ({ ...prev, language: 'bn' }))}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  border:
+                    currentCampaign.language === 'bn'
+                      ? '2px solid #10b981'
+                      : '1px solid rgba(255, 255, 255, 0.1)',
+                  background:
+                    currentCampaign.language === 'bn'
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                  color: currentCampaign.language === 'bn' ? '#6ee7b7' : '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontWeight: currentCampaign.language === 'bn' ? 600 : 400,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span style={{ fontSize: '1.25rem' }}>🇧🇩</span>
+                বাংলা
+              </button>
+            </div>
+          </div>
+
+          {/* Buyer Persona */}
+          <div className="form-group">
+            <label className="form-label">Buyer Persona (Optional)</label>
+            <p className="form-hint">
+              Describe your ideal customer (e.g., pain points, goals, values). The AI will tailor
+              the email to resonate with them.
+            </p>
+            <textarea
+              value={currentCampaign.buyerPersona || ''}
+              onChange={(e) =>
+                setCurrentCampaign((prev) => ({ ...prev, buyerPersona: e.target.value }))
+              }
+              placeholder="Example: Small business owners who are skeptical of marketing agencies, value ROI transparency, and want more local customers..."
+              className="form-textarea"
+              rows={3}
+            />
+          </div>
+
+          {/* Instruction */}
+          <div className="form-group">
+            <label className="form-label">Email Instructions (Optional)</label>
+            <p className="form-hint">
+              Explain how the AI should write the email. Include tone, key points to mention, and
+              call-to-action style.
+            </p>
+            <textarea
+              value={currentCampaign.instruction}
+              onChange={(e) =>
+                setCurrentCampaign((prev) => ({ ...prev, instruction: e.target.value }))
+              }
+              placeholder="Example: Act as a digital marketing expert. Start with a compelling subject line hook. Analyze their reviews and mention specifically what they are doing well. Then suggest how our agency can help them get more customers..."
+              className="form-textarea"
+            />
+          </div>
+
+          {/* Example Emails */}
+          <div className="form-group">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.5rem'
+              }}
+            >
+              <label className="form-label" style={{ marginBottom: 0 }}>
+                Example Emails (Few-Shot Learning)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentExamples = currentCampaign.examples || []
+                  setCurrentCampaign((prev) => ({ ...prev, examples: [...currentExamples, ''] }))
+                }}
+                className="btn-secondary"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  height: 'auto',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <FaPlus size={10} style={{ marginRight: '4px' }} /> Add Example
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginBottom: '1rem' }}>
+              Add specific examples of good emails. The AI will mimic the style, tone, and structure
+              of these examples.
+            </p>
+
+            <div
+              className="examples-list"
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            >
+              {(currentCampaign.examples || []).map((example, index) => (
+                <div key={index} className="example-item" style={{ position: 'relative' }}>
+                  <textarea
+                    value={example}
+                    onChange={(e) => {
+                      const newExamples = [...(currentCampaign.examples || [])]
+                      newExamples[index] = e.target.value
+                      setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                    }}
+                    placeholder={`Example email ${index + 1}...`}
+                    className="form-textarea"
+                    style={{
+                      fontSize: '0.9rem',
+                      minHeight: '120px',
+                      marginBottom: 0,
+                      paddingRight: '2.5rem'
+                    }}
+                    autoFocus={!example}
+                  />
+                  <button
+                    onClick={() => {
+                      const newExamples = (currentCampaign.examples || []).filter(
+                        (_, i) => i !== index
+                      )
+                      setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '0.5rem',
+                      right: '0.5rem',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    title="Remove example"
+                  >
+                    <FaTimes size={12} />
+                  </button>
+                </div>
+              ))}
+              {(currentCampaign.examples || []).length === 0 && (
+                <div
+                  style={{
+                    padding: '1.5rem',
+                    border: '1px dashed rgba(148, 163, 184, 0.3)',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '0.85rem',
+                    background: 'rgba(15, 23, 42, 0.3)'
+                  }}
+                >
+                  No example emails added yet. Click &quot;Add Example&quot; to add one.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Product Links */}
+          <div className="form-group">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.5rem'
+              }}
+            >
+              <label className="form-label" style={{ marginBottom: 0 }}>
+                Product/Portfolio Links (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLinks = currentCampaign.productLinks || []
+                  setCurrentCampaign((prev) => ({ ...prev, productLinks: [...currentLinks, ''] }))
+                }}
+                className="btn-secondary"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  height: 'auto',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <FaPlus size={10} style={{ marginRight: '4px' }} /> Add Link
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginBottom: '1rem' }}>
+              Add links to your products or portfolio. The AI will ONLY include these if the Email
+              Instructions or Examples specifically mention adding a link.
+            </p>
+
+            <div
+              className="examples-list"
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+            >
+              {(currentCampaign.productLinks || []).map((link, index) => (
+                <div key={index} className="example-item" style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={link}
+                    onChange={(e) => {
+                      const newLinks = [...(currentCampaign.productLinks || [])]
+                      newLinks[index] = e.target.value
+                      setCurrentCampaign((prev) => ({ ...prev, productLinks: newLinks }))
+                    }}
+                    placeholder={`https://...`}
+                    className="form-input"
+                    style={{ fontSize: '0.9rem', marginBottom: 0, paddingRight: '2rem' }}
+                    autoFocus={!link}
+                  />
+                  <button
+                    onClick={() => {
+                      const newLinks = (currentCampaign.productLinks || []).filter(
+                        (_, i) => i !== index
+                      )
+                      setCurrentCampaign((prev) => ({ ...prev, productLinks: newLinks }))
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      right: '0.5rem',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    title="Remove link"
+                  >
+                    <FaTimes size={12} />
+                  </button>
+                </div>
+              ))}
+              {(currentCampaign.productLinks || []).length === 0 && (
+                <div
+                  style={{
+                    padding: '1rem',
+                    border: '1px dashed rgba(148, 163, 184, 0.3)',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '0.85rem',
+                    background: 'rgba(15, 23, 42, 0.3)'
+                  }}
+                >
+                  No product/portfolio links added.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="editor-actions">
+            <button onClick={handleCancel} className="btn-cancel">
+              Cancel
+            </button>
+            <button onClick={handleSave} className="btn-save">
+              <FaSave className="icon" />
+              Save Campaign
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- RENDER GROUP EDITOR ---
+  if (view === 'group-editor') {
+    return (
+      <div
+        className="editor-container"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden'
+        }}
+      >
+        <div className="editor-header">
+          <h2 className="editor-title">
+            <span className="title-icon-box">
+              <FaFolder className="icon" />
+              Mail Campaign Group
+            </span>
+          </h2>
+        </div>
+
+        <div className="editor-content" style={{ padding: '2rem', flex: 1, overflowY: 'auto' }}>
+          {/* Group Name */}
+          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+            <label
+              className="form-label"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                display: 'block'
+              }}
+            >
+              Group Name
+            </label>
+            <p
+              className="form-hint"
+              style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.75rem' }}
+            >
+              A descriptive name for this campaign group (e.g., &quot;Restaurants&quot;,
+              &quot;Retail&quot;, &quot;Healthcare&quot;).
+            </p>
+            <input
+              type="text"
+              value={currentGroup.name || ''}
+              onChange={(e) => setCurrentGroup((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="Enter group name..."
+              className="form-input"
+              style={{ padding: '0.875rem 1rem', fontSize: '0.95rem' }}
+            />
+          </div>
+
+          {/* Group Description */}
+          <div className="form-group" style={{ marginBottom: '2rem' }}>
+            <label
+              className="form-label"
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                display: 'block'
+              }}
+            >
+              Description (Optional)
+            </label>
+            <p
+              className="form-hint"
+              style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.75rem' }}
+            >
+              Brief description of what types of campaigns belong to this group.
+            </p>
+            <textarea
+              value={currentGroup.description || ''}
+              onChange={(e) =>
+                setCurrentGroup((prev) => ({ ...prev, description: e.target.value }))
+              }
+              placeholder="Example: Campaigns for restaurant email marketing and outreach..."
+              className="form-textarea"
+              rows={3}
+              style={{ padding: '0.875rem 1rem', fontSize: '0.95rem', minHeight: '100px' }}
+            />
+          </div>
+
+          {/* Actions */}
+          <div
+            className="editor-actions"
+            style={{
+              display: 'flex',
+              gap: '1rem',
+              justifyContent: 'flex-end',
+              paddingTop: '1rem',
+              borderTop: '1px solid rgba(148, 163, 184, 0.1)'
+            }}
+          >
+            <button
+              onClick={handleCancel}
+              className="btn-cancel"
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                borderRadius: '8px',
+                border: '1px solid rgba(148, 163, 184, 0.3)',
+                background: 'transparent',
+                color: '#94a3b8',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'rgba(148, 163, 184, 0.1)'
+                e.currentTarget.style.color = '#f1f5f9'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = '#94a3b8'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveGroup}
+              className="btn-save"
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                borderRadius: '8px',
+                border: '1px solid #6366f1',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: 'white',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #5558e3, #7c3aed)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
+              <FaSave className="icon" size={14} />
+              Save Group
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // --- RENDER LIST ---
+  return (
+    <div className="wrapper-container p-6 relative">
+      {/* Header */}
+      <div className="campaign-nav">
+        <div className="campaign-title-group">
+          <h1>Mail Campaigns</h1>
+          <p className="campaign-subtitle">
+            Manage your AI instructions for personalized email outreach
+          </p>
+        </div>
+        {activeTab === 'campaigns' ? (
+          <button onClick={handleCreate} className="btn-primary">
+            <FaPlus size={14} />
+            New Campaign
+          </button>
+        ) : (
+          <button
+            onClick={handleCreateGroup}
+            className="btn-secondary"
+            style={{
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              color: '#6366f1'
+            }}
+          >
+            <FaFolder size={14} />
+            New Group
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: '1px solid rgba(148, 163, 184, 0.2)',
+          marginBottom: '2rem'
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('campaigns')}
+          style={{
+            padding: '1rem 1.5rem',
+            background: activeTab === 'campaigns' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'campaigns' ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab === 'campaigns' ? '#6366f1' : '#94a3b8',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            marginBottom: '-1px'
+          }}
+        >
+          <FaEnvelope size={16} style={{ marginRight: '0.5rem' }} />
+          Campaigns ({campaigns.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('groups')}
+          style={{
+            padding: '1rem 1.5rem',
+            background: activeTab === 'groups' ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'groups' ? '2px solid #6366f1' : '2px solid transparent',
+            color: activeTab === 'groups' ? '#6366f1' : '#94a3b8',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            marginBottom: '-1px'
+          }}
+        >
+          <FaFolder size={16} style={{ marginRight: '0.5rem' }} />
+          Groups ({campaignGroups.length})
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'campaigns' ? (
+        <>
+          {loading ? (
+            <div className="loading-container">Loading campaigns...</div>
+          ) : campaigns.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <FaEnvelope size={32} />
+              </div>
+              <h3 className="empty-title">No Mail Campaigns Yet</h3>
+              <p className="empty-desc">
+                Create your first campaign to teach the AI how to write emails for your leads.
+              </p>
+              <button onClick={handleCreate} className="btn-secondary">
+                Create Campaign
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Grouped Campaigns */}
+              {campaignGroups.map((group) => {
+                const groupCampaigns = campaigns.filter((c) => c.groupId === group.id)
+                if (groupCampaigns.length === 0) return null
+                return (
+                  <div key={group.id} style={{ marginBottom: '2rem' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginBottom: '1rem',
+                        color: '#6366f1',
+                        fontSize: '0.9rem',
+                        fontWeight: '600'
+                      }}
+                    >
+                      <FaFolder size={14} />
+                      {group.name} ({groupCampaigns.length})
+                    </div>
+                    <div className="grid-container">
+                      {groupCampaigns.map((campaign) => (
+                        <div key={campaign.id} className="campaign-card group">
+                          <div className="card-header">
+                            <div className="card-icon">
+                              <FaEnvelope size={20} />
+                            </div>
+                            <div className="card-actions">
+                              <button
+                                onClick={() => handleEdit(campaign)}
+                                className="action-btn"
+                                title="Edit"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(campaign.id)}
+                                className="action-btn delete"
+                                title="Delete"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+
+                          <h3 className="card-title">{campaign.name}</h3>
+
+                          <div className="card-content-box">
+                            <p className="card-desc">{campaign.instruction}</p>
+                            <div className="fade-overlay" />
+                          </div>
+
+                          <div className="card-footer">
+                            <span>
+                              {new Date(campaign.updatedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  background:
+                                    campaign.language === 'bn'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : 'rgba(99, 102, 241, 0.15)',
+                                  color: campaign.language === 'bn' ? '#6ee7b7' : '#a5b4fc'
+                                }}
+                              >
+                                {campaign.language === 'bn' ? '🇧🇩 বাংলা' : '🇺🇸 EN'}
+                              </span>
+                              <span className="platform-badge">{campaign.platform}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Ungrouped Campaigns */}
+              {campaigns.some((c) => !c.groupId) && (
+                <div>
+                  <div
+                    style={{
+                      marginBottom: '1rem',
+                      color: '#94a3b8',
+                      fontSize: '0.9rem',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Ungrouped Campaigns ({campaigns.filter((c) => !c.groupId).length})
+                  </div>
+                  <div className="grid-container">
+                    {campaigns
+                      .filter((c) => !c.groupId)
+                      .map((campaign) => (
+                        <div key={campaign.id} className="campaign-card group">
+                          <div className="card-header">
+                            <div className="card-icon">
+                              <FaEnvelope size={20} />
+                            </div>
+                            <div className="card-actions">
+                              <button
+                                onClick={() => handleEdit(campaign)}
+                                className="action-btn"
+                                title="Edit"
+                              >
+                                <FaEdit />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(campaign.id)}
+                                className="action-btn delete"
+                                title="Delete"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </div>
+
+                          <h3 className="card-title">{campaign.name}</h3>
+
+                          <div className="card-content-box">
+                            <p className="card-desc">{campaign.instruction}</p>
+                            <div className="fade-overlay" />
+                          </div>
+
+                          <div className="card-footer">
+                            <span>
+                              {new Date(campaign.updatedAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span
+                                style={{
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  background:
+                                    campaign.language === 'bn'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : 'rgba(99, 102, 241, 0.15)',
+                                  color: campaign.language === 'bn' ? '#6ee7b7' : '#a5b4fc'
+                                }}
+                              >
+                                {campaign.language === 'bn' ? '🇧🇩 বাংলা' : '🇺🇸 EN'}
+                              </span>
+                              <span className="platform-badge">{campaign.platform}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        // Groups Tab
+        <>
+          {loading ? (
+            <div className="loading-container">Loading groups...</div>
+          ) : campaignGroups.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <FaFolder size={32} />
+              </div>
+              <h3 className="empty-title">No Groups Yet</h3>
+              <p className="empty-desc">Create groups to organize your mail campaigns better.</p>
+              <button onClick={handleCreateGroup} className="btn-secondary">
+                Create Group
+              </button>
+            </div>
+          ) : (
+            <div className="grid-container">
+              {campaignGroups.map((group) => {
+                const campaignCount = campaigns.filter((c) => c.groupId === group.id).length
+                return (
+                  <div
+                    key={group.id}
+                    className="campaign-card group"
+                    style={{
+                      background:
+                        'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      borderRadius: '16px',
+                      padding: '1.5rem',
+                      transition: 'all 0.3s ease',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)'
+                      e.currentTarget.style.boxShadow = '0 12px 24px rgba(99, 102, 241, 0.15)'
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)'
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = 'none'
+                      e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.25)'
+                    }}
+                  >
+                    <div className="card-header">
+                      <div
+                        className="card-icon"
+                        style={{
+                          background:
+                            'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
+                          border: '1px solid rgba(99, 102, 241, 0.3)'
+                        }}
+                      >
+                        <FaFolder size={20} style={{ color: '#a5b4fc' }} />
+                      </div>
+                      <div className="card-actions">
+                        <button
+                          onClick={() => handleEditGroup(group)}
+                          className="action-btn"
+                          title="Edit"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGroup(group.id)}
+                          className="action-btn delete"
+                          title="Delete"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 className="card-title" style={{ color: '#f1f5f9', marginBottom: '0.5rem' }}>
+                      {group.name}
+                    </h3>
+
+                    {group.description && (
+                      <div className="card-content-box" style={{ marginBottom: '1rem' }}>
+                        <p
+                          className="card-desc"
+                          style={{
+                            fontSize: '0.9rem',
+                            lineHeight: '1.5',
+                            color: '#cbd5e1'
+                          }}
+                        >
+                          {group.description}
+                        </p>
+                        <div className="fade-overlay" />
+                      </div>
+                    )}
+
+                    <div
+                      className="card-footer"
+                      style={{
+                        paddingTop: '1rem',
+                        borderTop: '1px solid rgba(148, 163, 184, 0.1)'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.85rem',
+                          color: '#94a3b8'
+                        }}
+                      >
+                        <FaEnvelope size={14} />
+                        <span>
+                          {campaignCount} campaign{campaignCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <span
+                        className="platform-badge"
+                        style={{
+                          background:
+                            'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
+                          color: '#a5b4fc',
+                          fontWeight: '500',
+                          fontSize: '0.8rem',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '20px'
+                        }}
+                      >
+                        Group
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function AiCopywriterPage({ initialTab = 'mail' }: AiCopywriterPageProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab)
 
@@ -1765,11 +2902,7 @@ function AiCopywriterPage({ initialTab = 'mail' }: AiCopywriterPageProps): JSX.E
 
   return (
     <div className="wrapper-container">
-      {activeTab === 'mail' && (
-        <div className="campaign-header">
-          <h1 className="text-2xl font-bold text-slate-500">Mail Copywriter - Coming Soon</h1>
-        </div>
-      )}
+      {activeTab === 'mail' && <MailCampaigns />}
       {activeTab === 'whatsapp' && <WhatsAppCampaigns />}
       {activeTab === 'telegram' && (
         <div className="campaign-header">

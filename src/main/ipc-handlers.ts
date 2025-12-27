@@ -9,6 +9,8 @@ import {
 import {
   clearSavedFacebookLeads,
   clearSavedMapsLeads,
+  deleteMailCampaign,
+  deleteMailCampaignGroup,
   deleteWhatsappCampaign,
   deleteWhatsappCampaignGroup,
   getApiKeys,
@@ -18,6 +20,8 @@ import {
   getGroqApiKeys,
   getHunterApiKeys,
   getJinaApiKeys,
+  getMailCampaignGroups,
+  getMailCampaigns,
   getMistralApiKeys,
   getReoonApiKeys,
   getSavedFacebookLeads,
@@ -30,6 +34,8 @@ import {
   removeSavedFacebookLead,
   removeSavedMapsLead,
   saveFacebookLeads,
+  saveMailCampaign,
+  saveMailCampaignGroup,
   saveMapsLeads,
   saveWhatsappCampaign,
   saveWhatsappCampaignGroup,
@@ -59,6 +65,7 @@ import {
   type ApiKeyEntry,
   type Campaign,
   type CampaignGroup,
+  type MailCampaign,
   type SavedFacebookLead,
   type SavedMapsLead
 } from './store'
@@ -469,6 +476,48 @@ export function registerIpcHandlers(): void {
   // Delete WhatsApp campaign group
   ipcMain.handle('delete-whatsapp-campaign-group', (_event, id: string) => {
     deleteWhatsappCampaignGroup(id)
+    return { success: true }
+  })
+
+  // ========================================
+  // MAIL CAMPAIGNS
+  // ========================================
+
+  // Get all Mail campaigns
+  ipcMain.handle('get-mail-campaigns', () => {
+    return getMailCampaigns()
+  })
+
+  // Save (Create/Update) Mail campaign
+  ipcMain.handle('save-mail-campaign', (_event, campaign: MailCampaign) => {
+    saveMailCampaign(campaign)
+    return { success: true }
+  })
+
+  // Delete Mail campaign
+  ipcMain.handle('delete-mail-campaign', (_event, id: string) => {
+    deleteMailCampaign(id)
+    return { success: true }
+  })
+
+  // ========================================
+  // MAIL CAMPAIGN GROUPS
+  // ========================================
+
+  // Get all Mail campaign groups
+  ipcMain.handle('get-mail-campaign-groups', () => {
+    return getMailCampaignGroups()
+  })
+
+  // Save (Create/Update) Mail campaign group
+  ipcMain.handle('save-mail-campaign-group', (_event, group: CampaignGroup) => {
+    saveMailCampaignGroup(group)
+    return { success: true }
+  })
+
+  // Delete Mail campaign group
+  ipcMain.handle('delete-mail-campaign-group', (_event, id: string) => {
+    deleteMailCampaignGroup(id)
     return { success: true }
   })
 
