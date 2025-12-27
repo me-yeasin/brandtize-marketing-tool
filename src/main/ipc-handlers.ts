@@ -23,6 +23,7 @@ import {
   getMailCampaignGroups,
   getMailCampaigns,
   getMistralApiKeys,
+  getEmailPitches,
   getReoonApiKeys,
   getSavedFacebookLeads,
   getSavedMapsLeads,
@@ -33,6 +34,7 @@ import {
   getWhatsappCampaigns,
   removeSavedFacebookLead,
   removeSavedMapsLead,
+  saveEmailPitch,
   saveFacebookLeads,
   saveMailCampaign,
   saveMailCampaignGroup,
@@ -631,4 +633,42 @@ export function registerIpcHandlers(): void {
       return generatePitch(input)
     }
   )
+
+  // ========================================
+  // EMAIL PITCH GENERATOR
+  // ========================================
+  ipcMain.handle(
+    'generate-email-pitch',
+    async (
+      _event,
+      input: {
+        leadId: string
+        name: string
+        category: string
+        address: string
+        rating: number
+        reviewCount: number
+        website?: string | null
+        reviews?: Array<{ text: string; rating: number; author: string }>
+        instruction?: string
+        buyerPersona?: string
+        examples?: string[]
+        productLinks?: string[]
+        language?: 'en' | 'bn'
+      }
+    ) => {
+      const { generateEmailPitch } = await import('./services/pitch-generator-agent')
+      const result = await generateEmailPitch(input)
+
+      if (result.success && result.pitch) {
+        saveEmailPitch(result.pitch)
+      }
+
+      return result
+    }
+  )
+
+  ipcMain.handle('get-email-pitches', () => {
+    return getEmailPitches()
+  })
 }

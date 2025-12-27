@@ -37,6 +37,37 @@ export interface PitchGenerationResult {
   error?: string
 }
 
+export interface StoredEmailPitch {
+  leadId: string
+  subject: string
+  body: string
+  strategy_explanation: string
+  target_audience_analysis: string
+  psychological_triggers_used: string
+}
+
+export interface EmailPitchGenerationInput {
+  leadId: string
+  name: string
+  category: string
+  address: string
+  rating: number
+  reviewCount: number
+  website?: string | null
+  reviews?: Array<{ text: string; rating: number; author: string }>
+  instruction?: string
+  buyerPersona?: string
+  examples?: string[]
+  productLinks?: string[]
+  language?: 'en' | 'bn'
+}
+
+export interface EmailPitchGenerationResult {
+  success: boolean
+  pitch?: StoredEmailPitch
+  error?: string
+}
+
 export interface CampaignGroup {
   id: string
   name: string
@@ -238,6 +269,10 @@ export interface BrandtizeAPI {
   // WhatsApp Pitch Generator
   generateWhatsAppPitch: (input: PitchGenerationInput) => Promise<PitchGenerationResult>
   onPitchGenerationStatus: (callback: (status: PitchGenerationStatus) => void) => void
+
+  // Email Pitch Generator
+  generateEmailPitch: (input: EmailPitchGenerationInput) => Promise<EmailPitchGenerationResult>
+  getEmailPitches: () => Promise<Record<string, StoredEmailPitch>>
 
   // Facebook Scraper (via Apify)
   searchFacebookPages: (params: {

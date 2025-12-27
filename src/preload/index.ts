@@ -393,6 +393,50 @@ contextBridge.exposeInMainWorld('api', {
   },
 
   // ========================================
+  // EMAIL PITCH GENERATOR
+  // ========================================
+  generateEmailPitch: (input: {
+    leadId: string
+    name: string
+    category: string
+    address: string
+    rating: number
+    reviewCount: number
+    website?: string | null
+    reviews?: Array<{ text: string; rating: number; author: string }>
+    instruction?: string
+    buyerPersona?: string
+    examples?: string[]
+    productLinks?: string[]
+    language?: 'en' | 'bn'
+  }): Promise<{
+    success: boolean
+    pitch?: {
+      leadId: string
+      subject: string
+      body: string
+      strategy_explanation: string
+      target_audience_analysis: string
+      psychological_triggers_used: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke('generate-email-pitch', input),
+
+  getEmailPitches: (): Promise<
+    Record<
+      string,
+      {
+        leadId: string
+        subject: string
+        body: string
+        strategy_explanation: string
+        target_audience_analysis: string
+        psychological_triggers_used: string
+      }
+    >
+  > => ipcRenderer.invoke('get-email-pitches'),
+
+  // ========================================
   // APIFY
   // ========================================
   getApifyApiKey: (): Promise<string> => ipcRenderer.invoke('get-apify-api-key'),

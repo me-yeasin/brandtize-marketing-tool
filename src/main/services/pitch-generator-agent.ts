@@ -14,6 +14,7 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import { BrowserWindow } from 'electron'
 import { executeWithAiRotation } from './ai-rotation-manager'
+import { type StoredEmailPitch } from '../store'
 
 // ============================================
 // TYPES
@@ -45,6 +46,28 @@ export interface PitchGenerationStatus {
 export interface PitchGenerationResult {
   success: boolean
   pitch?: string
+  error?: string
+}
+
+export interface EmailPitchGenerationInput {
+  leadId: string
+  name: string
+  category: string
+  address: string
+  rating: number
+  reviewCount: number
+  website?: string | null
+  reviews?: Array<{ text: string; rating: number; author: string }>
+  instruction?: string
+  buyerPersona?: string
+  examples?: string[]
+  productLinks?: string[]
+  language?: 'en' | 'bn'
+}
+
+export interface EmailPitchGenerationResult {
+  success: boolean
+  pitch?: StoredEmailPitch
   error?: string
 }
 
@@ -108,6 +131,50 @@ function sendStatusUpdate(status: PitchGenerationStatus): void {
 // Wrapper to parse simple string response from AI
 function parseStringResponse(response: string): string {
   return response.trim()
+}
+
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) return null
+  return text.slice(start, end + 1)
+}
+
+function parseEmailPitchResponse(response: string): Omit<StoredEmailPitch, 'leadId'> {
+  const trimmed = response.trim()
+  const jsonText = extractFirstJsonObject(trimmed) ?? trimmed
+
+  const parsed = JSON.parse(jsonText) as Partial<StoredEmailPitch>
+
+  const subject = typeof parsed.subject === 'string' ? parsed.subject.trim() : ''
+  const body = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+  const strategy_explanation =
+    typeof parsed.strategy_explanation === 'string' ? parsed.strategy_explanation.trim() : ''
+  const target_audience_analysis =
+    typeof parsed.target_audience_analysis === 'string' ? parsed.target_audience_analysis.trim() : ''
+  const psychological_triggers_used =
+    typeof parsed.psychological_triggers_used === 'string'
+      ? parsed.psychological_triggers_used.trim()
+      : ''
+
+  if (!subject || !body) {
+    throw new Error('Invalid email pitch response: missing subject or body')
+  }
+
+  return {
+    subject,
+    body,
+    strategy_explanation,
+    target_audience_analysis,
+    psychological_triggers_used,
+    generatedAt: Date.now()
+  }
+}
+
+function formatEmailPitchForStatus(pitch: Omit<StoredEmailPitch, 'leadId'>): string {
+  const subject = pitch.subject.trim()
+  const body = pitch.body.trim()
+  return `Subject: ${subject}\n\n${body}`
 }
 
 // ============================================
@@ -648,6 +715,428 @@ export async function generatePitch(input: PitchGenerationInput): Promise<PitchG
   } catch (error) {
     console.error('[PitchAgent] Fatal error:', error)
 
+    sendStatusUpdate({
+      status: 'error',
+      message: `❌ ${error instanceof Error ? error.message : 'Unknown error'}`
+    })
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+type EmailPitchAgentStateType = {
+  lead: EmailPitchGenerationInput
+  analysis: string
+  currentPitch: Omit<StoredEmailPitch, 'leadId'> | null
+  observation: string
+  needsRefinement: boolean
+  refinementCount: number
+  finalPitch: Omit<StoredEmailPitch, 'leadId'> | null
+  status: 'analyzing' | 'generating' | 'observing' | 'refining' | 'done' | 'error'
+  error: string
+}
+
+const EmailPitchAgentState = Annotation.Root({
+  lead: Annotation<EmailPitchGenerationInput>(),
+  analysis: Annotation<string>({
+    reducer: (_prev, next) => next ?? ''
+  }),
+  currentPitch: Annotation<Omit<StoredEmailPitch, 'leadId'> | null>({
+    reducer: (_prev, next) => next ?? null
+  }),
+  observation: Annotation<string>({
+    reducer: (_prev, next) => next ?? ''
+  }),
+  needsRefinement: Annotation<boolean>({
+    reducer: (_prev, next) => next ?? false
+  }),
+  refinementCount: Annotation<number>({
+    reducer: (prev, next) => (typeof next === 'number' ? next : prev ?? 0),
+    default: () => 0
+  }),
+  finalPitch: Annotation<Omit<StoredEmailPitch, 'leadId'> | null>({
+    reducer: (_prev, next) => next ?? null
+  }),
+  status: Annotation<'analyzing' | 'generating' | 'observing' | 'refining' | 'done' | 'error'>({
+    reducer: (_prev, next) => next ?? 'analyzing',
+    default: () => 'analyzing'
+  }),
+  error: Annotation<string>({
+    reducer: (_prev, next) => next ?? ''
+  })
+})
+
+async function analyzeBusinessForEmailNode(
+  state: EmailPitchAgentStateType
+): Promise<Partial<EmailPitchAgentStateType>> {
+  sendStatusUpdate({
+    status: 'analyzing',
+    message: '🧠 Analyzing business details...'
+  })
+
+  const lead = state.lead
+
+  let reviewContext = ''
+  if (lead.reviews && lead.reviews.length > 0) {
+    const topReviews = lead.reviews.slice(0, 3)
+    reviewContext = `\nCustomer Reviews:\n${topReviews.map((r) => `- ${r.author} (${r.rating}★): "${r.text}"`).join('\n')}`
+  }
+
+  const prompt = `Analyze this business for a cold email outreach pitch:
+
+Business Name: ${lead.name}
+Category: ${lead.category}
+Location: ${lead.address}
+Rating: ${lead.rating}/5 (${lead.reviewCount} reviews)
+Website: ${lead.website || 'None'}
+${reviewContext}
+
+Provide a brief analysis (2-3 sentences) covering:
+1. What type of business this is and its likely target audience
+2. Key strengths or unique aspects based on the data
+3. Potential areas where they might need marketing/digital services
+
+Keep the analysis concise and actionable.
+
+System Role: You are a business analyst specializing in local businesses and marketing needs.`
+
+  try {
+    const analysis = await executeWithAiRotation(prompt, parseStringResponse, 'Analysis unavailable')
+    return { analysis, status: 'generating' }
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'Analysis failed',
+      status: 'error'
+    }
+  }
+}
+
+async function generateEmailPitchNode(
+  state: EmailPitchAgentStateType
+): Promise<Partial<EmailPitchAgentStateType>> {
+  sendStatusUpdate({
+    status: 'generating',
+    message: '✍️ Crafting personalized email...'
+  })
+
+  const lead = state.lead
+
+  let exampleContext = ''
+  if (lead.examples && lead.examples.length > 0) {
+    exampleContext = `\n\nRefer to these EXAMPLE EMAILS for style, tone, length, and MARKDOWN FORMATTING (Mimic them):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+    exampleContext += `\nSTYLE & FORMATTING INSTRUCTION: Carefully analyze how the examples use Markdown (Bold *, Italic _, Lists, Quotes). You MUST replicate this specific formatting style.`
+  }
+
+  let personaContext = ''
+  if (lead.buyerPersona && lead.buyerPersona.trim().length > 0) {
+    personaContext = `\nBUYER PERSONA (Target Audience):\n"${lead.buyerPersona}"\n`
+  }
+
+  let productLinksContext = ''
+  if (lead.productLinks && lead.productLinks.length > 0) {
+    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS (Use these to replace placeholders):\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+    productLinksContext += `CRITICAL LINK RULES (STRICT):
+1. Replace placeholders like "[Link]" or "[Insert Link]" with the real HTTP URLs.
+2. If only one placeholder exists and multiple links are available, list all links on new lines.
+3. If examples use Markdown around links, replicate the same formatting wrapper.`
+  }
+
+  let languageContext = ''
+  if (lead.language === 'bn') {
+    languageContext = `
+🇧🇩 CRITICAL LANGUAGE INSTRUCTION - BANGLA (বাংলা):
+Write the ENTIRE email in BANGLA (বাংলা) language using proper Bengali script.
+- Use natural, fluent Bengali
+- Do not mix English words unless absolutely necessary
+`
+  }
+
+  const prompt = `Create a short, personalized cold email for this business.
+
+Business: ${lead.name}
+Category: ${lead.category}
+Location: ${lead.address}
+Website: ${lead.website || 'None'}
+Analysis: ${state.analysis}
+${personaContext}
+${productLinksContext}
+${exampleContext}
+${languageContext}
+
+Requirements:
+1. Write a compelling subject line (max ~60 characters).
+2. Body should be concise (under ~180 words unless instruction implies otherwise).
+3. Personalize to the business (mention something specific).
+4. Include a soft CTA (a question is best).
+5. Do not use spammy phrases or excessive exclamation marks.
+6. Output MUST be valid JSON ONLY (no markdown fences, no explanation).
+
+Return JSON with exactly these keys:
+{
+  "subject": "string",
+  "body": "string (markdown allowed)",
+  "strategy_explanation": "string",
+  "target_audience_analysis": "string",
+  "psychological_triggers_used": "string"
+}
+
+${lead.instruction && lead.instruction.trim().length > 0 ? `USER INSTRUCTION (FOLLOW STRICTLY):\n"${lead.instruction}"\n` : ''}
+
+System Role: You are an expert at writing effective, personalized cold outreach emails that feel genuine and helpful.`
+
+  try {
+    const pitch = await executeWithAiRotation(prompt, parseEmailPitchResponse, null as never)
+    sendStatusUpdate({
+      status: 'observing',
+      message: '🔍 Evaluating email quality...',
+      currentPitch: formatEmailPitchForStatus(pitch)
+    })
+    return { currentPitch: pitch, status: 'observing' }
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'Email pitch generation failed',
+      status: 'error'
+    }
+  }
+}
+
+async function observeEmailPitchNode(
+  state: EmailPitchAgentStateType
+): Promise<Partial<EmailPitchAgentStateType>> {
+  sendStatusUpdate({
+    status: 'observing',
+    message: '🔍 Evaluating email quality...',
+    currentPitch: state.currentPitch ? formatEmailPitchForStatus(state.currentPitch) : undefined,
+    refinementCount: state.refinementCount
+  })
+
+  if (state.refinementCount >= 3) {
+    return {
+      needsRefinement: false,
+      finalPitch: state.currentPitch,
+      status: 'done'
+    }
+  }
+
+  const lead = state.lead
+  const current = state.currentPitch
+
+  if (!current) {
+    return {
+      error: 'No email pitch to evaluate',
+      status: 'error'
+    }
+  }
+
+  const instructionContext =
+    lead.instruction && lead.instruction.trim().length > 0
+      ? `\nUSER INSTRUCTION (CRITICAL):\n"${lead.instruction}"\n`
+      : ''
+
+  const languageContext =
+    lead.language === 'bn'
+      ? `\nLANGUAGE REQUIREMENT: Output must be entirely in BANGLA (বাংলা).\n`
+      : ''
+
+  const prompt = `You are QA for cold outreach emails. Evaluate the draft and decide whether it needs refinement.
+
+Business: ${lead.name} (${lead.category})
+Draft Subject: ${current.subject}
+Draft Body:
+${current.body}
+${instructionContext}
+${languageContext}
+
+Check:
+1. Is it personalized to this business?
+2. Is the subject compelling and not spammy?
+3. Is the body concise and clear?
+4. Does it include a soft CTA question?
+5. Are any placeholders like "[Link]" still present? (Fail)
+6. Does it follow the user instruction (if provided)?
+
+Respond with ONLY one of these formats:
+- APPROVED: [brief reason]
+- REFINE: [specific improvements needed]
+`
+
+  try {
+    const observation = await executeWithAiRotation(prompt, parseStringResponse, 'REFINE: Improve clarity')
+    const needsRefinement = observation.startsWith('REFINE')
+    return {
+      observation,
+      needsRefinement,
+      status: needsRefinement ? 'refining' : 'done',
+      finalPitch: needsRefinement ? null : current
+    }
+  } catch {
+    return {
+      needsRefinement: false,
+      finalPitch: current,
+      status: 'done'
+    }
+  }
+}
+
+async function refineEmailPitchNode(
+  state: EmailPitchAgentStateType
+): Promise<Partial<EmailPitchAgentStateType>> {
+  const lead = state.lead
+  const current = state.currentPitch
+  if (!current) {
+    return { error: 'No email pitch to refine', status: 'error' }
+  }
+
+  const newCount = state.refinementCount + 1
+
+  sendStatusUpdate({
+    status: 'refining',
+    message: `✨ Refining email... (${newCount}/3)`,
+    currentPitch: formatEmailPitchForStatus(current),
+    refinementCount: newCount
+  })
+
+  const personaContext =
+    lead.buyerPersona && lead.buyerPersona.trim().length > 0
+      ? `\nBUYER PERSONA:\n"${lead.buyerPersona}"\n`
+      : ''
+
+  const exampleContext =
+    lead.examples && lead.examples.length > 0
+      ? `\nEXAMPLES (Mimic style/formatting):\n${lead.examples.map((ex, i) => `Example ${i + 1}:\n"${ex}"`).join('\n\n')}\n`
+      : ''
+
+  const productLinksContext =
+    lead.productLinks && lead.productLinks.length > 0
+      ? `\nPRODUCT LINKS:\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+      : ''
+
+  const languageContext =
+    lead.language === 'bn' ? `\nLANGUAGE REQUIREMENT: Output must be entirely in BANGLA (বাংলা).\n` : ''
+
+  const instructionContext =
+    lead.instruction && lead.instruction.trim().length > 0
+      ? `\nUSER INSTRUCTION (FOLLOW STRICTLY):\n"${lead.instruction}"\n`
+      : ''
+
+  const prompt = `Refine this cold email draft based on the feedback. Keep it personalized and concise.
+
+Business: ${lead.name}
+Category: ${lead.category}
+Location: ${lead.address}
+Website: ${lead.website || 'None'}
+Analysis: ${state.analysis}
+
+CURRENT JSON:
+${JSON.stringify(current)}
+
+FEEDBACK:
+${state.observation}
+${instructionContext}${personaContext}${productLinksContext}${exampleContext}${languageContext}
+
+Output MUST be valid JSON ONLY with exactly these keys:
+{
+  "subject": "string",
+  "body": "string (markdown allowed)",
+  "strategy_explanation": "string",
+  "target_audience_analysis": "string",
+  "psychological_triggers_used": "string"
+}
+`
+
+  try {
+    const refined = await executeWithAiRotation(prompt, parseEmailPitchResponse, current)
+    return {
+      currentPitch: refined,
+      refinementCount: newCount,
+      status: 'observing'
+    }
+  } catch {
+    return {
+      finalPitch: current,
+      refinementCount: newCount,
+      status: 'done'
+    }
+  }
+}
+
+function shouldRefineEmail(state: EmailPitchAgentStateType): 'refine' | 'end' {
+  if (state.status === 'error') return 'end'
+  if (state.needsRefinement && state.refinementCount < 3) return 'refine'
+  return 'end'
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function buildEmailPitchGraph() {
+  const workflow = new StateGraph(EmailPitchAgentState)
+    .addNode('analyze', analyzeBusinessForEmailNode)
+    .addNode('generate', generateEmailPitchNode)
+    .addNode('observe', observeEmailPitchNode)
+    .addNode('refine', refineEmailPitchNode)
+    .addEdge(START, 'analyze')
+    .addEdge('analyze', 'generate')
+    .addEdge('generate', 'observe')
+    .addConditionalEdges('observe', shouldRefineEmail, {
+      refine: 'refine',
+      end: END
+    })
+    .addEdge('refine', 'observe')
+
+  return workflow.compile()
+}
+
+export async function generateEmailPitch(
+  input: EmailPitchGenerationInput
+): Promise<EmailPitchGenerationResult> {
+  console.log(`[PitchAgent] Starting email pitch generation for: ${input.name}`)
+
+  try {
+    const graph = buildEmailPitchGraph()
+
+    const result = await graph.invoke({
+      lead: input
+    })
+
+    if (result.status === 'error') {
+      sendStatusUpdate({
+        status: 'error',
+        message: `❌ ${result.error || 'Failed to generate email pitch'}`
+      })
+      return {
+        success: false,
+        error: result.error || 'Failed to generate email pitch'
+      }
+    }
+
+    const finalPitch = result.finalPitch || result.currentPitch
+    if (!finalPitch) {
+      sendStatusUpdate({
+        status: 'error',
+        message: '❌ Failed to generate email pitch'
+      })
+      return {
+        success: false,
+        error: 'Failed to generate email pitch'
+      }
+    }
+
+    sendStatusUpdate({
+      status: 'done',
+      message: '✅ Email pitch ready!',
+      currentPitch: formatEmailPitchForStatus(finalPitch)
+    })
+
+    return {
+      success: true,
+      pitch: {
+        leadId: input.leadId,
+        ...finalPitch
+      }
+    }
+  } catch (error) {
     sendStatusUpdate({
       status: 'error',
       message: `❌ ${error instanceof Error ? error.message : 'Unknown error'}`

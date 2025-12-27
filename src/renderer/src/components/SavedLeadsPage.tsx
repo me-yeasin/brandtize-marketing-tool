@@ -30,7 +30,8 @@ import type {
   PitchGenerationStatus,
   ReviewsResult,
   SavedFacebookLead,
-  SavedMapsLead
+  SavedMapsLead,
+  StoredEmailPitch
 } from '../../../preload/index.d'
 
 // Source tab for saved leads
@@ -434,11 +435,16 @@ function SavedLeadsPage(): JSX.Element {
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
   const [generatingPitchIds, setGeneratingPitchIds] = useState<Set<string>>(new Set())
   const [pitchStatus, setPitchStatus] = useState<Record<string, PitchGenerationStatus>>({})
+  const [emailPitches, setEmailPitches] = useState<Record<string, StoredEmailPitch>>({})
+  const [generatingEmailPitchIds, setGeneratingEmailPitchIds] = useState<Set<string>>(new Set())
 
   // Local editing state: leadId -> edited string
   const [editedPitches, setEditedPitches] = useState<Record<string, string>>({})
-  // Preview toggle state: leadId -> boolean
-  const [showPreviews, setShowPreviews] = useState<Record<string, boolean>>({})
+  const [editedEmailPitches, setEditedEmailPitches] = useState<
+    Record<string, { subject: string; body: string }>
+  >({})
+  const [showWhatsAppPreviews, setShowWhatsAppPreviews] = useState<Record<string, boolean>>({})
+  const [showEmailPreviews, setShowEmailPreviews] = useState<Record<string, boolean>>({})
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
@@ -469,6 +475,9 @@ function SavedLeadsPage(): JSX.Element {
       const mailGroupsData = await window.api.getMailCampaignGroups()
       setMailCampaigns(mailCampaignsData)
       setMailCampaignGroups(mailGroupsData)
+
+      const pitchesData = await window.api.getEmailPitches()
+      setEmailPitches(pitchesData)
 
       // Auto-select group and campaign with persistence
       if (groupsData.length > 0) {
@@ -949,6 +958,64 @@ function SavedLeadsPage(): JSX.Element {
     }
   }
 
+  const handleGenerateEmailPitch = async (lead: SavedMapsLead): Promise<void> => {
+    if (!selectedMailCampaignId) {
+      showToast('Select a mail campaign first', 'error')
+      return
+    }
+
+    const selectedCampaign = mailCampaigns.find((c) => c.id === selectedMailCampaignId)
+    if (!selectedCampaign) {
+      showToast('Select a mail campaign first', 'error')
+      return
+    }
+
+    setGeneratingEmailPitchIds((prev) => new Set(prev).add(lead.id))
+    setExpandedLeadIds((prev) => new Set(prev).add(lead.id))
+
+    try {
+      const result = await window.api.generateEmailPitch({
+        leadId: lead.id,
+        name: lead.name,
+        category: lead.category,
+        address: lead.address,
+        rating: lead.rating,
+        reviewCount: lead.reviewCount,
+        website: lead.website,
+        reviews: lead.reviews,
+        instruction: selectedCampaign.instruction,
+        buyerPersona: selectedCampaign.buyerPersona,
+        examples: selectedCampaign.examples,
+        productLinks: selectedCampaign.productLinks,
+        language: selectedCampaign.language || 'en'
+      })
+
+      if (result.success && result.pitch) {
+        setEmailPitches((prev) => ({
+          ...prev,
+          [lead.id]: result.pitch as StoredEmailPitch
+        }))
+        setEditedEmailPitches((prev) => {
+          const next = { ...prev }
+          delete next[lead.id]
+          return next
+        })
+        showToast('Email pitch generated successfully!', 'success')
+      } else {
+        showToast(result.error || 'Failed to generate email pitch', 'error')
+      }
+    } catch (err) {
+      console.error('Email pitch generation error:', err)
+      showToast('Failed to generate email pitch', 'error')
+    } finally {
+      setGeneratingEmailPitchIds((prev) => {
+        const next = new Set(prev)
+        next.delete(lead.id)
+        return next
+      })
+    }
+  }
+
   const toggleExpanded = (leadId: string): void => {
     setExpandedLeadIds((prev) => {
       const next = new Set(prev)
@@ -1251,6 +1318,63 @@ function SavedLeadsPage(): JSX.Element {
       showToast('Failed to generate pitch', 'error')
     } finally {
       setGeneratingPitchIds((prev) => {
+        const next = new Set(prev)
+        next.delete(lead.id)
+        return next
+      })
+    }
+  }
+
+  const handleFbGenerateEmailPitch = async (lead: SavedFacebookLead): Promise<void> => {
+    if (!selectedMailCampaignId) {
+      showToast('Select a mail campaign first', 'error')
+      return
+    }
+
+    const selectedCampaign = mailCampaigns.find((c) => c.id === selectedMailCampaignId)
+    if (!selectedCampaign) {
+      showToast('Select a mail campaign first', 'error')
+      return
+    }
+
+    setGeneratingEmailPitchIds((prev) => new Set(prev).add(lead.id))
+    setExpandedLeadIds((prev) => new Set(prev).add(lead.id))
+
+    try {
+      const result = await window.api.generateEmailPitch({
+        leadId: lead.id,
+        name: lead.title,
+        category: lead.categories[0] || 'Business',
+        address: lead.address || '',
+        rating: lead.rating || 0,
+        reviewCount: lead.ratingCount || 0,
+        website: lead.website,
+        instruction: selectedCampaign.instruction,
+        buyerPersona: selectedCampaign.buyerPersona,
+        examples: selectedCampaign.examples,
+        productLinks: selectedCampaign.productLinks,
+        language: selectedCampaign.language || 'en'
+      })
+
+      if (result.success && result.pitch) {
+        setEmailPitches((prev) => ({
+          ...prev,
+          [lead.id]: result.pitch as StoredEmailPitch
+        }))
+        setEditedEmailPitches((prev) => {
+          const next = { ...prev }
+          delete next[lead.id]
+          return next
+        })
+        showToast('Email pitch generated successfully!', 'success')
+      } else {
+        showToast(result.error || 'Failed to generate email pitch', 'error')
+      }
+    } catch (err) {
+      console.error('Email pitch generation error:', err)
+      showToast('Failed to generate email pitch', 'error')
+    } finally {
+      setGeneratingEmailPitchIds((prev) => {
         const next = new Set(prev)
         next.delete(lead.id)
         return next
@@ -2711,11 +2835,21 @@ function SavedLeadsPage(): JSX.Element {
 
                       {lead.email && (
                         <button
-                          onClick={() => handleVerifyEmail(lead.id)}
-                          disabled={verifyingEmailIds.has(lead.id)}
+                          onClick={() => {
+                            if (lead.emailVerified === true || lead.emailVerified === false) {
+                              handleGenerateEmailPitch(lead)
+                            } else {
+                              handleVerifyEmail(lead.id)
+                            }
+                          }}
+                          disabled={
+                            verifyingEmailIds.has(lead.id) || generatingEmailPitchIds.has(lead.id)
+                          }
                           title={
                             lead.emailVerified === true || lead.emailVerified === false
-                              ? 'Re-verify Email'
+                              ? emailPitches[lead.id]
+                                ? 'Regenerate Email Pitch'
+                                : 'Generate Email Pitch'
                               : 'Verify Email'
                           }
                           style={{
@@ -2723,7 +2857,10 @@ function SavedLeadsPage(): JSX.Element {
                             height: '36px',
                             borderRadius: '10px',
                             border: 'none',
-                            cursor: verifyingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            cursor:
+                              verifyingEmailIds.has(lead.id) || generatingEmailPitchIds.has(lead.id)
+                                ? 'wait'
+                                : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -2740,10 +2877,14 @@ function SavedLeadsPage(): JSX.Element {
                                   ? '#ef4444'
                                   : '#6366f1',
                             fontSize: '1rem',
-                            opacity: verifyingEmailIds.has(lead.id) ? 0.7 : 1
+                            opacity:
+                              verifyingEmailIds.has(lead.id) || generatingEmailPitchIds.has(lead.id)
+                                ? 0.7
+                                : 1
                           }}
                         >
-                          {verifyingEmailIds.has(lead.id) ? (
+                          {verifyingEmailIds.has(lead.id) ||
+                          generatingEmailPitchIds.has(lead.id) ? (
                             <div
                               className="action-spinner"
                               style={{
@@ -2800,27 +2941,29 @@ function SavedLeadsPage(): JSX.Element {
                         </button>
                       )}
                       {/* Expand/Collapse Button (moved to end) */}
-                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
-                        <button
-                          onClick={() => toggleExpanded(lead.id)}
-                          title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(99, 102, 241, 0.1)',
-                            color: '#6366f1',
-                            fontSize: '1rem'
-                          }}
-                        >
-                          {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
-                        </button>
-                      )}
+                      {(lead.generatedPitch || emailPitches[lead.id]) &&
+                        !generatingPitchIds.has(lead.id) &&
+                        !generatingEmailPitchIds.has(lead.id) && (
+                          <button
+                            onClick={() => toggleExpanded(lead.id)}
+                            title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              color: '#6366f1',
+                              fontSize: '1rem'
+                            }}
+                          >
+                            {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
+                          </button>
+                        )}
 
                       <button
                         onClick={() => handleRemoveLead(lead.id)}
@@ -3166,7 +3309,10 @@ function SavedLeadsPage(): JSX.Element {
                       <div style={{ marginBottom: '1rem' }}>
                         <button
                           onClick={() =>
-                            setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                            setShowWhatsAppPreviews((prev) => ({
+                              ...prev,
+                              [lead.id]: !prev[lead.id]
+                            }))
                           }
                           style={{
                             background: 'transparent',
@@ -3180,18 +3326,18 @@ function SavedLeadsPage(): JSX.Element {
                             padding: 0
                           }}
                         >
-                          {showPreviews[lead.id] ? (
+                          {showWhatsAppPreviews[lead.id] ? (
                             <FaChevronUp size={10} />
                           ) : (
                             <FaChevronDown size={10} />
                           )}
-                          {showPreviews[lead.id]
+                          {showWhatsAppPreviews[lead.id]
                             ? 'Hide WhatsApp Preview'
                             : 'Show WhatsApp Preview'}
                         </button>
 
                         {/* VISUAL PREVIEW BOX */}
-                        {showPreviews[lead.id] && (
+                        {showWhatsAppPreviews[lead.id] && (
                           <div
                             style={{
                               marginTop: '1.3rem',
@@ -3245,6 +3391,490 @@ function SavedLeadsPage(): JSX.Element {
                         >
                           <FaWhatsapp /> Send via WhatsApp
                         </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {expandedLeadIds.has(lead.id) && emailPitches[lead.id] && (
+                    <div
+                      style={{
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(59, 130, 246, 0.22)',
+                        animation: 'slideDown 0.3s ease-out'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.75rem'
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            color: '#3b82f6',
+                            fontWeight: 600,
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <FaEnvelope /> Generated Email Pitch (Editable)
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => {
+                              const subject =
+                                editedEmailPitches[lead.id]?.subject ??
+                                emailPitches[lead.id].subject
+                              const body =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              copyToClipboard(`Subject: ${subject}\n\n${body}`)
+                            }}
+                            title="Copy to Clipboard"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(59, 130, 246, 0.18)',
+                              color: '#60a5fa',
+                              fontSize: '0.75rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaCopy /> Copy
+                          </button>
+                          <button
+                            onClick={() => handleGenerateEmailPitch(lead)}
+                            title={
+                              !selectedMailCampaignId
+                                ? 'Select a mail campaign to regenerate'
+                                : 'Regenerate Email Pitch'
+                            }
+                            disabled={
+                              generatingEmailPitchIds.has(lead.id) || !selectedMailCampaignId
+                            }
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor:
+                                generatingEmailPitchIds.has(lead.id) || !selectedMailCampaignId
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background:
+                                !selectedMailCampaignId || generatingEmailPitchIds.has(lead.id)
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'rgba(59, 130, 246, 0.18)',
+                              color:
+                                !selectedMailCampaignId || generatingEmailPitchIds.has(lead.id)
+                                  ? '#94a3b8'
+                                  : '#60a5fa',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: !selectedMailCampaignId ? 0.7 : 1
+                            }}
+                          >
+                            <FaRedo /> Regenerate
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <input
+                          value={
+                            editedEmailPitches[lead.id]?.subject ?? emailPitches[lead.id].subject
+                          }
+                          onChange={(e) => {
+                            const nextSubject = e.target.value
+                            const currentBody =
+                              editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                            setEditedEmailPitches((prev) => ({
+                              ...prev,
+                              [lead.id]: { subject: nextSubject, body: currentBody }
+                            }))
+                          }}
+                          style={{
+                            width: '100%',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(148, 163, 184, 0.2)',
+                            borderRadius: '8px',
+                            padding: '0.65rem 0.75rem',
+                            color: '#f1f5f9',
+                            fontSize: '0.9rem',
+                            fontFamily: 'inherit'
+                          }}
+                          placeholder="Subject..."
+                        />
+
+                        <div
+                          className="markdown-toolbar"
+                          style={{
+                            display: 'flex',
+                            gap: '0.5rem',
+                            marginBottom: '0.25rem',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            padding: '0.25rem',
+                            borderRadius: '4px',
+                            width: 'fit-content'
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '*',
+                                '*',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Bold (*text*)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            B
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '_',
+                                '_',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Italic (_text_)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontStyle: 'italic',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            I
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '~',
+                                '~',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Strikethrough (~text~)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              textDecoration: 'line-through',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            S
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '```',
+                                '```',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Monospace (```text```)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontFamily: 'monospace',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            {'<>'}
+                          </button>
+
+                          <div
+                            style={{
+                              width: '1px',
+                              height: '16px',
+                              background: '#475569',
+                              margin: '0 4px'
+                            }}
+                          ></div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '- ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Bullet List (- item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            <span style={{ fontSize: '12px' }}>●</span> List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '1. ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Numbered List (1. item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            1. List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '> ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Quote (> item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            &gt; Quote
+                          </button>
+                        </div>
+
+                        <textarea
+                          value={editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body}
+                          onChange={(e) => {
+                            const nextBody = e.target.value
+                            const currentSubject =
+                              editedEmailPitches[lead.id]?.subject ?? emailPitches[lead.id].subject
+                            setEditedEmailPitches((prev) => ({
+                              ...prev,
+                              [lead.id]: { subject: currentSubject, body: nextBody }
+                            }))
+                          }}
+                          style={{
+                            width: '100%',
+                            minHeight: '160px',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(148, 163, 184, 0.2)',
+                            borderRadius: '8px',
+                            padding: '0.75rem',
+                            color: '#f1f5f9',
+                            fontSize: '0.9rem',
+                            lineHeight: '1.6',
+                            fontFamily: 'inherit',
+                            resize: 'vertical'
+                          }}
+                          placeholder="Email body..."
+                        />
+                      </div>
+
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <button
+                          onClick={() =>
+                            setShowEmailPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                          }
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: 0
+                          }}
+                        >
+                          {showEmailPreviews[lead.id] ? (
+                            <FaChevronUp size={10} />
+                          ) : (
+                            <FaChevronDown size={10} />
+                          )}
+                          {showEmailPreviews[lead.id] ? 'Hide Email Preview' : 'Show Email Preview'}
+                        </button>
+
+                        {showEmailPreviews[lead.id] && (
+                          <div
+                            style={{
+                              marginTop: '1.3rem',
+                              padding: '0.75rem',
+                              background: '#0f172a',
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #3b82f6',
+                              fontSize: '0.9rem',
+                              color: '#e2e8f0',
+                              position: 'relative'
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: -10,
+                                left: 10,
+                                fontSize: '0.65rem',
+                                background: '#3b82f6',
+                                color: '#000',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              PREVIEW
+                            </div>
+                            <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
+                              {editedEmailPitches[lead.id]?.subject ??
+                                emailPitches[lead.id].subject}
+                            </div>
+                            {renderWhatsAppMarkdown(
+                              editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -4780,11 +5410,21 @@ function SavedLeadsPage(): JSX.Element {
 
                       {lead.email && (
                         <button
-                          onClick={() => handleFbVerifyEmail(lead.id)}
-                          disabled={fbVerifyingEmailIds.has(lead.id)}
+                          onClick={() => {
+                            if (lead.emailVerified === true || lead.emailVerified === false) {
+                              handleFbGenerateEmailPitch(lead)
+                            } else {
+                              handleFbVerifyEmail(lead.id)
+                            }
+                          }}
+                          disabled={
+                            fbVerifyingEmailIds.has(lead.id) || generatingEmailPitchIds.has(lead.id)
+                          }
                           title={
                             lead.emailVerified === true || lead.emailVerified === false
-                              ? 'Re-verify Email'
+                              ? emailPitches[lead.id]
+                                ? 'Regenerate Email Pitch'
+                                : 'Generate Email Pitch'
                               : 'Verify Email'
                           }
                           style={{
@@ -4792,7 +5432,11 @@ function SavedLeadsPage(): JSX.Element {
                             height: '36px',
                             borderRadius: '10px',
                             border: 'none',
-                            cursor: fbVerifyingEmailIds.has(lead.id) ? 'wait' : 'pointer',
+                            cursor:
+                              fbVerifyingEmailIds.has(lead.id) ||
+                              generatingEmailPitchIds.has(lead.id)
+                                ? 'wait'
+                                : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -4809,10 +5453,15 @@ function SavedLeadsPage(): JSX.Element {
                                   ? '#ef4444'
                                   : '#6366f1',
                             fontSize: '1rem',
-                            opacity: fbVerifyingEmailIds.has(lead.id) ? 0.7 : 1
+                            opacity:
+                              fbVerifyingEmailIds.has(lead.id) ||
+                              generatingEmailPitchIds.has(lead.id)
+                                ? 0.7
+                                : 1
                           }}
                         >
-                          {fbVerifyingEmailIds.has(lead.id) ? (
+                          {fbVerifyingEmailIds.has(lead.id) ||
+                          generatingEmailPitchIds.has(lead.id) ? (
                             <div
                               className="action-spinner"
                               style={{
@@ -4870,27 +5519,29 @@ function SavedLeadsPage(): JSX.Element {
                       )}
 
                       {/* Expand/Collapse Button (moved to end) */}
-                      {lead.generatedPitch && !generatingPitchIds.has(lead.id) && (
-                        <button
-                          onClick={() => toggleExpanded(lead.id)}
-                          title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(99, 102, 241, 0.1)',
-                            color: '#6366f1',
-                            fontSize: '1rem'
-                          }}
-                        >
-                          {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
-                        </button>
-                      )}
+                      {(lead.generatedPitch || emailPitches[lead.id]) &&
+                        !generatingPitchIds.has(lead.id) &&
+                        !generatingEmailPitchIds.has(lead.id) && (
+                          <button
+                            onClick={() => toggleExpanded(lead.id)}
+                            title={expandedLeadIds.has(lead.id) ? 'Collapse' : 'Expand Pitch'}
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'rgba(99, 102, 241, 0.1)',
+                              color: '#6366f1',
+                              fontSize: '1rem'
+                            }}
+                          >
+                            {expandedLeadIds.has(lead.id) ? <FaChevronUp /> : <FaChevronDown />}
+                          </button>
+                        )}
 
                       <button
                         onClick={() => handleFbRemoveLead(lead.id)}
@@ -5237,7 +5888,10 @@ function SavedLeadsPage(): JSX.Element {
                       <div style={{ marginBottom: '1rem' }}>
                         <button
                           onClick={() =>
-                            setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                            setShowWhatsAppPreviews((prev) => ({
+                              ...prev,
+                              [lead.id]: !prev[lead.id]
+                            }))
                           }
                           style={{
                             background: 'transparent',
@@ -5251,18 +5905,18 @@ function SavedLeadsPage(): JSX.Element {
                             padding: 0
                           }}
                         >
-                          {showPreviews[lead.id] ? (
+                          {showWhatsAppPreviews[lead.id] ? (
                             <FaChevronUp size={10} />
                           ) : (
                             <FaChevronDown size={10} />
                           )}
-                          {showPreviews[lead.id]
+                          {showWhatsAppPreviews[lead.id]
                             ? 'Hide WhatsApp Preview'
                             : 'Show WhatsApp Preview'}
                         </button>
 
                         {/* VISUAL PREVIEW BOX */}
-                        {showPreviews[lead.id] && (
+                        {showWhatsAppPreviews[lead.id] && (
                           <div
                             style={{
                               marginTop: '1.3rem',
@@ -5316,6 +5970,490 @@ function SavedLeadsPage(): JSX.Element {
                         >
                           <FaWhatsapp /> Send via WhatsApp
                         </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {expandedLeadIds.has(lead.id) && emailPitches[lead.id] && (
+                    <div
+                      style={{
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(59, 130, 246, 0.22)',
+                        animation: 'slideDown 0.3s ease-out'
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.75rem'
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            color: '#3b82f6',
+                            fontWeight: 600,
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <FaEnvelope /> Generated Email Pitch (Editable)
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => {
+                              const subject =
+                                editedEmailPitches[lead.id]?.subject ??
+                                emailPitches[lead.id].subject
+                              const body =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              copyToClipboard(`Subject: ${subject}\n\n${body}`)
+                            }}
+                            title="Copy to Clipboard"
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'rgba(59, 130, 246, 0.18)',
+                              color: '#60a5fa',
+                              fontSize: '0.75rem',
+                              fontWeight: 500
+                            }}
+                          >
+                            <FaCopy /> Copy
+                          </button>
+                          <button
+                            onClick={() => handleFbGenerateEmailPitch(lead)}
+                            title={
+                              !selectedMailCampaignId
+                                ? 'Select a mail campaign to regenerate'
+                                : 'Regenerate Email Pitch'
+                            }
+                            disabled={
+                              generatingEmailPitchIds.has(lead.id) || !selectedMailCampaignId
+                            }
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor:
+                                generatingEmailPitchIds.has(lead.id) || !selectedMailCampaignId
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background:
+                                !selectedMailCampaignId || generatingEmailPitchIds.has(lead.id)
+                                  ? 'rgba(148, 163, 184, 0.1)'
+                                  : 'rgba(59, 130, 246, 0.18)',
+                              color:
+                                !selectedMailCampaignId || generatingEmailPitchIds.has(lead.id)
+                                  ? '#94a3b8'
+                                  : '#60a5fa',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: !selectedMailCampaignId ? 0.7 : 1
+                            }}
+                          >
+                            <FaRedo /> Regenerate
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <input
+                          value={
+                            editedEmailPitches[lead.id]?.subject ?? emailPitches[lead.id].subject
+                          }
+                          onChange={(e) => {
+                            const nextSubject = e.target.value
+                            const currentBody =
+                              editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                            setEditedEmailPitches((prev) => ({
+                              ...prev,
+                              [lead.id]: { subject: nextSubject, body: currentBody }
+                            }))
+                          }}
+                          style={{
+                            width: '100%',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(148, 163, 184, 0.2)',
+                            borderRadius: '8px',
+                            padding: '0.65rem 0.75rem',
+                            color: '#f1f5f9',
+                            fontSize: '0.9rem',
+                            fontFamily: 'inherit'
+                          }}
+                          placeholder="Subject..."
+                        />
+
+                        <div
+                          className="markdown-toolbar"
+                          style={{
+                            display: 'flex',
+                            gap: '0.5rem',
+                            marginBottom: '0.25rem',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            padding: '0.25rem',
+                            borderRadius: '4px',
+                            width: 'fit-content'
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '*',
+                                '*',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Bold (*text*)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            B
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '_',
+                                '_',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Italic (_text_)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontStyle: 'italic',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            I
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '~',
+                                '~',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Strikethrough (~text~)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              textDecoration: 'line-through',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            S
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '```',
+                                '```',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Monospace (```text```)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              fontFamily: 'monospace',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            {'<>'}
+                          </button>
+
+                          <div
+                            style={{
+                              width: '1px',
+                              height: '16px',
+                              background: '#475569',
+                              margin: '0 4px'
+                            }}
+                          ></div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '- ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Bullet List (- item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            <span style={{ fontSize: '12px' }}>●</span> List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '1. ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Numbered List (1. item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            1. List
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const textarea = e.currentTarget.parentElement
+                                ?.nextElementSibling as HTMLTextAreaElement
+                              const currentVal =
+                                editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                              insertMarkdown(
+                                textarea,
+                                '> ',
+                                '',
+                                (val) => {
+                                  const subject =
+                                    editedEmailPitches[lead.id]?.subject ??
+                                    emailPitches[lead.id].subject
+                                  setEditedEmailPitches((prev) => ({
+                                    ...prev,
+                                    [lead.id]: { subject, body: val }
+                                  }))
+                                },
+                                currentVal
+                              )
+                            }}
+                            title="Quote (> item)"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#cbd5e1',
+                              cursor: 'pointer',
+                              padding: '0 0.25rem'
+                            }}
+                          >
+                            &gt; Quote
+                          </button>
+                        </div>
+
+                        <textarea
+                          value={editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body}
+                          onChange={(e) => {
+                            const nextBody = e.target.value
+                            const currentSubject =
+                              editedEmailPitches[lead.id]?.subject ?? emailPitches[lead.id].subject
+                            setEditedEmailPitches((prev) => ({
+                              ...prev,
+                              [lead.id]: { subject: currentSubject, body: nextBody }
+                            }))
+                          }}
+                          style={{
+                            width: '100%',
+                            minHeight: '160px',
+                            background: 'rgba(15, 23, 42, 0.6)',
+                            border: '1px solid rgba(148, 163, 184, 0.2)',
+                            borderRadius: '8px',
+                            padding: '0.75rem',
+                            color: '#f1f5f9',
+                            fontSize: '0.9rem',
+                            lineHeight: '1.6',
+                            fontFamily: 'inherit',
+                            resize: 'vertical'
+                          }}
+                          placeholder="Email body..."
+                        />
+                      </div>
+
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <button
+                          onClick={() =>
+                            setShowEmailPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                          }
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: 0
+                          }}
+                        >
+                          {showEmailPreviews[lead.id] ? (
+                            <FaChevronUp size={10} />
+                          ) : (
+                            <FaChevronDown size={10} />
+                          )}
+                          {showEmailPreviews[lead.id] ? 'Hide Email Preview' : 'Show Email Preview'}
+                        </button>
+
+                        {showEmailPreviews[lead.id] && (
+                          <div
+                            style={{
+                              marginTop: '1.3rem',
+                              padding: '0.75rem',
+                              background: '#0f172a',
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #3b82f6',
+                              fontSize: '0.9rem',
+                              color: '#e2e8f0',
+                              position: 'relative'
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: -10,
+                                left: 10,
+                                fontSize: '0.65rem',
+                                background: '#3b82f6',
+                                color: '#000',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              PREVIEW
+                            </div>
+                            <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>
+                              {editedEmailPitches[lead.id]?.subject ??
+                                emailPitches[lead.id].subject}
+                            </div>
+                            {renderWhatsAppMarkdown(
+                              editedEmailPitches[lead.id]?.body ?? emailPitches[lead.id].body
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
