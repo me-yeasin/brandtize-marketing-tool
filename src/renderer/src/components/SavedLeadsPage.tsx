@@ -58,6 +58,171 @@ const DEFAULT_FILTERS: AdvancedFilters = {
   }
 }
 
+// Minimal WhatsApp Markdown Parser for Preview (Duplicated from AiCopywriterPage for isolated portability)
+// This ensures the preview looks exactly as expected.
+const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
+  if (!text) return []
+
+  // Split by newlines to handle paragraphs
+  const lines = text.split('\n')
+  const result: JSX.Element[] = []
+
+  lines.forEach((line, i) => {
+    // 1. Process Inline Formats First (Bold, Italic, Code, Strike)
+    let content: (string | JSX.Element)[] = [line]
+
+    // Monospace ` ```text``` `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(```.*?```)/g)
+      return parts.map((part) => {
+        if (part.startsWith('```') && part.endsWith('```')) {
+          return (
+            <code
+              key={Math.random()}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                padding: '2px 4px',
+                borderRadius: '3px',
+                fontFamily: 'monospace'
+              }}
+            >
+              {part.slice(3, -3)}
+            </code>
+          )
+        }
+        return part
+      })
+    })
+
+    // Bold ` *text* `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(\*[^*\n]+\*)/g)
+      return parts.map((part) => {
+        if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+          return <strong key={Math.random()}>{part.slice(1, -1)}</strong>
+        }
+        return part
+      })
+    })
+
+    // Italic ` _text_ `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(_[^_\n]+_)/g)
+      return parts.map((part) => {
+        if (part.startsWith('_') && part.endsWith('_') && part.length > 2) {
+          return <em key={Math.random()}>{part.slice(1, -1)}</em>
+        }
+        return part
+      })
+    })
+
+    // Strikethrough ` ~text~ `
+    content = content.flatMap((seg) => {
+      if (typeof seg !== 'string') return seg
+      const parts = seg.split(/(~[^~\n]+~)/g)
+      return parts.map((part) => {
+        if (part.startsWith('~') && part.endsWith('~') && part.length > 2) {
+          return (
+            <span key={Math.random()} style={{ textDecoration: 'line-through' }}>
+              {part.slice(1, -1)}
+            </span>
+          )
+        }
+        return part
+      })
+    })
+
+    // 2. Wrap content based on Line Type
+    const trimmedLine = line.trim()
+
+    if (trimmedLine.startsWith('- ')) {
+      // Bullet List
+      // Remove the leading "- " for display from the FIRST text string found
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && p.trimStart().startsWith('- ')) {
+          removedPrefix = true
+          return p.replace('- ', '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{ display: 'flex', gap: '8px', paddingLeft: '8px', marginBottom: '4px' }}
+        >
+          <span style={{ color: '#6366f1' }}>•</span>
+          <div style={{ flex: 1 }}>{cleanContent}</div>
+        </div>
+      )
+    } else if (/^\d+\.\s/.test(trimmedLine)) {
+      // Numbered List
+      const match = trimmedLine.match(/^(\d+)\.\s/)
+      const number = match ? match[1] : '1'
+
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && /^\s*\d+\.\s/.test(p)) {
+          removedPrefix = true
+          return p.replace(/^\s*\d+\.\s/, '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{ display: 'flex', gap: '8px', paddingLeft: '8px', marginBottom: '4px' }}
+        >
+          <span style={{ color: '#6366f1', fontWeight: 'bold' }}>{number}.</span>
+          <div style={{ flex: 1 }}>{cleanContent}</div>
+        </div>
+      )
+    } else if (trimmedLine.startsWith('> ')) {
+      // Block Quote
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && p.trimStart().startsWith('> ')) {
+          removedPrefix = true
+          return p.replace('> ', '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{
+            borderLeft: '3px solid #64748b',
+            paddingLeft: '12px',
+            fontStyle: 'italic',
+            color: '#94a3b8',
+            margin: '4px 0',
+            background: 'rgba(255,255,255,0.02)',
+            padding: '4px 12px',
+            borderRadius: '0 4px 4px 0'
+          }}
+        >
+          {cleanContent}
+        </div>
+      )
+    } else {
+      // Standard Line
+      result.push(
+        <div key={i} style={{ minHeight: '1.2em' }}>
+          {content}
+        </div>
+      )
+    }
+  })
+
+  return result
+}
+
 function SavedLeadsPage(): JSX.Element {
   const [leads, setLeads] = useState<SavedMapsLead[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -94,6 +259,11 @@ function SavedLeadsPage(): JSX.Element {
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
   const [generatingPitchIds, setGeneratingPitchIds] = useState<Set<string>>(new Set())
   const [pitchStatus, setPitchStatus] = useState<Record<string, PitchGenerationStatus>>({})
+
+  // Local editing state: leadId -> edited string
+  const [editedPitches, setEditedPitches] = useState<Record<string, string>>({})
+  // Preview toggle state: leadId -> boolean
+  const [showPreviews, setShowPreviews] = useState<Record<string, boolean>>({})
 
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
@@ -470,6 +640,13 @@ function SavedLeadsPage(): JSX.Element {
           [lead.id]: { status: 'done', message: '✅ Pitch ready!', currentPitch: result.pitch }
         }))
 
+        // Reset local edit state so the new pitch is shown
+        setEditedPitches((prev) => {
+          const next = { ...prev }
+          delete next[lead.id]
+          return next
+        })
+
         showToast('Pitch generated successfully!', 'success')
       } else {
         setPitchStatus((prev) => ({
@@ -510,8 +687,10 @@ function SavedLeadsPage(): JSX.Element {
     if (!lead.phone) return
     let cleanNumber = lead.phone.replace(/[^\d+]/g, '')
     if (cleanNumber.startsWith('+')) cleanNumber = cleanNumber.substring(1)
-    const message =
-      lead.generatedPitch || `Hi! I found ${lead.name} on Google Maps and wanted to reach out.`
+
+    // USE EDITED PITCH IF AVAILABLE
+    const finalPitch = editedPitches[lead.id] ?? lead.generatedPitch
+    const message = finalPitch || `Hi! I found ${lead.name} on Google Maps and wanted to reach out.`
     window.api.openExternalUrl(`https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`)
   }
 
@@ -1754,7 +1933,6 @@ function SavedLeadsPage(): JSX.Element {
                 </div>
               </div>
 
-              {/* Expandable Pitch Section */}
               {expandedLeadIds.has(lead.id) && lead.generatedPitch && (
                 <div
                   style={{
@@ -1784,11 +1962,13 @@ function SavedLeadsPage(): JSX.Element {
                         fontSize: '0.85rem'
                       }}
                     >
-                      <FaMagic /> Generated Pitch
+                      <FaMagic /> Generated Pitch (Editable)
                     </span>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
-                        onClick={() => copyToClipboard(lead.generatedPitch || '')}
+                        onClick={() =>
+                          copyToClipboard(editedPitches[lead.id] ?? lead.generatedPitch ?? '')
+                        }
                         title="Copy to Clipboard"
                         style={{
                           padding: '0.4rem 0.75rem',
@@ -1842,18 +2022,93 @@ function SavedLeadsPage(): JSX.Element {
                       </button>
                     </div>
                   </div>
-                  <p
+
+                  {/* EDITABLE TEXTAREA */}
+                  <textarea
+                    value={editedPitches[lead.id] ?? lead.generatedPitch ?? ''}
+                    onChange={(e) =>
+                      setEditedPitches((prev) => ({ ...prev, [lead.id]: e.target.value }))
+                    }
                     style={{
-                      color: '#e2e8f0',
+                      width: '100%',
+                      minHeight: '120px',
+                      background: 'rgba(15, 23, 42, 0.6)',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      borderRadius: '8px',
+                      padding: '0.75rem',
+                      color: '#f1f5f9',
                       fontSize: '0.9rem',
                       lineHeight: '1.6',
-                      whiteSpace: 'pre-wrap',
-                      margin: 0
+                      marginBottom: '0.75rem',
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
                     }}
-                  >
-                    {lead.generatedPitch}
-                  </p>
-                  <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+                    placeholder="Type your custom pitch here..."
+                  />
+
+                  {/* PREVIEW TOGGLE */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <button
+                      onClick={() =>
+                        setShowPreviews((prev) => ({ ...prev, [lead.id]: !prev[lead.id] }))
+                      }
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: 0
+                      }}
+                    >
+                      {showPreviews[lead.id] ? (
+                        <FaChevronUp size={10} />
+                      ) : (
+                        <FaChevronDown size={10} />
+                      )}
+                      {showPreviews[lead.id] ? 'Hide WhatsApp Preview' : 'Show WhatsApp Preview'}
+                    </button>
+
+                    {/* VISUAL PREVIEW BOX */}
+                    {showPreviews[lead.id] && (
+                      <div
+                        style={{
+                          marginTop: '1.3rem',
+                          padding: '0.75rem',
+                          background: '#0f172a', // Dark WhatsApp-ish bg
+                          borderRadius: '8px',
+                          borderLeft: '4px solid #25d366',
+                          fontSize: '0.9rem',
+                          color: '#e2e8f0',
+                          position: 'relative'
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: -10,
+                            left: 10,
+                            fontSize: '0.65rem',
+                            background: '#25d366',
+                            color: '#000',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          PREVIEW
+                        </div>
+                        {renderWhatsAppMarkdown(
+                          editedPitches[lead.id] ?? lead.generatedPitch ?? ''
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={() => openWhatsAppWithPitch(lead)}
                       style={{
@@ -1870,7 +2125,7 @@ function SavedLeadsPage(): JSX.Element {
                         fontWeight: 600
                       }}
                     >
-                      <FaWhatsapp /> Send on WhatsApp
+                      <FaWhatsapp /> Send via WhatsApp
                     </button>
                   </div>
                 </div>
