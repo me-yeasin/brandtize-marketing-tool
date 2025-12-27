@@ -259,7 +259,7 @@ ${exampleContext}
 ${languageContext}
 Requirements:
 1. STRICTLY follow the User Instruction above.
-2. Keep it under 150 words (WhatsApp style).
+2. LENGTH: If the instruction specifies a length (e.g. "long", "short", "under 300 words"), FOLLOW IT. If not specified, keep it concise (under 200 words).
 3. Include 1-2 relevant emojis naturally.
 4. Output ONLY the message text.
 5. If a Buyer Persona is provided, ensure the language resonates with them.
@@ -359,6 +359,13 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     instructionCheck = `1. **DOES IT FOLLOW THE USER INSTRUCTION?** (Highest Priority)\n`
   }
 
+  // Length check criteria - Dynamic based on instruction
+  let lengthCriteria = '3. Is it concise (under 150 words)?'
+  if (instructionCheck) {
+    lengthCriteria =
+      '3. Does it follow the length/style requested in the instruction? (If not specified, is it concise?)'
+  }
+
   let personaContext = ''
   if (lead.buyerPersona && lead.buyerPersona.trim().length > 0) {
     personaContext = `\nBUYER PERSONA:\n"${lead.buyerPersona}"\n`
@@ -395,7 +402,7 @@ ${instructionContext}${personaContext}${exampleContext}
 Criteria:
 ${instructionCheck || '1. Is it personalized to this specific business?'}
 ${instructionCheck ? '2' : '1'}. Is it personalized to this specific business?
-${instructionCheck ? '3' : '2'}. Is it concise (under 150 words)?
+${lengthCriteria}
 ${instructionCheck ? '4' : '3'}. Does it feel genuine and not salesy?
 ${instructionCheck ? '5' : '4'}. Is there a clear but soft call-to-action?
 ${instructionCheck ? '6' : '5'}. Are any "[Insert Link]" or similar placeholders remaining? (This is a FAIL)
@@ -521,7 +528,7 @@ Write an improved version that addresses the feedback while keeping:
 - Strict adherence to the USER INSTRUCTION
 - Matching the style of the EXAMPLES (if provided)
 - Personalization to this specific business
-- Concise length
+- Length: FOLLOW USER INSTRUCTION (if specified), otherwise keep it concise
 - Genuine, helpful tone
 ${languageContext ? '- MUST be written in BANGLA (বাংলা) language' : ''}
 
