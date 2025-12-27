@@ -33,10 +33,11 @@ interface AiCopywriterPageProps {
 // ============================================
 
 // Helper to insert/toggle markdown syntax at cursor
+// Helper to insert/toggle markdown syntax at cursor
 const insertMarkdown = (
   textarea: HTMLTextAreaElement | null,
   startChar: string,
-  endChar: string,
+  endChar: string, // If empty, it treats it as a line-prefix (like "- " or "> ")
   setFunction: (val: string) => void,
   currentValue: string
 ): void => {
@@ -47,6 +48,57 @@ const insertMarkdown = (
   const selectedText = currentValue.substring(start, end)
   const before = currentValue.substring(0, start)
   const after = currentValue.substring(end)
+
+  // --- LINE PREFIX MODE (For Lists, Quotes) ---
+  if (!endChar) {
+    // Check if the current line already has the prefix
+    const lastNewLine = before.lastIndexOf('\n')
+    const currentLineStart = lastNewLine === -1 ? 0 : lastNewLine + 1
+    const currentLineContent = currentValue.substring(currentLineStart, end) + after.split('\n')[0]
+
+    // Simple toggle check on the current line
+    if (currentLineContent.trim().startsWith(startChar.trim())) {
+      // REMOVE Prefix
+      const prefixLength = startChar.length
+      // We need to find exactly where the prefix is relative to 'before'
+      const lineBeforeCursor = before.substring(currentLineStart)
+      if (lineBeforeCursor.startsWith(startChar)) {
+        // Prefix is before cursor
+        const newBefore =
+          before.substring(0, currentLineStart) + lineBeforeCursor.substring(prefixLength)
+        setFunction(`${newBefore}${selectedText}${after}`)
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(
+            Math.max(currentLineStart, start - prefixLength),
+            Math.max(currentLineStart, end - prefixLength)
+          )
+        }, 0)
+      } else {
+        // Cursor likely at start of line
+        const lineContent = currentValue.substring(currentLineStart)
+        if (lineContent.startsWith(startChar)) {
+          const newValue =
+            currentValue.substring(0, currentLineStart) + lineContent.substring(prefixLength)
+          setFunction(newValue)
+          setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(start, end)
+          }, 0)
+        }
+      }
+    } else {
+      // ADD Prefix
+      const newBefore =
+        before.substring(0, currentLineStart) + startChar + before.substring(currentLineStart)
+      setFunction(`${newBefore}${selectedText}${after}`)
+      setTimeout(() => {
+        textarea.focus()
+        textarea.setSelectionRange(start + startChar.length, end + startChar.length)
+      }, 0)
+    }
+    return
+  }
 
   // Case 1: Selection IS the wrapper (e.g. user selected "*text*")
   // Toggle OFF
@@ -93,7 +145,7 @@ const insertMarkdown = (
     }, 0)
   } else {
     // Insert placeholder
-    const newValue = `${before}${startChar}text${endChar}${after}`
+    const newValue = `${before}${startChar}item${endChar}${after}`
     setFunction(newValue)
     setTimeout(() => {
       textarea.focus()
@@ -601,6 +653,196 @@ function WhatsAppCampaigns(): JSX.Element {
                       }}
                     >
                       {'<>'}
+                    </button>
+
+                    {/* DIVIDER */}
+                    <div
+                      style={{
+                        width: '1px',
+                        height: '16px',
+                        background: '#475569',
+                        margin: '0 4px'
+                      }}
+                    ></div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '- ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Bullet List (- item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px' }}>●</span> List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '1. ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Numbered List (1. item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      1. List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '> ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Quote (> item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      ❝ Quote
+                    </button>
+
+                    {/* DIVIDER */}
+                    <div
+                      style={{
+                        width: '1px',
+                        height: '16px',
+                        background: '#475569',
+                        margin: '0 4px'
+                      }}
+                    ></div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '- ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Bullet List (- item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px' }}>●</span> List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '1. ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Numbered List (1. item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      1. List
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const textarea = e.currentTarget.parentElement
+                          ?.nextElementSibling as HTMLTextAreaElement
+                        const newExamples = [...(currentCampaign.examples || [])]
+                        insertMarkdown(
+                          textarea,
+                          '> ',
+                          '',
+                          (val) => {
+                            newExamples[index] = val
+                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
+                          },
+                          newExamples[index]
+                        )
+                      }}
+                      title="Quote (> item)"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#cbd5e1',
+                        cursor: 'pointer',
+                        padding: '0 0.25rem'
+                      }}
+                    >
+                      ❝ Quote
                     </button>
                   </div>
                   <textarea
