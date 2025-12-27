@@ -211,8 +211,11 @@ async function generatePitchNode(
 
   let productLinksContext = ''
   if (lead.productLinks && lead.productLinks.length > 0) {
-    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS:\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
-    productLinksContext += `IMPORTANT: ONLY use these links if the user INSTRUCTION or EXAMPLES specifically mention adding a link. Otherwise, DO NOT include them.`
+    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS (Use these to replace placeholders):\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+    productLinksContext += `CRITICAL LINK RULES:
+1. INTELLIGENT REPLACEMENT: If the Instruction or Examples contain placeholders like "[Insert Link]", "[Link Here]", "[Portfolio]", "link here", or similar, YOU MUST REPLACE THEM with the actual URLs above.
+2. FORMATTING: When inserting links, do not wrap them in brackets.
+3. MULTIPLE LINKS: If inserting multiple links, verify if they should be listed line-by-line.`
   }
 
   let prompt = ''
@@ -342,6 +345,11 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
     instructionCheck += `\n*. Does it match the style/tone of the provided examples?`
   }
 
+  // Check if real links were used instead of placeholders
+  if (lead.productLinks && lead.productLinks.length > 0) {
+    instructionCheck += `\n*. CRITICAL: Are specific placeholders like "[Insert Link]" replaced with ACTUAL URLs? (Reject if placeholders remain)`
+  }
+
   const prompt = `Evaluate this WhatsApp outreach message and decide if it needs improvement:
 
 Message:
@@ -355,6 +363,7 @@ ${instructionCheck ? '2' : '1'}. Is it personalized to this specific business?
 ${instructionCheck ? '3' : '2'}. Is it concise (under 150 words)?
 ${instructionCheck ? '4' : '3'}. Does it feel genuine and not salesy?
 ${instructionCheck ? '5' : '4'}. Is there a clear but soft call-to-action?
+${instructionCheck ? '6' : '5'}. Are any "[Insert Link]" or similar placeholders remaining? (This is a FAIL)
 
 Respond with ONLY one of these formats:
 - If the message is good: "APPROVED: [brief reason]"
@@ -439,8 +448,10 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
 
   let productLinksContext = ''
   if (lead.productLinks && lead.productLinks.length > 0) {
-    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS:\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
-    productLinksContext += `IMPORTANT: ONLY use these links if the user INSTRUCTION or EXAMPLES specifically mention adding a link. Otherwise, DO NOT include them.`
+    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS (Use these to replace placeholders):\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+    productLinksContext += `CRITICAL LINK RULES:
+1. IF the Feedback mentions missing links or placeholders: REPLACE text like "[Insert Link]" with actual URLs from above.
+2. DO NOT output the placeholder. Output the HTTP link.`
   }
 
   const prompt = `Improve this WhatsApp message based on the feedback:
