@@ -32,7 +32,7 @@ interface AiCopywriterPageProps {
 // WHATSAPP CAMPAIGN S COMPONENTS
 // ============================================
 
-// Helper to insert markdown syntax at cursor
+// Helper to insert/toggle markdown syntax at cursor
 const insertMarkdown = (
   textarea: HTMLTextAreaElement | null,
   startChar: string,
@@ -48,14 +48,48 @@ const insertMarkdown = (
   const before = currentValue.substring(0, start)
   const after = currentValue.substring(end)
 
-  if (selectedText) {
-    // Wrap selection
-    const newValue = `${before}${startChar}${selectedText}${endChar}${after}`
+  // Case 1: Selection IS the wrapper (e.g. user selected "*text*")
+  // Toggle OFF
+  if (
+    selectedText.startsWith(startChar) &&
+    selectedText.endsWith(endChar) &&
+    selectedText.length >= startChar.length + endChar.length
+  ) {
+    const unwrapped = selectedText.substring(startChar.length, selectedText.length - endChar.length)
+    const newValue = `${before}${unwrapped}${after}`
     setFunction(newValue)
-    // Restore selection including wrappers (optional, or just place cursor after)
     setTimeout(() => {
       textarea.focus()
-      textarea.setSelectionRange(start, end + startChar.length + endChar.length)
+      // Keep extraction selected
+      textarea.setSelectionRange(start, start + unwrapped.length)
+    }, 0)
+    return
+  }
+
+  // Case 2: Wrapper is surrounding the selection (e.g. user selected "text" inside "*text*")
+  // Toggle OFF
+  if (before.endsWith(startChar) && after.startsWith(endChar)) {
+    const newBefore = before.substring(0, before.length - startChar.length)
+    const newAfter = after.substring(endChar.length)
+    const newValue = `${newBefore}${selectedText}${newAfter}`
+    setFunction(newValue)
+    setTimeout(() => {
+      textarea.focus()
+      // Shift selection back because we removed characters before it
+      textarea.setSelectionRange(start - startChar.length, end - startChar.length)
+    }, 0)
+    return
+  }
+
+  // Case 3: No wrapper found
+  // Toggle ON
+  if (selectedText) {
+    const newValue = `${before}${startChar}${selectedText}${endChar}${after}`
+    setFunction(newValue)
+    setTimeout(() => {
+      textarea.focus()
+      // Select the text NOT including the new wrappers (so clicking again toggles case 2)
+      textarea.setSelectionRange(start + startChar.length, end + startChar.length)
     }, 0)
   } else {
     // Insert placeholder
@@ -63,6 +97,7 @@ const insertMarkdown = (
     setFunction(newValue)
     setTimeout(() => {
       textarea.focus()
+      // Select the placeholder "text"
       textarea.setSelectionRange(start + startChar.length, start + startChar.length + 4)
     }, 0)
   }
