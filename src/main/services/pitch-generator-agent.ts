@@ -212,10 +212,14 @@ async function generatePitchNode(
   let productLinksContext = ''
   if (lead.productLinks && lead.productLinks.length > 0) {
     productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS (Use these to replace placeholders):\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
-    productLinksContext += `CRITICAL LINK RULES:
-1. INTELLIGENT REPLACEMENT: If the Instruction or Examples contain placeholders like "[Insert Link]", "[Link Here]", "[Portfolio]", "link here", or similar, YOU MUST REPLACE THEM with the actual URLs above.
-2. FORMATTING: When inserting links, do not wrap them in brackets.
-3. MULTIPLE LINKS: If inserting multiple links, verify if they should be listed line-by-line.`
+    productLinksContext += `CRITICAL LINK RULES (STRICT):
+1. DETECT STRUCTURE (Priority 1): Check if the Instruction/Example defines specific spots for links (e.g. "Link 1", "Link 2", "First link", "Second link").
+   - IF YES: Place each link in its specific designated spot.
+2. DEFAULT LISTING (Priority 2): If only a GENERIC placeholder is found (e.g. "[Link]", "[Insert Link]") and no specific structure is defined:
+   - REPLACE that single placeholder with ALL available links.
+   - Format: Vertical list (New line for each URL).
+3. INTELLIGENT REPLACEMENT: Replace placeholders with raw HTTP URLs (e.g., https://site.com).
+4. NO BRACKETS: Do not wrap the final URLs in brackets.`
   }
 
   let prompt = ''
@@ -348,6 +352,9 @@ async function observeNode(state: PitchAgentStateType): Promise<Partial<PitchAge
   // Check if real links were used instead of placeholders
   if (lead.productLinks && lead.productLinks.length > 0) {
     instructionCheck += `\n*. CRITICAL: Are specific placeholders like "[Insert Link]" replaced with ACTUAL URLs? (Reject if placeholders remain)`
+    if (lead.productLinks.length > 1) {
+      instructionCheck += `\n*. MULTI-LINK CHECK: Did the message include ALL ${lead.productLinks.length} available links? (It MUST include clear references or the links themselves for all distinct items if context suggests sharing them)`
+    }
   }
 
   const prompt = `Evaluate this WhatsApp outreach message and decide if it needs improvement:
@@ -449,9 +456,12 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
   let productLinksContext = ''
   if (lead.productLinks && lead.productLinks.length > 0) {
     productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS (Use these to replace placeholders):\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
-    productLinksContext += `CRITICAL LINK RULES:
-1. IF the Feedback mentions missing links or placeholders: REPLACE text like "[Insert Link]" with actual URLs from above.
-2. DO NOT output the placeholder. Output the HTTP link.`
+    productLinksContext += `CRITICAL LINK RULES (STRICT):
+1. STRUCTURED vs DEFAULT:
+   - If user defines specific spots ("Link 1", "Link 2"): Fill those specific spots.
+   - If user uses GENERIC placeholder ("[Link]"): Replace it with ALL available links (one per line).
+2. QUANTITY: If using generic mode, you MUST include ALL ${lead.productLinks.length} available links.
+3. FORMATTING: Put EACH URL on its own line. No brackets.`
   }
 
   const prompt = `Improve this WhatsApp message based on the feedback:
