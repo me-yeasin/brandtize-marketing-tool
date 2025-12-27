@@ -1,31 +1,31 @@
 import { JSX, useCallback, useEffect, useState } from 'react'
 import {
-    FaCheck,
-    FaChevronDown,
-    FaChevronUp,
-    FaClipboardList,
-    FaCopy,
-    FaEnvelope,
-    FaExclamationTriangle,
-    FaFileExport,
-    FaFilter,
-    FaGlobe,
-    FaMagic,
-    FaMapMarkerAlt,
-    FaPhoneAlt,
-    FaRedo,
-    FaStar,
-    FaTelegramPlane,
-    FaTimes,
-    FaTrashAlt,
-    FaWhatsapp
+  FaCheck,
+  FaChevronDown,
+  FaChevronUp,
+  FaClipboardList,
+  FaCopy,
+  FaEnvelope,
+  FaExclamationTriangle,
+  FaFileExport,
+  FaFilter,
+  FaGlobe,
+  FaMagic,
+  FaMapMarkerAlt,
+  FaPhoneAlt,
+  FaRedo,
+  FaStar,
+  FaTelegramPlane,
+  FaTimes,
+  FaTrashAlt,
+  FaWhatsapp
 } from 'react-icons/fa'
 import type {
-    Campaign,
-    CampaignGroup,
-    PitchGenerationStatus,
-    ReviewsResult,
-    SavedMapsLead
+  Campaign,
+  CampaignGroup,
+  PitchGenerationStatus,
+  ReviewsResult,
+  SavedMapsLead
 } from '../../../preload/index.d'
 
 type TabFilter = 'all' | 'has-website' | 'no-website'
@@ -450,7 +450,8 @@ function SavedLeadsPage(): JSX.Element {
         reviews: lead.reviews,
         instruction: selectedCampaign?.instruction,
         buyerPersona: selectedCampaign?.buyerPersona,
-        examples: selectedCampaign?.examples
+        examples: selectedCampaign?.examples,
+        productLinks: selectedCampaign?.productLinks
       })
 
       if (result.success && result.pitch) {

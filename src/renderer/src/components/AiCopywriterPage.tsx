@@ -17,6 +17,7 @@ interface Campaign {
   instruction: string
   buyerPersona?: string
   examples?: string[]
+  productLinks?: string[]
   platform: 'whatsapp'
   groupId?: string
   createdAt: number
@@ -67,6 +68,7 @@ function WhatsAppCampaigns(): JSX.Element {
       instruction: '',
       buyerPersona: '',
       examples: [],
+      productLinks: [],
       platform: 'whatsapp'
     })
     setView('editor')
@@ -160,6 +162,7 @@ function WhatsAppCampaigns(): JSX.Element {
         instruction: currentCampaign.instruction || '',
         buyerPersona: currentCampaign.buyerPersona || undefined,
         examples: currentCampaign.examples || [],
+        productLinks: currentCampaign.productLinks || [],
         platform: 'whatsapp',
         groupId: currentCampaign.groupId,
         createdAt: currentCampaign.createdAt || Date.now(),
@@ -374,6 +377,110 @@ function WhatsAppCampaigns(): JSX.Element {
                   }}
                 >
                   No examples added yet. Adding examples significantly improves AI quality!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Product/Portfolio Links */}
+          <div className="form-group">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.5rem'
+              }}
+            >
+              <label className="form-label" style={{ marginBottom: 0 }}>
+                Product / Portfolio Links
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentLinks = currentCampaign.productLinks || []
+                  setCurrentCampaign((prev) => ({ ...prev, productLinks: [...currentLinks, ''] }))
+                }}
+                className="btn-secondary"
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  height: 'auto',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.3)'
+                }}
+              >
+                <FaPlus size={10} style={{ marginRight: '4px' }} /> Add Link
+              </button>
+            </div>
+            <p className="form-hint" style={{ marginBottom: '1rem' }}>
+              Add links to your products or portfolio. The AI will ONLY include these if the Pitch
+              Instructions or Examples specifically mention adding a link.
+            </p>
+
+            <div
+              className="examples-list"
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+            >
+              {(currentCampaign.productLinks || []).map((link, index) => (
+                <div key={index} className="example-item" style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={link}
+                    onChange={(e) => {
+                      const newLinks = [...(currentCampaign.productLinks || [])]
+                      newLinks[index] = e.target.value
+                      setCurrentCampaign((prev) => ({ ...prev, productLinks: newLinks }))
+                    }}
+                    placeholder={`https://...`}
+                    className="form-input"
+                    style={{ fontSize: '0.9rem', marginBottom: 0, paddingRight: '2rem' }}
+                    autoFocus={!link}
+                  />
+                  <button
+                    onClick={() => {
+                      const newLinks = (currentCampaign.productLinks || []).filter(
+                        (_, i) => i !== index
+                      )
+                      setCurrentCampaign((prev) => ({ ...prev, productLinks: newLinks }))
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      right: '0.5rem',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#ef4444',
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    title="Remove link"
+                  >
+                    <FaTimes size={12} />
+                  </button>
+                </div>
+              ))}
+              {(currentCampaign.productLinks || []).length === 0 && (
+                <div
+                  style={{
+                    padding: '1rem',
+                    border: '1px dashed rgba(148, 163, 184, 0.3)',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '0.85rem',
+                    background: 'rgba(15, 23, 42, 0.3)'
+                  }}
+                >
+                  No product/portfolio links added.
                 </div>
               )}
             </div>

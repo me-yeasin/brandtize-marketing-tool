@@ -20,6 +20,7 @@ export interface PitchGenerationInput {
   instruction?: string
   buyerPersona?: string
   examples?: string[]
+  productLinks?: string[]
 }
 
 export interface PitchGenerationStatus {
@@ -31,7 +32,6 @@ export interface PitchGenerationStatus {
 
 export interface PitchGenerationResult {
   success: boolean
-  pitch?: string
   pitch?: string
   error?: string
 }
@@ -50,6 +50,7 @@ export interface Campaign {
   instruction: string // Instructions for the AI pitch generator
   buyerPersona?: string // Optional buyer persona for better targeting
   examples?: string[] // Optional example pitches for few-shot learning
+  productLinks?: string[] // Optional product or portfolio links
   platform: 'whatsapp'
   groupId?: string // Optional group association
   createdAt: number

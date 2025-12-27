@@ -24,8 +24,8 @@ import {
   getSelectedAiProvider,
   getSerperApiKeys,
   getSnovApiKeys,
-  getWhatsappCampaigns,
   getWhatsappCampaignGroups,
+  getWhatsappCampaigns,
   removeSavedMapsLead,
   saveMapsLeads,
   saveWhatsappCampaign,
@@ -474,6 +474,9 @@ export function registerIpcHandlers(): void {
         website?: string | null
         reviews?: Array<{ text: string; rating: number; author: string }>
         instruction?: string
+        buyerPersona?: string
+        examples?: string[]
+        productLinks?: string[]
       }
     ) => {
       const { generatePitch } = await import('./services/pitch-generator-agent')

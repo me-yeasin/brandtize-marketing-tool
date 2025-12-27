@@ -178,6 +178,7 @@ export interface Campaign {
   instruction: string // Instructions for the AI pitch generator
   buyerPersona?: string // Optional buyer persona
   examples?: string[] // Optional example pitches
+  productLinks?: string[] // Optional product or portfolio links
   platform: 'whatsapp'
   groupId?: string // Optional group association
   createdAt: number

@@ -31,6 +31,7 @@ export interface PitchGenerationInput {
   instruction?: string
   buyerPersona?: string
   examples?: string[]
+  productLinks?: string[]
 }
 
 export interface PitchGenerationStatus {
@@ -208,6 +209,12 @@ async function generatePitchNode(
     personaContext = `\nBUYER PERSONA (Target Audience):\n"${lead.buyerPersona}"\n`
   }
 
+  let productLinksContext = ''
+  if (lead.productLinks && lead.productLinks.length > 0) {
+    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS:\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+    productLinksContext += `IMPORTANT: ONLY use these links if the user INSTRUCTION or EXAMPLES specifically mention adding a link. Otherwise, DO NOT include them.`
+  }
+
   let prompt = ''
 
   if (lead.instruction && lead.instruction.trim().length > 0) {
@@ -222,6 +229,7 @@ Analysis: ${state.analysis}
 USER INSTRUCTION:
 "${lead.instruction}"
 ${personaContext}
+${productLinksContext}
 ${exampleContext}
 Requirements:
 1. STRICTLY follow the User Instruction above.
@@ -240,6 +248,7 @@ Category: ${lead.category}
 Location: ${lead.address}
 Analysis: ${state.analysis}
 ${personaContext}
+${productLinksContext}
 ${exampleContext}
 Requirements:
 1. Start with a friendly, personalized greeting mentioning their business name
@@ -428,6 +437,12 @@ async function refineNode(state: PitchAgentStateType): Promise<Partial<PitchAgen
     exampleContext = `\n\nReference Examples (Mimic this style):\n${lead.examples.map((e) => `"${e}"`).join('\n')}`
   }
 
+  let productLinksContext = ''
+  if (lead.productLinks && lead.productLinks.length > 0) {
+    productLinksContext = `\nAVAILABLE PRODUCT/PORTFOLIO LINKS:\n${lead.productLinks.map((link, i) => `Link ${i + 1}: ${link}`).join('\n')}\n`
+    productLinksContext += `IMPORTANT: ONLY use these links if the user INSTRUCTION or EXAMPLES specifically mention adding a link. Otherwise, DO NOT include them.`
+  }
+
   const prompt = `Improve this WhatsApp message based on the feedback:
 
 Current Message:
@@ -436,7 +451,7 @@ Current Message:
 Feedback: ${state.observation}
 
 Business: ${state.lead.name} (${state.lead.category})
-${instructionContext}${personaContext}${exampleContext}
+${instructionContext}${personaContext}${productLinksContext}${exampleContext}
 
 Write an improved version that addresses the feedback while keeping:
 - Strict adherence to the USER INSTRUCTION
