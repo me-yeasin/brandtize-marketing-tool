@@ -160,10 +160,14 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
   if (!text) return []
 
   // Split by newlines to handle paragraphs
-  return text.split('\n').map((line, i) => {
+  const lines = text.split('\n')
+  const result: JSX.Element[] = []
+
+  lines.forEach((line, i) => {
+    // 1. Process Inline Formats First (Bold, Italic, Code, Strike)
     let content: (string | JSX.Element)[] = [line]
 
-    // 1. Monospace ` ```text``` `
+    // Monospace ` ```text``` `
     content = content.flatMap((seg) => {
       if (typeof seg !== 'string') return seg
       const parts = seg.split(/(```.*?```)/g)
@@ -187,7 +191,7 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
       })
     })
 
-    // 2. Bold ` *text* `
+    // Bold ` *text* `
     content = content.flatMap((seg) => {
       if (typeof seg !== 'string') return seg
       const parts = seg.split(/(\*[^*\n]+\*)/g)
@@ -199,7 +203,7 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
       })
     })
 
-    // 3. Italic ` _text_ `
+    // Italic ` _text_ `
     content = content.flatMap((seg) => {
       if (typeof seg !== 'string') return seg
       const parts = seg.split(/(_[^_\n]+_)/g)
@@ -211,7 +215,7 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
       })
     })
 
-    // 4. Strikethrough ` ~text~ `
+    // Strikethrough ` ~text~ `
     content = content.flatMap((seg) => {
       if (typeof seg !== 'string') return seg
       const parts = seg.split(/(~[^~\n]+~)/g)
@@ -227,12 +231,92 @@ const renderWhatsAppMarkdown = (text: string): JSX.Element[] => {
       })
     })
 
-    return (
-      <div key={i} style={{ minHeight: '1.2em' }}>
-        {content}
-      </div>
-    )
+    // 2. Wrap content based on Line Type
+    const trimmedLine = line.trim()
+
+    if (trimmedLine.startsWith('- ')) {
+      // Bullet List
+      // Remove the leading "- " for display from the FIRST text string found
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && p.trimStart().startsWith('- ')) {
+          removedPrefix = true
+          return p.replace('- ', '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{ display: 'flex', gap: '8px', paddingLeft: '8px', marginBottom: '4px' }}
+        >
+          <span style={{ color: '#6366f1' }}>•</span>
+          <div style={{ flex: 1 }}>{cleanContent}</div>
+        </div>
+      )
+    } else if (/^\d+\.\s/.test(trimmedLine)) {
+      // Numbered List
+      const match = trimmedLine.match(/^(\d+)\.\s/)
+      const number = match ? match[1] : '1'
+
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && /^\s*\d+\.\s/.test(p)) {
+          removedPrefix = true
+          return p.replace(/^\s*\d+\.\s/, '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{ display: 'flex', gap: '8px', paddingLeft: '8px', marginBottom: '4px' }}
+        >
+          <span style={{ color: '#6366f1', fontWeight: 'bold' }}>{number}.</span>
+          <div style={{ flex: 1 }}>{cleanContent}</div>
+        </div>
+      )
+    } else if (trimmedLine.startsWith('> ')) {
+      // Block Quote
+      let removedPrefix = false
+      const cleanContent = content.map((p) => {
+        if (!removedPrefix && typeof p === 'string' && p.trimStart().startsWith('> ')) {
+          removedPrefix = true
+          return p.replace('> ', '')
+        }
+        return p
+      })
+
+      result.push(
+        <div
+          key={i}
+          style={{
+            borderLeft: '3px solid #64748b',
+            paddingLeft: '12px',
+            fontStyle: 'italic',
+            color: '#94a3b8',
+            margin: '4px 0',
+            background: 'rgba(255,255,255,0.02)',
+            padding: '4px 12px',
+            borderRadius: '0 4px 4px 0'
+          }}
+        >
+          {cleanContent}
+        </div>
+      )
+    } else {
+      // Standard Line
+      result.push(
+        <div key={i} style={{ minHeight: '1.2em' }}>
+          {content}
+        </div>
+      )
+    }
   })
+
+  return result
 }
 
 function WhatsAppCampaigns(): JSX.Element {
@@ -653,101 +737,6 @@ function WhatsAppCampaigns(): JSX.Element {
                       }}
                     >
                       {'<>'}
-                    </button>
-
-                    {/* DIVIDER */}
-                    <div
-                      style={{
-                        width: '1px',
-                        height: '16px',
-                        background: '#475569',
-                        margin: '0 4px'
-                      }}
-                    ></div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const newExamples = [...(currentCampaign.examples || [])]
-                        insertMarkdown(
-                          textarea,
-                          '- ',
-                          '',
-                          (val) => {
-                            newExamples[index] = val
-                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
-                          },
-                          newExamples[index]
-                        )
-                      }}
-                      title="Bullet List (- item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      <span style={{ fontSize: '12px' }}>●</span> List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const newExamples = [...(currentCampaign.examples || [])]
-                        insertMarkdown(
-                          textarea,
-                          '1. ',
-                          '',
-                          (val) => {
-                            newExamples[index] = val
-                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
-                          },
-                          newExamples[index]
-                        )
-                      }}
-                      title="Numbered List (1. item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      1. List
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const textarea = e.currentTarget.parentElement
-                          ?.nextElementSibling as HTMLTextAreaElement
-                        const newExamples = [...(currentCampaign.examples || [])]
-                        insertMarkdown(
-                          textarea,
-                          '> ',
-                          '',
-                          (val) => {
-                            newExamples[index] = val
-                            setCurrentCampaign((prev) => ({ ...prev, examples: newExamples }))
-                          },
-                          newExamples[index]
-                        )
-                      }}
-                      title="Quote (> item)"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#cbd5e1',
-                        cursor: 'pointer',
-                        padding: '0 0.25rem'
-                      }}
-                    >
-                      ❝ Quote
                     </button>
 
                     {/* DIVIDER */}
