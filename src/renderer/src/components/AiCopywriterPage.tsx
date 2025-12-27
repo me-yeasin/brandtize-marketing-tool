@@ -34,6 +34,7 @@ interface AiCopywriterPageProps {
 
 // Helper to insert/toggle markdown syntax at cursor
 // Helper to insert/toggle markdown syntax at cursor
+// Helper to insert/toggle markdown syntax at cursor
 const insertMarkdown = (
   textarea: HTMLTextAreaElement | null,
   startChar: string,
@@ -45,9 +46,9 @@ const insertMarkdown = (
 
   const start = textarea.selectionStart
   const end = textarea.selectionEnd
-  const selectedText = currentValue.substring(start, end)
-  const before = currentValue.substring(0, start)
-  const after = currentValue.substring(end)
+  let selectedText = currentValue.substring(start, end)
+  let before = currentValue.substring(0, start)
+  let after = currentValue.substring(end)
 
   // --- LINE PREFIX MODE (For Lists, Quotes) ---
   if (!endChar) {
@@ -100,48 +101,70 @@ const insertMarkdown = (
     return
   }
 
-  // Case 1: Selection IS the wrapper (e.g. user selected "*text*")
-  // Toggle OFF
-  if (
-    selectedText.startsWith(startChar) &&
-    selectedText.endsWith(endChar) &&
-    selectedText.length >= startChar.length + endChar.length
-  ) {
-    const unwrapped = selectedText.substring(startChar.length, selectedText.length - endChar.length)
-    const newValue = `${before}${unwrapped}${after}`
-    setFunction(newValue)
-    setTimeout(() => {
-      textarea.focus()
-      // Keep extraction selected
-      textarea.setSelectionRange(start, start + unwrapped.length)
-    }, 0)
-    return
+  // --- WRAPPER MODE (Bold, Italic, etc) ---
+  // Exclusive Logic: Check if ALREADY wrapped by ANY known wrapper.
+  const wrappers = ['```', '*', '_', '~']
+
+  for (const wrapper of wrappers) {
+    // Case 1: Selection IS the wrapper (e.g. user selected "*text*")
+    if (
+      selectedText.startsWith(wrapper) &&
+      selectedText.endsWith(wrapper) &&
+      selectedText.length >= wrapper.length * 2
+    ) {
+      // Strip the existing wrapper
+      const unwrapped = selectedText.substring(wrapper.length, selectedText.length - wrapper.length)
+
+      // If we are applying the SAME wrapper -> We are effectively toggling OFF. return.
+      if (wrapper === startChar && wrapper === endChar) {
+        const newValue = `${before}${unwrapped}${after}`
+        setFunction(newValue)
+        setTimeout(() => {
+          textarea.focus()
+          textarea.setSelectionRange(start, start + unwrapped.length)
+        }, 0)
+        return
+      }
+
+      // If different wrapper, we stripped it, continue to apply the new one.
+      selectedText = unwrapped
+      // We found a match, break to stop checking others (assuming 1 layer)
+      break
+    }
+
+    // Case 2: Wrapper is surrounding the selection (e.g. user selected "text" inside "*text*")
+    if (before.endsWith(wrapper) && after.startsWith(wrapper)) {
+      // Strip the existing wrapper
+      before = before.substring(0, before.length - wrapper.length)
+      after = after.substring(wrapper.length)
+
+      // If SAME wrapper -> Toggling OFF.
+      if (wrapper === startChar && wrapper === endChar) {
+        const newValue = `${before}${selectedText}${after}`
+        setFunction(newValue)
+        setTimeout(() => {
+          textarea.focus()
+          // Shift selection back
+          textarea.setSelectionRange(start - wrapper.length, end - wrapper.length)
+        }, 0)
+        return
+      }
+
+      // If different, we removed the old one. Just proceed to wrap with new one.
+      break
+    }
   }
 
-  // Case 2: Wrapper is surrounding the selection (e.g. user selected "text" inside "*text*")
-  // Toggle OFF
-  if (before.endsWith(startChar) && after.startsWith(endChar)) {
-    const newBefore = before.substring(0, before.length - startChar.length)
-    const newAfter = after.substring(endChar.length)
-    const newValue = `${newBefore}${selectedText}${newAfter}`
-    setFunction(newValue)
-    setTimeout(() => {
-      textarea.focus()
-      // Shift selection back because we removed characters before it
-      textarea.setSelectionRange(start - startChar.length, end - startChar.length)
-    }, 0)
-    return
-  }
-
-  // Case 3: No wrapper found
-  // Toggle ON
+  // Case 3: Apply the NEW Wrapper (since we didn't return early)
   if (selectedText) {
     const newValue = `${before}${startChar}${selectedText}${endChar}${after}`
     setFunction(newValue)
     setTimeout(() => {
       textarea.focus()
       // Select the text NOT including the new wrappers (so clicking again toggles case 2)
-      textarea.setSelectionRange(start + startChar.length, end + startChar.length)
+      // Because 'before' might have changed length (if we stripped outer wrapper), calculate new offset
+      const newStart = before.length + startChar.length
+      textarea.setSelectionRange(newStart, newStart + selectedText.length)
     }, 0)
   } else {
     // Insert placeholder
@@ -150,7 +173,8 @@ const insertMarkdown = (
     setTimeout(() => {
       textarea.focus()
       // Select the placeholder "text"
-      textarea.setSelectionRange(start + startChar.length, start + startChar.length + 4)
+      const newStart = before.length + startChar.length
+      textarea.setSelectionRange(newStart, newStart + 4)
     }, 0)
   }
 }
