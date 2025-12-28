@@ -9,9 +9,41 @@ function setupAutoUpdates(mainWindow: BrowserWindow): void {
 
   autoUpdater.autoDownload = true
 
-  autoUpdater.on('error', () => {})
+  autoUpdater.on('error', (error) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.setProgressBar(-1)
+      mainWindow.webContents.send(
+        'update-error',
+        error instanceof Error ? error.message : String(error)
+      )
+    }
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', { version: info?.version ?? null })
+    }
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow.isDestroyed()) return
+
+    const percent = typeof progress.percent === 'number' ? progress.percent : 0
+    mainWindow.setProgressBar(Math.max(0, Math.min(1, percent / 100)))
+    mainWindow.webContents.send('update-download-progress', {
+      percent,
+      transferred: progress.transferred ?? 0,
+      total: progress.total ?? 0,
+      bytesPerSecond: progress.bytesPerSecond ?? 0
+    })
+  })
 
   autoUpdater.on('update-downloaded', async () => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.setProgressBar(-1)
+      mainWindow.webContents.send('update-downloaded')
+    }
+
     const result = await dialog.showMessageBox(mainWindow, {
       type: 'info',
       buttons: ['Restart', 'Later'],

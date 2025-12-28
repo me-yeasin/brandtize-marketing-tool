@@ -7,6 +7,13 @@ export interface ApiKeyEntry {
   label?: string
 }
 
+export interface UpdateDownloadProgress {
+  percent: number
+  transferred: number
+  total: number
+  bytesPerSecond: number
+}
+
 // Pitch Generation types
 export interface PitchGenerationInput {
   leadId: string
@@ -106,6 +113,12 @@ export interface MailCampaign {
 
 // API interface for renderer
 export interface BrandtizeAPI {
+  updateQuitAndInstall: () => Promise<{ success: boolean; error?: string }>
+  onUpdateAvailable: (callback: (info: { version: string | null }) => void) => void
+  onUpdateDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => void
+  onUpdateDownloaded: (callback: () => void) => void
+  onUpdateError: (callback: (message: string) => void) => void
+
   // Get all API keys
   getApiKeys: () => Promise<{
     groqApiKey: string

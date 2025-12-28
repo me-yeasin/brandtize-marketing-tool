@@ -97,6 +97,35 @@ export interface MailCampaign {
 // Expose API to renderer
 contextBridge.exposeInMainWorld('api', {
   // ========================================
+  // AUTO UPDATE
+  // ========================================
+  updateQuitAndInstall: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('update-quit-and-install'),
+
+  onUpdateAvailable: (callback: (info: { version: string | null }) => void): void => {
+    ipcRenderer.on('update-available', (_event, info) => callback(info))
+  },
+
+  onUpdateDownloadProgress: (
+    callback: (progress: {
+      percent: number
+      transferred: number
+      total: number
+      bytesPerSecond: number
+    }) => void
+  ): void => {
+    ipcRenderer.on('update-download-progress', (_event, progress) => callback(progress))
+  },
+
+  onUpdateDownloaded: (callback: () => void): void => {
+    ipcRenderer.on('update-downloaded', () => callback())
+  },
+
+  onUpdateError: (callback: (message: string) => void): void => {
+    ipcRenderer.on('update-error', (_event, message) => callback(message))
+  },
+
+  // ========================================
   // GET ALL API KEYS
   // ========================================
   getApiKeys: (): Promise<{

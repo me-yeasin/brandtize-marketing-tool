@@ -1,4 +1,5 @@
-import { ipcMain, shell } from 'electron'
+import { app, ipcMain, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import {
   checkWhatsAppNumber,
   disconnectWhatsApp,
@@ -520,6 +521,18 @@ export function registerIpcHandlers(): void {
   // Delete Mail campaign group
   ipcMain.handle('delete-mail-campaign-group', (_event, id: string) => {
     deleteMailCampaignGroup(id)
+    return { success: true }
+  })
+
+  // ========================================
+  // AUTO UPDATE
+  // ========================================
+
+  ipcMain.handle('update-quit-and-install', () => {
+    if (!app.isPackaged) {
+      return { success: false, error: 'Updates are only available in packaged builds.' }
+    }
+    autoUpdater.quitAndInstall()
     return { success: true }
   })
 
