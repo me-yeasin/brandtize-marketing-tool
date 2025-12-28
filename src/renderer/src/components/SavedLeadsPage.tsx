@@ -1039,6 +1039,21 @@ function SavedLeadsPage(): JSX.Element {
     window.api.openExternalUrl(`https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`)
   }
 
+  const openEmailWithPitch = async (lead: { id: string; email?: string | null }): Promise<void> => {
+    const pitch = emailPitches[lead.id]
+    if (!pitch) return
+
+    const subject = editedEmailPitches[lead.id]?.subject ?? pitch.subject
+    const body = editedEmailPitches[lead.id]?.body ?? pitch.body
+    const to = (lead.email ?? '').trim()
+
+    const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    const result = await window.api.openExternalUrl(mailtoUrl)
+    if (!result.success) {
+      showToast(result.error || 'Failed to open email client', 'error')
+    }
+  }
+
   const copyToClipboard = (text: string): void => {
     navigator.clipboard.writeText(text)
     showToast('Copied to clipboard!', 'success')
@@ -3488,6 +3503,29 @@ function SavedLeadsPage(): JSX.Element {
                             }}
                           >
                             <FaRedo /> Regenerate
+                          </button>
+                          <button
+                            onClick={() => openEmailWithPitch(lead)}
+                            title="Send Email"
+                            disabled={generatingEmailPitchIds.has(lead.id)}
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: generatingEmailPitchIds.has(lead.id)
+                                ? 'not-allowed'
+                                : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                              color: 'white',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: generatingEmailPitchIds.has(lead.id) ? 0.7 : 1
+                            }}
+                          >
+                            <FaEnvelope /> Send
                           </button>
                         </div>
                       </div>
@@ -6067,6 +6105,29 @@ function SavedLeadsPage(): JSX.Element {
                             }}
                           >
                             <FaRedo /> Regenerate
+                          </button>
+                          <button
+                            onClick={() => openEmailWithPitch(lead)}
+                            title="Send Email"
+                            disabled={generatingEmailPitchIds.has(lead.id)}
+                            style={{
+                              padding: '0.4rem 0.75rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: generatingEmailPitchIds.has(lead.id)
+                                ? 'not-allowed'
+                                : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                              color: 'white',
+                              fontSize: '0.75rem',
+                              fontWeight: 500,
+                              opacity: generatingEmailPitchIds.has(lead.id) ? 0.7 : 1
+                            }}
+                          >
+                            <FaEnvelope /> Send
                           </button>
                         </div>
                       </div>
