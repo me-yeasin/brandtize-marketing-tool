@@ -398,14 +398,41 @@ function MapsScoutPage(): JSX.Element {
 
   // Initialize WhatsApp client
   const handleInitWhatsApp = async (): Promise<void> => {
+    if (whatsAppReady) {
+      showToast('WhatsApp is already connected.', 'info')
+      return
+    }
+
     setWhatsAppInitializing(true)
     try {
       const result = await window.api.whatsappInitialize()
       if (!result.success) {
         showToast(result.error || 'Failed to initialize WhatsApp', 'error')
         setWhatsAppInitializing(false)
+        return
       }
-      // If successful, the event listeners will handle the rest
+
+      const status = await window.api.whatsappGetStatus()
+      setWhatsAppReady(status.isReady)
+      if (status.qrCode) {
+        setWhatsAppQrCode(status.qrCode)
+        setShowWhatsAppModal(true)
+        setWhatsAppInitializing(false)
+        return
+      }
+
+      if (status.isReady) {
+        setWhatsAppQrCode(null)
+        setShowWhatsAppModal(false)
+        setWhatsAppInitializing(false)
+        showToast('WhatsApp connected successfully!', 'info')
+        return
+      }
+
+      if (status.error) {
+        showToast(status.error, 'error')
+        setWhatsAppInitializing(false)
+      }
     } catch (err) {
       console.error('WhatsApp init error:', err)
       showToast('Failed to initialize WhatsApp', 'error')

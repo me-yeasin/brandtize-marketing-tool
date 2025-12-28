@@ -10,6 +10,7 @@
  */
 
 import { app, BrowserWindow } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import { Client, LocalAuth } from 'whatsapp-web.js'
 
@@ -29,12 +30,90 @@ function getDataPath(): string {
   return join(app.getPath('userData'), '.wwebjs_auth')
 }
 
+function resolveBrowserExecutablePath(): string | null {
+  const explicit =
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    process.env.CHROME_PATH ||
+    process.env.GOOGLE_CHROME_BIN ||
+    process.env.CHROMIUM_PATH
+
+  if (explicit && existsSync(explicit)) {
+    return explicit
+  }
+
+  const candidates: string[] = []
+
+  if (process.platform === 'win32') {
+    const programFiles = process.env.PROGRAMFILES
+    const programFilesX86 = process.env['PROGRAMFILES(X86)']
+    const localAppData = process.env.LOCALAPPDATA
+
+    if (programFiles) {
+      candidates.push(join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'))
+      candidates.push(join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'))
+      candidates.push(
+        join(programFiles, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
+      )
+    }
+
+    if (programFilesX86) {
+      candidates.push(join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'))
+      candidates.push(join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'))
+      candidates.push(
+        join(programFilesX86, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
+      )
+    }
+
+    if (localAppData) {
+      candidates.push(join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'))
+      candidates.push(join(localAppData, 'Microsoft', 'Edge', 'Application', 'msedge.exe'))
+      candidates.push(
+        join(localAppData, 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')
+      )
+    }
+  } else if (process.platform === 'darwin') {
+    candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+    candidates.push('/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge')
+    candidates.push('/Applications/Brave Browser.app/Contents/MacOS/Brave Browser')
+    candidates.push('/Applications/Chromium.app/Contents/MacOS/Chromium')
+  } else {
+    candidates.push('/usr/bin/google-chrome-stable')
+    candidates.push('/usr/bin/google-chrome')
+    candidates.push('/usr/bin/chromium-browser')
+    candidates.push('/usr/bin/chromium')
+    candidates.push('/snap/bin/chromium')
+    candidates.push('/usr/bin/microsoft-edge')
+    candidates.push('/usr/bin/microsoft-edge-stable')
+    candidates.push('/usr/bin/brave-browser')
+  }
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+
+  return null
+}
+
 /**
  * Initialize the WhatsApp client
  */
 export async function initializeWhatsAppClient(): Promise<void> {
-  if (client || isClientInitializing) {
-    console.log('[WhatsApp] Client already exists or is initializing')
+  if (isClientInitializing) {
+    console.log('[WhatsApp] Client is initializing')
+    return
+  }
+
+  if (client && !isClientReady) {
+    try {
+      await client.destroy()
+    } catch {
+      // ignore
+    }
+    client = null
+  }
+
+  if (client) {
+    console.log('[WhatsApp] Client already exists')
     return
   }
 
@@ -45,12 +124,20 @@ export async function initializeWhatsAppClient(): Promise<void> {
   try {
     console.log('[WhatsApp] Initializing client...')
 
+    const executablePath = resolveBrowserExecutablePath()
+    if (!executablePath) {
+      throw new Error(
+        'Could not find a Chromium-based browser (Chrome/Edge/Brave). Install one, or set PUPPETEER_EXECUTABLE_PATH.'
+      )
+    }
+
     client = new Client({
       authStrategy: new LocalAuth({
         dataPath: getDataPath(),
         clientId: 'brandtize-whatsapp-checker'
       }),
       puppeteer: {
+        executablePath,
         headless: true,
         args: [
           '--no-sandbox',
@@ -123,6 +210,14 @@ export async function initializeWhatsAppClient(): Promise<void> {
     console.error('[WhatsApp] Failed to initialize client:', error)
     lastError = error instanceof Error ? error.message : 'Failed to initialize WhatsApp client'
     isClientInitializing = false
+    isClientReady = false
+    currentQrCode = null
+    try {
+      await client?.destroy()
+    } catch {
+      // ignore
+    }
+    client = null
     throw error
   }
 }
