@@ -749,6 +749,38 @@ function SavedLeadsPage(): JSX.Element {
     }
   }
 
+  const normalizeWebsiteUrl = (website: string): string | null => {
+    const trimmed = website.trim()
+    if (!trimmed) return null
+
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+
+    try {
+      const url = new URL(withProtocol)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+      return url.toString()
+    } catch {
+      return null
+    }
+  }
+
+  const openWebsite = async (website: string): Promise<void> => {
+    const url = normalizeWebsiteUrl(website)
+    if (!url) {
+      showToast('Invalid website URL', 'error')
+      return
+    }
+
+    try {
+      const result = await window.api.openExternalUrl(url)
+      if (!result.success) {
+        showToast(result.error || 'Failed to open website', 'error')
+      }
+    } catch {
+      showToast('Failed to open website', 'error')
+    }
+  }
+
   const handleVerifyEmail = async (leadId: string): Promise<void> => {
     const lead = leads.find((l) => l.id === leadId)
     if (!lead?.email) return
@@ -2719,6 +2751,28 @@ function SavedLeadsPage(): JSX.Element {
                           </span>
                         )}
                       </div>
+
+                      {lead.website && (
+                        <button
+                          onClick={() => openWebsite(lead.website!)}
+                          title="View the website"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            color: '#22c55e',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          <FaGlobe />
+                        </button>
+                      )}
 
                       {/* WhatsApp Actions */}
                       {lead.phone && lead.hasWhatsApp == null && (
@@ -5050,6 +5104,28 @@ function SavedLeadsPage(): JSX.Element {
                       >
                         <FaFacebook />
                       </button>
+
+                      {lead.website && (
+                        <button
+                          onClick={() => openWebsite(lead.website!)}
+                          title="View the website"
+                          style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(34, 197, 94, 0.15)',
+                            color: '#22c55e',
+                            fontSize: '1rem'
+                          }}
+                        >
+                          <FaGlobe />
+                        </button>
+                      )}
 
                       {/* WhatsApp Actions */}
                       {lead.phone && lead.hasWhatsApp == null && (
