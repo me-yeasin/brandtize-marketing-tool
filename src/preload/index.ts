@@ -337,20 +337,28 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('delete-mail-campaign-group', id),
 
   // WhatsApp event listeners
-  onWhatsAppQr: (callback: (qr: string) => void): void => {
-    ipcRenderer.on('whatsapp-qr', (_event, qr) => callback(qr))
+  onWhatsAppQr: (callback: (qr: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, qr: string): void => callback(qr)
+    ipcRenderer.on('whatsapp-qr', listener)
+    return () => ipcRenderer.removeListener('whatsapp-qr', listener)
   },
 
-  onWhatsAppReady: (callback: () => void): void => {
-    ipcRenderer.on('whatsapp-ready', () => callback())
+  onWhatsAppReady: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('whatsapp-ready', listener)
+    return () => ipcRenderer.removeListener('whatsapp-ready', listener)
   },
 
-  onWhatsAppDisconnected: (callback: (reason: string) => void): void => {
-    ipcRenderer.on('whatsapp-disconnected', (_event, reason) => callback(reason))
+  onWhatsAppDisconnected: (callback: (reason: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, reason: string): void => callback(reason)
+    ipcRenderer.on('whatsapp-disconnected', listener)
+    return () => ipcRenderer.removeListener('whatsapp-disconnected', listener)
   },
 
-  onWhatsAppAuthFailure: (callback: (msg: string) => void): void => {
-    ipcRenderer.on('whatsapp-auth-failure', (_event, msg) => callback(msg))
+  onWhatsAppAuthFailure: (callback: (msg: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, msg: string): void => callback(msg)
+    ipcRenderer.on('whatsapp-auth-failure', listener)
+    return () => ipcRenderer.removeListener('whatsapp-auth-failure', listener)
   },
 
   // ========================================

@@ -313,15 +313,16 @@ export async function checkWhatsAppNumber(phoneNumber: string): Promise<{
  */
 export async function disconnectWhatsApp(): Promise<void> {
   if (client) {
-    try {
-      await client.destroy()
-    } catch (error) {
-      console.error('[WhatsApp] Error destroying client:', error)
-    }
+    const clientToDestroy = client
     client = null
     isClientReady = false
     currentQrCode = null
     isClientInitializing = false
+    try {
+      await clientToDestroy.destroy()
+    } catch (error) {
+      console.error('[WhatsApp] Error destroying client:', error)
+    }
   }
 }
 

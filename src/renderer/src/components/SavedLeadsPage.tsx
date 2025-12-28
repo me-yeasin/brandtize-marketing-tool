@@ -1,4 +1,4 @@
-import { JSX, useCallback, useEffect, useState } from 'react'
+import { JSX, useCallback, useEffect, useRef, useState } from 'react'
 import {
   FaCheck,
   FaChevronDown,
@@ -430,6 +430,8 @@ function SavedLeadsPage(): JSX.Element {
   const [whatsAppInitializing, setWhatsAppInitializing] = useState(false)
   const [whatsAppQrCode, setWhatsAppQrCode] = useState<string | null>(null)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const whatsAppQrDismissedRef = useRef(false)
+  const whatsAppCancelRef = useRef(false)
 
   // Pitch generation state
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
@@ -449,6 +451,27 @@ function SavedLeadsPage(): JSX.Element {
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const handleCloseWhatsAppModal = async (): Promise<void> => {
+    setShowWhatsAppModal(false)
+    setWhatsAppInitializing(false)
+    setWhatsAppReady(false)
+    setWhatsAppQrCode(null)
+
+    whatsAppQrDismissedRef.current = true
+    whatsAppCancelRef.current = true
+
+    try {
+      await window.api.whatsappDisconnect()
+      showToast('WhatsApp connect canceled.', 'info')
+    } catch {
+      // ignore
+    } finally {
+      window.setTimeout(() => {
+        whatsAppCancelRef.current = false
+      }, 1500)
+    }
   }
 
   const loadLeads = useCallback(async (): Promise<void> => {
@@ -581,15 +604,16 @@ function SavedLeadsPage(): JSX.Element {
   // Setup WhatsApp event listeners
   useEffect(() => {
     // Listen for QR code
-    window.api.onWhatsAppQr((qr) => {
+    const offQr = window.api.onWhatsAppQr((qr) => {
       console.log('[SavedLeads] WhatsApp QR received')
+      if (whatsAppQrDismissedRef.current) return
       setWhatsAppQrCode(qr)
       setWhatsAppInitializing(false)
       setShowWhatsAppModal(true)
     })
 
     // Listen for ready event
-    window.api.onWhatsAppReady(() => {
+    const offReady = window.api.onWhatsAppReady(() => {
       console.log('[SavedLeads] WhatsApp is ready!')
       setWhatsAppReady(true)
       setWhatsAppQrCode(null)
@@ -599,18 +623,27 @@ function SavedLeadsPage(): JSX.Element {
     })
 
     // Listen for disconnection
-    window.api.onWhatsAppDisconnected((reason) => {
+    const offDisconnected = window.api.onWhatsAppDisconnected((reason) => {
       console.log('[SavedLeads] WhatsApp disconnected:', reason)
       setWhatsAppReady(false)
       setWhatsAppQrCode(null)
+      setShowWhatsAppModal(false)
+      setWhatsAppInitializing(false)
+      if (whatsAppCancelRef.current) {
+        return
+      }
       showToast(`WhatsApp disconnected: ${reason}`, 'error')
     })
 
     // Listen for auth failure
-    window.api.onWhatsAppAuthFailure((msg) => {
+    const offAuthFailure = window.api.onWhatsAppAuthFailure((msg) => {
       console.error('[SavedLeads] WhatsApp auth failure:', msg)
       setWhatsAppReady(false)
       setWhatsAppInitializing(false)
+      setShowWhatsAppModal(false)
+      if (whatsAppCancelRef.current) {
+        return
+      }
       showToast(`WhatsApp authentication failed: ${msg}`, 'error')
     })
 
@@ -619,8 +652,10 @@ function SavedLeadsPage(): JSX.Element {
       setWhatsAppReady(status.isReady)
       setWhatsAppInitializing(status.isInitializing)
       if (status.qrCode) {
-        setWhatsAppQrCode(status.qrCode)
-        setShowWhatsAppModal(true)
+        if (!whatsAppQrDismissedRef.current) {
+          setWhatsAppQrCode(status.qrCode)
+          setShowWhatsAppModal(true)
+        }
       }
     })
 
@@ -630,18 +665,51 @@ function SavedLeadsPage(): JSX.Element {
       // Status updates are handled per-lead via pitchStatus state
       // We need the leadId to update the right entry, but it comes from the invoke
     })
+
+    return () => {
+      offQr()
+      offReady()
+      offDisconnected()
+      offAuthFailure()
+    }
   }, [])
 
   // Initialize WhatsApp client
   const handleInitWhatsApp = async (): Promise<void> => {
+    if (whatsAppReady) {
+      showToast('WhatsApp is already connected.', 'info')
+      return
+    }
+
+    whatsAppQrDismissedRef.current = false
+    whatsAppCancelRef.current = false
+
     setWhatsAppInitializing(true)
     try {
       const result = await window.api.whatsappInitialize()
       if (!result.success) {
         showToast(result.error || 'Failed to initialize WhatsApp', 'error')
         setWhatsAppInitializing(false)
+        return
       }
-      // If successful, the event listeners will handle the rest
+      const status = await window.api.whatsappGetStatus()
+      setWhatsAppReady(status.isReady)
+      if (status.qrCode) {
+        setWhatsAppQrCode(status.qrCode)
+        setShowWhatsAppModal(true)
+        setWhatsAppInitializing(false)
+        return
+      }
+
+      if (status.isReady) {
+        setWhatsAppQrCode(null)
+        setShowWhatsAppModal(false)
+        setWhatsAppInitializing(false)
+        showToast('WhatsApp connected successfully!', 'success')
+        return
+      }
+
+      setWhatsAppInitializing(false)
     } catch (err) {
       console.error('WhatsApp init error:', err)
       showToast('Failed to initialize WhatsApp', 'error')
@@ -3877,14 +3945,11 @@ function SavedLeadsPage(): JSX.Element {
 
           {/* WhatsApp QR Code Modal */}
           {showWhatsAppModal && whatsAppQrCode && (
-            <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
+            <div className="whatsapp-modal-overlay" onClick={handleCloseWhatsAppModal}>
               <div className="whatsapp-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="whatsapp-modal-header">
                   <h3>Scan QR Code with WhatsApp</h3>
-                  <button
-                    className="whatsapp-modal-close"
-                    onClick={() => setShowWhatsAppModal(false)}
-                  >
+                  <button className="whatsapp-modal-close" onClick={handleCloseWhatsAppModal}>
                     ×
                   </button>
                 </div>

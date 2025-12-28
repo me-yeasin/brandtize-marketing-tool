@@ -257,10 +257,10 @@ export interface BrandtizeAPI {
   deleteMailCampaignGroup: (id: string) => Promise<{ success: boolean }>
 
   // WhatsApp event listeners
-  onWhatsAppQr: (callback: (qr: string) => void) => void
-  onWhatsAppReady: (callback: () => void) => void
-  onWhatsAppDisconnected: (callback: (reason: string) => void) => void
-  onWhatsAppAuthFailure: (callback: (msg: string) => void) => void
+  onWhatsAppQr: (callback: (qr: string) => void) => () => void
+  onWhatsAppReady: (callback: () => void) => () => void
+  onWhatsAppDisconnected: (callback: (reason: string) => void) => () => void
+  onWhatsAppAuthFailure: (callback: (msg: string) => void) => () => void
 
   // Utilities
   openExternalUrl: (url: string) => Promise<{ success: boolean; error?: string }>

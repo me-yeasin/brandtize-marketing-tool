@@ -1,4 +1,4 @@
-import { JSX, useEffect, useState } from 'react'
+import { JSX, useEffect, useRef, useState } from 'react'
 import type { MapsPlace, ReviewsResult } from '../../../preload/index.d'
 
 // Extended Lead type with email search capability
@@ -177,6 +177,8 @@ function MapsScoutPage(): JSX.Element {
   const [whatsAppInitializing, setWhatsAppInitializing] = useState(false)
   const [whatsAppQrCode, setWhatsAppQrCode] = useState<string | null>(null)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const whatsAppQrDismissedRef = useRef(false)
+  const whatsAppCancelRef = useRef(false)
 
   // Show toast helper
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
@@ -187,15 +189,16 @@ function MapsScoutPage(): JSX.Element {
   // Setup WhatsApp event listeners
   useEffect(() => {
     // Listen for QR code
-    window.api.onWhatsAppQr((qr) => {
+    const offQr = window.api.onWhatsAppQr((qr) => {
       console.log('[MapsScout] WhatsApp QR received')
+      if (whatsAppQrDismissedRef.current) return
       setWhatsAppQrCode(qr)
       setWhatsAppInitializing(false)
       setShowWhatsAppModal(true)
     })
 
     // Listen for ready event
-    window.api.onWhatsAppReady(() => {
+    const offReady = window.api.onWhatsAppReady(() => {
       console.log('[MapsScout] WhatsApp is ready!')
       setWhatsAppReady(true)
       setWhatsAppQrCode(null)
@@ -205,18 +208,25 @@ function MapsScoutPage(): JSX.Element {
     })
 
     // Listen for disconnection
-    window.api.onWhatsAppDisconnected((reason) => {
+    const offDisconnected = window.api.onWhatsAppDisconnected((reason) => {
       console.log('[MapsScout] WhatsApp disconnected:', reason)
       setWhatsAppReady(false)
       setWhatsAppQrCode(null)
+      setShowWhatsAppModal(false)
+      setWhatsAppInitializing(false)
+      if (whatsAppCancelRef.current) {
+        whatsAppCancelRef.current = false
+        return
+      }
       showToast(`WhatsApp disconnected: ${reason}`, 'error')
     })
 
     // Listen for auth failure
-    window.api.onWhatsAppAuthFailure((msg) => {
+    const offAuthFailure = window.api.onWhatsAppAuthFailure((msg) => {
       console.error('[MapsScout] WhatsApp auth failure:', msg)
       setWhatsAppReady(false)
       setWhatsAppInitializing(false)
+      setShowWhatsAppModal(false)
       showToast(`WhatsApp authentication failed: ${msg}`, 'error')
     })
 
@@ -226,10 +236,38 @@ function MapsScoutPage(): JSX.Element {
       setWhatsAppInitializing(status.isInitializing)
       if (status.qrCode) {
         setWhatsAppQrCode(status.qrCode)
-        setShowWhatsAppModal(true)
+        if (!whatsAppQrDismissedRef.current) setShowWhatsAppModal(true)
       }
     })
+
+    return () => {
+      offQr()
+      offReady()
+      offDisconnected()
+      offAuthFailure()
+    }
   }, [])
+
+  const handleCloseWhatsAppModal = async (): Promise<void> => {
+    setShowWhatsAppModal(false)
+    setWhatsAppInitializing(false)
+    setWhatsAppReady(false)
+    setWhatsAppQrCode(null)
+
+    whatsAppQrDismissedRef.current = true
+    whatsAppCancelRef.current = true
+
+    try {
+      await window.api.whatsappDisconnect()
+      showToast('WhatsApp connect canceled.', 'info')
+    } catch {
+      // ignore
+    } finally {
+      window.setTimeout(() => {
+        whatsAppCancelRef.current = false
+      }, 1500)
+    }
+  }
 
   // Count leads by score
   const goldCount = leads.filter((l) => l.score === 'gold').length
@@ -403,9 +441,16 @@ function MapsScoutPage(): JSX.Element {
       return
     }
 
+    whatsAppQrDismissedRef.current = false
+    whatsAppCancelRef.current = false
+
     setWhatsAppInitializing(true)
     try {
       const result = await window.api.whatsappInitialize()
+      if (whatsAppCancelRef.current) {
+        setWhatsAppInitializing(false)
+        return
+      }
       if (!result.success) {
         showToast(result.error || 'Failed to initialize WhatsApp', 'error')
         setWhatsAppInitializing(false)
@@ -413,6 +458,10 @@ function MapsScoutPage(): JSX.Element {
       }
 
       const status = await window.api.whatsappGetStatus()
+      if (whatsAppCancelRef.current) {
+        setWhatsAppInitializing(false)
+        return
+      }
       setWhatsAppReady(status.isReady)
       if (status.qrCode) {
         setWhatsAppQrCode(status.qrCode)
@@ -1303,11 +1352,11 @@ function MapsScoutPage(): JSX.Element {
 
       {/* WhatsApp QR Code Modal */}
       {showWhatsAppModal && whatsAppQrCode && (
-        <div className="whatsapp-modal-overlay" onClick={() => setShowWhatsAppModal(false)}>
+        <div className="whatsapp-modal-overlay" onClick={handleCloseWhatsAppModal}>
           <div className="whatsapp-modal" onClick={(e) => e.stopPropagation()}>
             <div className="whatsapp-modal-header">
               <h3>Scan QR Code with WhatsApp</h3>
-              <button className="whatsapp-modal-close" onClick={() => setShowWhatsAppModal(false)}>
+              <button className="whatsapp-modal-close" onClick={handleCloseWhatsAppModal}>
                 ×
               </button>
             </div>
