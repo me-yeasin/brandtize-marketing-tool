@@ -1,9 +1,45 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc-handlers'
 
-function createWindow(): void {
+function setupAutoUpdates(mainWindow: BrowserWindow): void {
+  if (!app.isPackaged) return
+
+  autoUpdater.autoDownload = true
+
+  autoUpdater.on('error', () => {})
+
+  autoUpdater.on('update-downloaded', async () => {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['Restart', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Update ready',
+      message: 'A new version has been downloaded.',
+      detail: 'Restart the app to apply the update.'
+    })
+
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
+
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify()
+  }, 5000)
+
+  setInterval(
+    () => {
+      autoUpdater.checkForUpdatesAndNotify()
+    },
+    60 * 60 * 1000
+  )
+}
+
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -26,6 +62,10 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  setupAutoUpdates(mainWindow)
+
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
