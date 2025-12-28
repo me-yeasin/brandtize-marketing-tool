@@ -1,5 +1,5 @@
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -38,24 +38,10 @@ function setupAutoUpdates(mainWindow: BrowserWindow): void {
     })
   })
 
-  autoUpdater.on('update-downloaded', async () => {
+  autoUpdater.on('update-downloaded', () => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.setProgressBar(-1)
       mainWindow.webContents.send('update-downloaded')
-    }
-
-    const result = await dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      buttons: ['Restart', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'Update ready',
-      message: 'A new version has been downloaded.',
-      detail: 'Restart the app to apply the update.'
-    })
-
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
     }
   })
 
