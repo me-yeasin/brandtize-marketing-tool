@@ -1,4 +1,4 @@
-import { JSX, useEffect, useState } from 'react'
+import { JSX, useCallback, useEffect, useRef, useState } from 'react'
 import {
   FaCheck,
   FaChevronDown,
@@ -78,10 +78,47 @@ function SocialLeadsPage(): JSX.Element {
     type: 'info' | 'error' | 'success'
   } | null>(null)
 
+  const [whatsAppReady, setWhatsAppReady] = useState(false)
+  const [whatsAppBulkVerifying, setWhatsAppBulkVerifying] = useState(false)
+  const [whatsAppBulkStopRequested, setWhatsAppBulkStopRequested] = useState(false)
+  const [whatsAppBulkProgress, setWhatsAppBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const whatsAppBulkCancelRef = useRef(false)
+
   // Show toast helper
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  const refreshWhatsAppStatus = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = await window.api.whatsappGetStatus()
+      setWhatsAppReady(status.isReady)
+      return status.isReady
+    } catch {
+      setWhatsAppReady(false)
+      return false
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshWhatsAppStatus()
+  }, [refreshWhatsAppStatus])
+
+  const waitWithCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (whatsAppBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return whatsAppBulkCancelRef.current
   }
 
   // Check if Apify is configured on mount
@@ -256,6 +293,78 @@ function SocialLeadsPage(): JSX.Element {
     }
   }
 
+  const handleVerifyAllWhatsApp = async (): Promise<void> => {
+    const ready = await refreshWhatsAppStatus()
+    if (!ready) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    const targets = filteredLeads.filter((l) => l.phone && l.hasWhatsApp == null)
+    if (targets.length === 0) {
+      showToast('No unverified phone numbers to check.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    whatsAppBulkCancelRef.current = false
+    setWhatsAppBulkStopRequested(false)
+    setWhatsAppBulkVerifying(true)
+    setWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (whatsAppBulkCancelRef.current) break
+
+        const lead = targets[i]
+        if (!lead.phone) continue
+
+        setWhatsAppBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        try {
+          const result = await window.api.whatsappCheckNumber(lead.phone)
+          if (result.error) {
+            errors += 1
+          } else {
+            setLeads((prev) =>
+              prev.map((l) => (l.id === lead.id ? { ...l, hasWhatsApp: result.hasWhatsApp } : l))
+            )
+          }
+        } catch {
+          errors += 1
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = whatsAppBulkCancelRef.current
+      setWhatsAppBulkVerifying(false)
+      setWhatsAppBulkStopRequested(false)
+      setWhatsAppBulkProgress(null)
+      whatsAppBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('WhatsApp verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('WhatsApp verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllWhatsApp = (): void => {
+    whatsAppBulkCancelRef.current = true
+    setWhatsAppBulkStopRequested(true)
+  }
+
   // Open Facebook page
   const openFacebookPage = (url: string): void => {
     window.api.openExternalUrl(url)
@@ -278,6 +387,9 @@ function SocialLeadsPage(): JSX.Element {
   const goldCount = filteredLeads.filter((l) => l.score === 'gold').length
   const silverCount = filteredLeads.filter((l) => l.score === 'silver').length
   const bronzeCount = filteredLeads.filter((l) => l.score === 'bronze').length
+  const unverifiedWhatsAppCount = filteredLeads.filter(
+    (l) => l.phone && l.hasWhatsApp == null
+  ).length
 
   return (
     <div className="scout-page">
@@ -518,6 +630,36 @@ https://www.facebook.com/businesspage2"
                   </div>
                 </div>
                 <div className="scout-actions">
+                  {whatsAppBulkVerifying ? (
+                    <button
+                      className="scout-btn outline"
+                      onClick={handleStopVerifyAllWhatsApp}
+                      disabled={whatsAppBulkStopRequested}
+                    >
+                      <FaTimes />{' '}
+                      {whatsAppBulkStopRequested
+                        ? 'Stopping...'
+                        : whatsAppBulkProgress
+                          ? `Stop (${whatsAppBulkProgress.current}/${whatsAppBulkProgress.total})`
+                          : 'Stop'}
+                    </button>
+                  ) : (
+                    <button
+                      className="scout-btn outline"
+                      onClick={handleVerifyAllWhatsApp}
+                      disabled={!whatsAppReady || unverifiedWhatsAppCount === 0}
+                      title={
+                        whatsAppReady
+                          ? 'Verify WhatsApp for all unverified numbers'
+                          : 'Connect WhatsApp first'
+                      }
+                    >
+                      <FaWhatsapp />{' '}
+                      {unverifiedWhatsAppCount > 0
+                        ? `Verify All WhatsApp (${unverifiedWhatsAppCount})`
+                        : 'Verify All WhatsApp'}
+                    </button>
+                  )}
                   <button
                     className="scout-btn outline"
                     onClick={handleExport}
