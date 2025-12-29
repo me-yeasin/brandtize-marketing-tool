@@ -448,6 +448,22 @@ function SavedLeadsPage(): JSX.Element {
     errors: number
   } | null>(null)
   const fbWhatsAppBulkCancelRef = useRef(false)
+  const [emailBulkVerifying, setEmailBulkVerifying] = useState(false)
+  const [emailBulkStopRequested, setEmailBulkStopRequested] = useState(false)
+  const [emailBulkProgress, setEmailBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const emailBulkCancelRef = useRef(false)
+  const [fbEmailBulkVerifying, setFbEmailBulkVerifying] = useState(false)
+  const [fbEmailBulkStopRequested, setFbEmailBulkStopRequested] = useState(false)
+  const [fbEmailBulkProgress, setFbEmailBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const fbEmailBulkCancelRef = useRef(false)
 
   // Pitch generation state
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
@@ -493,6 +509,30 @@ function SavedLeadsPage(): JSX.Element {
     return fbWhatsAppBulkCancelRef.current
   }
 
+  const waitWithEmailCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (emailBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return emailBulkCancelRef.current
+  }
+
+  const waitWithFbEmailCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (fbEmailBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return fbEmailBulkCancelRef.current
+  }
+
   const handleCloseWhatsAppModal = async (): Promise<void> => {
     setShowWhatsAppModal(false)
     setWhatsAppInitializing(false)
@@ -520,10 +560,24 @@ function SavedLeadsPage(): JSX.Element {
       // Load Maps leads
       const savedLeads = await window.api.getSavedMapsLeads()
       setLeads(savedLeads)
+      setNoEmailFoundIds(
+        new Set(
+          savedLeads
+            .filter((l) => !l.email && l.website && l.emailLookupAttempted === true)
+            .map((l) => l.id)
+        )
+      )
 
       // Load Facebook leads
       const savedFacebookLeads = await window.api.getSavedFacebookLeads()
       setFacebookLeads(savedFacebookLeads)
+      setFbNoEmailFoundIds(
+        new Set(
+          savedFacebookLeads
+            .filter((l) => !l.email && l.website && l.emailLookupAttempted === true)
+            .map((l) => l.id)
+        )
+      )
 
       // Load campaigns and groups
       const campaignsData = await window.api.getWhatsappCampaigns()
@@ -960,7 +1014,8 @@ function SavedLeadsPage(): JSX.Element {
             ...updatedLead,
             email: result.email || undefined,
             emailSource: result.source,
-            emailVerified: verifyResult.verified
+            emailVerified: verifyResult.verified,
+            emailLookupAttempted: true
           }
 
           if (verifyResult.verified) {
@@ -975,7 +1030,8 @@ function SavedLeadsPage(): JSX.Element {
             ...updatedLead,
             email: result.email || undefined,
             emailSource: result.source,
-            emailVerified: false
+            emailVerified: false,
+            emailLookupAttempted: true
           }
           showToast(`Found email (verification failed): ${result.email}`, 'info')
         }
@@ -986,7 +1042,8 @@ function SavedLeadsPage(): JSX.Element {
         updatedLead = {
           ...updatedLead,
           email: undefined,
-          emailSource: result.source
+          emailSource: result.source,
+          emailLookupAttempted: true
         }
       }
 
@@ -1361,7 +1418,8 @@ function SavedLeadsPage(): JSX.Element {
           updatedLead = {
             ...updatedLead,
             email: result.email,
-            emailVerified: verifyResult.verified
+            emailVerified: verifyResult.verified,
+            emailLookupAttempted: true
           }
 
           showToast(
@@ -1375,7 +1433,8 @@ function SavedLeadsPage(): JSX.Element {
           updatedLead = {
             ...updatedLead,
             email: result.email,
-            emailVerified: false
+            emailVerified: false,
+            emailLookupAttempted: true
           }
           showToast(`Found email (verification failed): ${result.email}`, 'info')
         }
@@ -1384,7 +1443,8 @@ function SavedLeadsPage(): JSX.Element {
         showToast(`No email found for "${lead.title}" (${domain})`, 'info')
         updatedLead = {
           ...updatedLead,
-          email: null
+          email: null,
+          emailLookupAttempted: true
         }
       }
 
@@ -1587,6 +1647,11 @@ function SavedLeadsPage(): JSX.Element {
   const fbUnverifiedWhatsAppCount = filteredFacebookLeads.filter(
     (l) => l.phone && l.hasWhatsApp == null
   ).length
+  const fbUnverifiedEmailCount = filteredFacebookLeads.filter(
+    (l) =>
+      (l.email && l.emailVerified == null) ||
+      (!l.email && l.website && l.emailLookupAttempted !== true)
+  ).length
 
   const filteredLeads = leads.filter((lead) => {
     // 1. Tab Filter
@@ -1636,6 +1701,11 @@ function SavedLeadsPage(): JSX.Element {
   const noWebsiteCount = leads.filter((l) => l.website === null).length
   const unverifiedWhatsAppCount = filteredLeads.filter(
     (l) => l.phone && l.hasWhatsApp == null
+  ).length
+  const unverifiedEmailCount = filteredLeads.filter(
+    (l) =>
+      (l.email && l.emailVerified == null) ||
+      (!l.email && l.website && l.emailLookupAttempted !== true)
   ).length
 
   const handleVerifyAllWhatsApp = async (): Promise<void> => {
@@ -1717,6 +1787,150 @@ function SavedLeadsPage(): JSX.Element {
     setWhatsAppBulkStopRequested(true)
   }
 
+  const handleVerifyAllMail = async (): Promise<void> => {
+    if (emailBulkVerifying) return
+
+    const targets = filteredLeads.filter(
+      (l) =>
+        (l.email && l.emailVerified == null) ||
+        (!l.email && l.website && l.emailLookupAttempted !== true)
+    )
+    if (targets.length === 0) {
+      showToast('No emails to verify.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    emailBulkCancelRef.current = false
+    setEmailBulkStopRequested(false)
+    setEmailBulkVerifying(true)
+    setEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (emailBulkCancelRef.current) break
+
+        const lead = targets[i]
+        setEmailBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        try {
+          let updatedLead: SavedMapsLead | null = null
+
+          if (lead.email) {
+            setVerifyingEmailIds((prev) => new Set(prev).add(lead.id))
+            try {
+              const verifyResult = await window.api.verifyEmail(lead.email)
+              if (verifyResult.switched) {
+                showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+              }
+              updatedLead = { ...lead, emailVerified: verifyResult.verified }
+            } finally {
+              setVerifyingEmailIds((prev) => {
+                const next = new Set(prev)
+                next.delete(lead.id)
+                return next
+              })
+            }
+          } else if (lead.website) {
+            setLoadingEmailIds((prev) => new Set(prev).add(lead.id))
+            setNoEmailFoundIds((prev) => {
+              const next = new Set(prev)
+              next.delete(lead.id)
+              return next
+            })
+            try {
+              const domain = extractDomain(lead.website)
+              const result = await window.api.findEmailForDomain(domain)
+
+              if (result.allKeysExhausted) {
+                showToast(
+                  'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.',
+                  'error'
+                )
+                errors += 1
+                break
+              }
+
+              if (result.email) {
+                try {
+                  const verifyResult = await window.api.verifyEmail(result.email)
+                  if (verifyResult.switched) {
+                    showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+                  }
+                  updatedLead = {
+                    ...lead,
+                    email: result.email || undefined,
+                    emailSource: result.source,
+                    emailVerified: verifyResult.verified,
+                    emailLookupAttempted: true
+                  }
+                } catch {
+                  updatedLead = {
+                    ...lead,
+                    email: result.email || undefined,
+                    emailSource: result.source,
+                    emailVerified: false,
+                    emailLookupAttempted: true
+                  }
+                }
+              } else {
+                setNoEmailFoundIds((prev) => new Set(prev).add(lead.id))
+                updatedLead = {
+                  ...lead,
+                  email: undefined,
+                  emailSource: result.source,
+                  emailVerified: undefined,
+                  emailLookupAttempted: true
+                }
+              }
+            } finally {
+              setLoadingEmailIds((prev) => {
+                const next = new Set(prev)
+                next.delete(lead.id)
+                return next
+              })
+            }
+          }
+
+          if (updatedLead) {
+            setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead! : l)))
+            await window.api.updateSavedMapsLead(updatedLead)
+          }
+        } catch {
+          errors += 1
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithEmailCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = emailBulkCancelRef.current
+      setEmailBulkVerifying(false)
+      setEmailBulkStopRequested(false)
+      setEmailBulkProgress(null)
+      emailBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('Email verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`Email verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('Email verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllMail = (): void => {
+    emailBulkCancelRef.current = true
+    setEmailBulkStopRequested(true)
+  }
+
   const handleFbVerifyAllWhatsApp = async (): Promise<void> => {
     if (!whatsAppReady) {
       showToast('Please connect WhatsApp first!', 'error')
@@ -1794,6 +2008,147 @@ function SavedLeadsPage(): JSX.Element {
   const handleFbStopVerifyAllWhatsApp = (): void => {
     fbWhatsAppBulkCancelRef.current = true
     setFbWhatsAppBulkStopRequested(true)
+  }
+
+  const handleFbVerifyAllMail = async (): Promise<void> => {
+    if (fbEmailBulkVerifying) return
+
+    const targets = filteredFacebookLeads.filter(
+      (l) =>
+        (l.email && l.emailVerified == null) ||
+        (!l.email && l.website && l.emailLookupAttempted !== true)
+    )
+    if (targets.length === 0) {
+      showToast('No emails to verify.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    fbEmailBulkCancelRef.current = false
+    setFbEmailBulkStopRequested(false)
+    setFbEmailBulkVerifying(true)
+    setFbEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (fbEmailBulkCancelRef.current) break
+
+        const lead = targets[i]
+        setFbEmailBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        try {
+          let updatedLead: SavedFacebookLead | null = null
+
+          if (lead.email) {
+            setFbVerifyingEmailIds((prev) => new Set(prev).add(lead.id))
+            try {
+              const verifyResult = await window.api.verifyEmail(lead.email)
+              if (verifyResult.switched) {
+                showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+              }
+              updatedLead = { ...lead, emailVerified: verifyResult.verified }
+            } finally {
+              setFbVerifyingEmailIds((prev) => {
+                const next = new Set(prev)
+                next.delete(lead.id)
+                return next
+              })
+            }
+          } else if (lead.website) {
+            setFbLoadingEmailIds((prev) => new Set(prev).add(lead.id))
+            setFbNoEmailFoundIds((prev) => {
+              const next = new Set(prev)
+              next.delete(lead.id)
+              return next
+            })
+            try {
+              const domain = extractDomain(lead.website)
+              const result = await window.api.findEmailForDomain(domain)
+
+              if (result.allKeysExhausted) {
+                showToast(
+                  'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.',
+                  'error'
+                )
+                errors += 1
+                break
+              }
+
+              if (result.email) {
+                try {
+                  const verifyResult = await window.api.verifyEmail(result.email)
+                  if (verifyResult.switched) {
+                    showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+                  }
+                  updatedLead = {
+                    ...lead,
+                    email: result.email,
+                    emailVerified: verifyResult.verified,
+                    emailLookupAttempted: true
+                  }
+                } catch {
+                  updatedLead = {
+                    ...lead,
+                    email: result.email,
+                    emailVerified: false,
+                    emailLookupAttempted: true
+                  }
+                }
+              } else {
+                setFbNoEmailFoundIds((prev) => new Set(prev).add(lead.id))
+                updatedLead = {
+                  ...lead,
+                  email: null,
+                  emailVerified: undefined,
+                  emailLookupAttempted: true
+                }
+              }
+            } finally {
+              setFbLoadingEmailIds((prev) => {
+                const next = new Set(prev)
+                next.delete(lead.id)
+                return next
+              })
+            }
+          }
+
+          if (updatedLead) {
+            setFacebookLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead! : l)))
+            await window.api.updateSavedFacebookLead(updatedLead)
+          }
+        } catch {
+          errors += 1
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithFbEmailCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = fbEmailBulkCancelRef.current
+      setFbEmailBulkVerifying(false)
+      setFbEmailBulkStopRequested(false)
+      setFbEmailBulkProgress(null)
+      fbEmailBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('Email verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`Email verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('Email verification finished.', 'success')
+    }
+  }
+
+  const handleFbStopVerifyAllMail = (): void => {
+    fbEmailBulkCancelRef.current = true
+    setFbEmailBulkStopRequested(true)
   }
 
   const handleExport = (): void => {
@@ -2287,6 +2642,57 @@ function SavedLeadsPage(): JSX.Element {
                   {unverifiedWhatsAppCount > 0
                     ? `Verify All WhatsApp (${unverifiedWhatsAppCount})`
                     : 'Verify All WhatsApp'}
+                </button>
+              )}
+              {emailBulkVerifying ? (
+                <button
+                  onClick={handleStopVerifyAllMail}
+                  disabled={emailBulkStopRequested}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: emailBulkStopRequested ? 'not-allowed' : 'pointer',
+                    opacity: emailBulkStopRequested ? 0.5 : 1
+                  }}
+                >
+                  <FaTimes />
+                  {emailBulkStopRequested
+                    ? 'Stopping...'
+                    : emailBulkProgress
+                      ? `Stop (${emailBulkProgress.current}/${emailBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleVerifyAllMail}
+                  disabled={unverifiedEmailCount === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: '#6366f1',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: unverifiedEmailCount === 0 ? 'not-allowed' : 'pointer',
+                    opacity: unverifiedEmailCount === 0 ? 0.5 : 1
+                  }}
+                >
+                  <FaEnvelope />{' '}
+                  {unverifiedEmailCount > 0
+                    ? `Verify All Mail (${unverifiedEmailCount})`
+                    : 'Verify All Mail'}
                 </button>
               )}
               <button
@@ -2943,7 +3349,9 @@ function SavedLeadsPage(): JSX.Element {
                           </div>
                         )}
 
-                        {!lead.email && lead.website && noEmailFoundIds.has(lead.id) && (
+                        {!lead.email &&
+                        lead.website &&
+                        (lead.emailLookupAttempted === true || noEmailFoundIds.has(lead.id)) ? (
                           <span
                             style={{
                               fontSize: '0.8rem',
@@ -2953,7 +3361,7 @@ function SavedLeadsPage(): JSX.Element {
                           >
                             No email found
                           </span>
-                        )}
+                        ) : null}
 
                         {lead.website ? (
                           <span
@@ -4770,6 +5178,57 @@ function SavedLeadsPage(): JSX.Element {
                     : 'Verify All WhatsApp'}
                 </button>
               )}
+              {fbEmailBulkVerifying ? (
+                <button
+                  onClick={handleFbStopVerifyAllMail}
+                  disabled={fbEmailBulkStopRequested}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: fbEmailBulkStopRequested ? 'not-allowed' : 'pointer',
+                    opacity: fbEmailBulkStopRequested ? 0.5 : 1
+                  }}
+                >
+                  <FaTimes />
+                  {fbEmailBulkStopRequested
+                    ? 'Stopping...'
+                    : fbEmailBulkProgress
+                      ? `Stop (${fbEmailBulkProgress.current}/${fbEmailBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleFbVerifyAllMail}
+                  disabled={fbUnverifiedEmailCount === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: '#6366f1',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: fbUnverifiedEmailCount === 0 ? 'not-allowed' : 'pointer',
+                    opacity: fbUnverifiedEmailCount === 0 ? 0.5 : 1
+                  }}
+                >
+                  <FaEnvelope />{' '}
+                  {fbUnverifiedEmailCount > 0
+                    ? `Verify All Mail (${fbUnverifiedEmailCount})`
+                    : 'Verify All Mail'}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   if (!confirm('Are you sure you want to clear all Facebook leads?')) return
@@ -5400,7 +5859,9 @@ function SavedLeadsPage(): JSX.Element {
                           </span>
                         )}
 
-                        {!lead.email && lead.website && fbNoEmailFoundIds.has(lead.id) && (
+                        {!lead.email &&
+                        lead.website &&
+                        (lead.emailLookupAttempted === true || fbNoEmailFoundIds.has(lead.id)) ? (
                           <span
                             style={{
                               fontSize: '0.8rem',
@@ -5410,7 +5871,7 @@ function SavedLeadsPage(): JSX.Element {
                           >
                             No email found
                           </span>
-                        )}
+                        ) : null}
 
                         {lead.website ? (
                           <span

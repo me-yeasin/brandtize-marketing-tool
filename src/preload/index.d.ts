@@ -313,6 +313,7 @@ export interface SavedMapsLead {
   email?: string
   emailSource?: string
   emailVerified?: boolean
+  emailLookupAttempted?: boolean
   hasWhatsApp?: boolean | null
   reviews?: Review[]
   generatedPitch?: string
@@ -358,6 +359,7 @@ export interface FacebookPageLead {
   categories: string[]
   email: string | null
   emailVerified?: boolean
+  emailLookupAttempted?: boolean
   phone: string | null
   website: string | null
   address: string | null

@@ -2199,6 +2199,14 @@ body {
   font-weight: 500;
 }
 
+.contact-no-email {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(100, 116, 139, 0.15);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 /* Lead Actions */
 .lead-actions {
   display: flex;

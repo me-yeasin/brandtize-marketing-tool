@@ -17,6 +17,7 @@ interface Lead {
   email?: string
   emailSource?: string
   emailVerified?: boolean
+  emailLookupAttempted?: boolean
   isLoadingEmail?: boolean
   hasWhatsApp?: boolean | null // null = not checked, true = has WhatsApp, false = no WhatsApp
   isLoadingWhatsApp?: boolean
@@ -188,6 +189,14 @@ function MapsScoutPage(): JSX.Element {
   } | null>(null)
   const whatsAppBulkCancelRef = useRef(false)
   const savedMapsLeadByIdRef = useRef<Map<string, SavedMapsLead>>(new Map())
+  const [emailBulkVerifying, setEmailBulkVerifying] = useState(false)
+  const [emailBulkStopRequested, setEmailBulkStopRequested] = useState(false)
+  const [emailBulkProgress, setEmailBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const emailBulkCancelRef = useRef(false)
 
   // Show toast helper
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
@@ -214,6 +223,19 @@ function MapsScoutPage(): JSX.Element {
     }
   }
 
+  const persistSavedLeadEmail = async (
+    leadId: string,
+    updates: Pick<SavedMapsLead, 'email' | 'emailSource' | 'emailVerified' | 'emailLookupAttempted'>
+  ): Promise<void> => {
+    const saved = savedMapsLeadByIdRef.current.get(leadId)
+    if (!saved) return
+    const updated: SavedMapsLead = { ...saved, ...updates }
+    const result = await window.api.updateSavedMapsLead(updated)
+    if (result.success) {
+      savedMapsLeadByIdRef.current.set(leadId, updated)
+    }
+  }
+
   const waitWithCancel = async (ms: number): Promise<boolean> => {
     const step = 250
     let remaining = ms
@@ -224,6 +246,18 @@ function MapsScoutPage(): JSX.Element {
       remaining -= duration
     }
     return whatsAppBulkCancelRef.current
+  }
+
+  const waitWithEmailCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (emailBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return emailBulkCancelRef.current
   }
 
   // Setup WhatsApp event listeners
@@ -314,6 +348,11 @@ function MapsScoutPage(): JSX.Element {
   const silverCount = leads.filter((l) => l.score === 'silver').length
   const bronzeCount = leads.filter((l) => l.score === 'bronze').length
   const unverifiedWhatsAppCount = leads.filter((l) => l.phone && l.hasWhatsApp == null).length
+  const unverifiedEmailCount = leads.filter(
+    (l) =>
+      (l.email && l.emailVerified == null) ||
+      (!l.email && l.website && l.emailLookupAttempted !== true)
+  ).length
 
   // Handle search
   const handleSearch = async (): Promise<void> => {
@@ -431,6 +470,7 @@ function MapsScoutPage(): JSX.Element {
                     email: result.email || undefined,
                     emailSource: result.source,
                     emailVerified: verifyResult.verified,
+                    emailLookupAttempted: true,
                     isLoadingEmail: false
                   }
                 : l
@@ -447,6 +487,7 @@ function MapsScoutPage(): JSX.Element {
                     email: result.email || undefined,
                     emailSource: result.source,
                     emailVerified: false,
+                    emailLookupAttempted: true,
                     isLoadingEmail: false
                   }
                 : l
@@ -463,6 +504,7 @@ function MapsScoutPage(): JSX.Element {
                   ...l,
                   email: undefined,
                   emailSource: result.source,
+                  emailLookupAttempted: true,
                   isLoadingEmail: false
                 }
               : l
@@ -473,6 +515,144 @@ function MapsScoutPage(): JSX.Element {
       console.error('Email finder error:', err)
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isLoadingEmail: false } : l)))
     }
+  }
+
+  const handleVerifyAllMail = async (): Promise<void> => {
+    if (emailBulkVerifying) return
+    const targets = leads.filter(
+      (l) =>
+        (l.email && l.emailVerified == null) ||
+        (!l.email && l.website && l.emailLookupAttempted !== true)
+    )
+    if (targets.length === 0) {
+      showToast('No emails to verify.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    emailBulkCancelRef.current = false
+    setEmailBulkStopRequested(false)
+    setEmailBulkVerifying(true)
+    setEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
+    await refreshSavedMapsLeadCache()
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (emailBulkCancelRef.current) break
+
+        const target = targets[i]
+        setEmailBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        setLeads((prev) =>
+          prev.map((l) => (l.id === target.id ? { ...l, isLoadingEmail: true } : l))
+        )
+
+        try {
+          let updatedLead: Lead | null = null
+
+          if (target.email) {
+            const verifyResult = await window.api.verifyEmail(target.email)
+            if (verifyResult.switched) {
+              showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+            }
+            updatedLead = { ...target, emailVerified: verifyResult.verified, isLoadingEmail: false }
+          } else if (target.website) {
+            const domain = extractDomain(target.website)
+            const result = await window.api.findEmailForDomain(domain)
+
+            if (result.allKeysExhausted) {
+              showToast(
+                'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.',
+                'error'
+              )
+              errors += 1
+              break
+            }
+
+            if (result.email) {
+              try {
+                const verifyResult = await window.api.verifyEmail(result.email)
+                if (verifyResult.switched) {
+                  showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+                }
+                updatedLead = {
+                  ...target,
+                  email: result.email || undefined,
+                  emailSource: result.source,
+                  emailVerified: verifyResult.verified,
+                  emailLookupAttempted: true,
+                  isLoadingEmail: false
+                }
+              } catch {
+                updatedLead = {
+                  ...target,
+                  email: result.email || undefined,
+                  emailSource: result.source,
+                  emailVerified: false,
+                  emailLookupAttempted: true,
+                  isLoadingEmail: false
+                }
+              }
+            } else {
+              updatedLead = {
+                ...target,
+                email: undefined,
+                emailSource: result.source,
+                emailLookupAttempted: true,
+                isLoadingEmail: false
+              }
+            }
+          }
+
+          if (updatedLead) {
+            setLeads((prev) => prev.map((l) => (l.id === updatedLead!.id ? updatedLead! : l)))
+            await persistSavedLeadEmail(updatedLead.id, {
+              email: updatedLead.email,
+              emailSource: updatedLead.emailSource,
+              emailVerified: updatedLead.emailVerified,
+              emailLookupAttempted: updatedLead.emailLookupAttempted
+            })
+          } else {
+            setLeads((prev) =>
+              prev.map((l) => (l.id === target.id ? { ...l, isLoadingEmail: false } : l))
+            )
+          }
+        } catch {
+          errors += 1
+          setLeads((prev) =>
+            prev.map((l) => (l.id === target.id ? { ...l, isLoadingEmail: false } : l))
+          )
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithEmailCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = emailBulkCancelRef.current
+      setEmailBulkVerifying(false)
+      setEmailBulkStopRequested(false)
+      setEmailBulkProgress(null)
+      emailBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('Email verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`Email verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('Email verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllMail = (): void => {
+    emailBulkCancelRef.current = true
+    setEmailBulkStopRequested(true)
   }
 
   // Initialize WhatsApp client
@@ -742,6 +922,7 @@ function MapsScoutPage(): JSX.Element {
         email: lead.email,
         emailSource: lead.emailSource,
         emailVerified: lead.emailVerified,
+        emailLookupAttempted: lead.emailLookupAttempted,
         hasWhatsApp: lead.hasWhatsApp,
         savedAt: Date.now()
       }))
@@ -1156,6 +1337,43 @@ function MapsScoutPage(): JSX.Element {
                     : 'Verify All WhatsApp'}
                 </button>
               )}
+              {emailBulkVerifying ? (
+                <button
+                  className="scout-btn outline"
+                  onClick={handleStopVerifyAllMail}
+                  disabled={emailBulkStopRequested}
+                  style={{
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {emailBulkStopRequested
+                    ? 'Stopping...'
+                    : emailBulkProgress
+                      ? `Stop (${emailBulkProgress.current}/${emailBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  className="scout-btn outline"
+                  onClick={handleVerifyAllMail}
+                  disabled={unverifiedEmailCount === 0}
+                  style={{
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {unverifiedEmailCount > 0
+                    ? `Verify All Mail (${unverifiedEmailCount})`
+                    : 'Verify All Mail'}
+                </button>
+              )}
               <button
                 className="scout-btn outline"
                 onClick={handleExport}
@@ -1294,6 +1512,9 @@ function MapsScoutPage(): JSX.Element {
                         </span>
                       )}
                     </span>
+                  )}
+                  {!lead.email && lead.website && lead.emailLookupAttempted === true && (
+                    <span className="contact-no-email">No email found</span>
                   )}
                 </div>
 

@@ -16,6 +16,7 @@ import {
   FaWhatsapp
 } from 'react-icons/fa'
 import { MdOutlineEmail, MdOutlineLocationOn, MdOutlinePhone } from 'react-icons/md'
+import type { SavedFacebookLead } from '../../../preload/index.d'
 
 // Facebook Page Lead interface
 interface FacebookPageLead {
@@ -24,6 +25,8 @@ interface FacebookPageLead {
   title: string
   categories: string[]
   email: string | null
+  emailVerified?: boolean
+  emailLookupAttempted?: boolean
   phone: string | null
   website: string | null
   address: string | null
@@ -87,11 +90,42 @@ function SocialLeadsPage(): JSX.Element {
     errors: number
   } | null>(null)
   const whatsAppBulkCancelRef = useRef(false)
+  const [emailBulkVerifying, setEmailBulkVerifying] = useState(false)
+  const [emailBulkStopRequested, setEmailBulkStopRequested] = useState(false)
+  const [emailBulkProgress, setEmailBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const emailBulkCancelRef = useRef(false)
+  const savedFacebookLeadByIdRef = useRef<Map<string, SavedFacebookLead>>(new Map())
 
   // Show toast helper
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  const refreshSavedFacebookLeadCache = async (): Promise<void> => {
+    try {
+      const saved = await window.api.getSavedFacebookLeads()
+      savedFacebookLeadByIdRef.current = new Map(saved.map((l) => [l.id, l]))
+    } catch {
+      savedFacebookLeadByIdRef.current = new Map()
+    }
+  }
+
+  const persistSavedLeadEmail = async (
+    leadId: string,
+    updates: Pick<SavedFacebookLead, 'email' | 'emailVerified' | 'emailLookupAttempted'>
+  ): Promise<void> => {
+    const saved = savedFacebookLeadByIdRef.current.get(leadId)
+    if (!saved) return
+    const updated: SavedFacebookLead = { ...saved, ...updates }
+    const result = await window.api.updateSavedFacebookLead(updated)
+    if (result.success) {
+      savedFacebookLeadByIdRef.current.set(leadId, updated)
+    }
   }
 
   const refreshWhatsAppStatus = useCallback(async (): Promise<boolean> => {
@@ -119,6 +153,18 @@ function SocialLeadsPage(): JSX.Element {
       remaining -= duration
     }
     return whatsAppBulkCancelRef.current
+  }
+
+  const waitWithEmailCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (emailBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return emailBulkCancelRef.current
   }
 
   // Check if Apify is configured on mount
@@ -293,6 +339,19 @@ function SocialLeadsPage(): JSX.Element {
     }
   }
 
+  const extractDomain = (url: string): string => {
+    try {
+      let domain = url.toLowerCase()
+      if (!domain.startsWith('http')) {
+        domain = 'http://' + domain
+      }
+      const hostname = new URL(domain).hostname
+      return hostname.replace(/^www\./, '')
+    } catch {
+      return url
+    }
+  }
+
   const handleVerifyAllWhatsApp = async (): Promise<void> => {
     const ready = await refreshWhatsAppStatus()
     if (!ready) {
@@ -365,6 +424,128 @@ function SocialLeadsPage(): JSX.Element {
     setWhatsAppBulkStopRequested(true)
   }
 
+  const handleVerifyAllMail = async (): Promise<void> => {
+    if (emailBulkVerifying) return
+
+    const targets = filteredLeads.filter(
+      (l) =>
+        (l.email && l.emailVerified == null) ||
+        (!l.email && l.website && l.emailLookupAttempted !== true)
+    )
+    if (targets.length === 0) {
+      showToast('No emails to verify.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    emailBulkCancelRef.current = false
+    setEmailBulkStopRequested(false)
+    setEmailBulkVerifying(true)
+    setEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
+    await refreshSavedFacebookLeadCache()
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (emailBulkCancelRef.current) break
+
+        const lead = targets[i]
+        setEmailBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        try {
+          let updatedLead: FacebookPageLead | null = null
+
+          if (lead.email) {
+            const verifyResult = await window.api.verifyEmail(lead.email)
+            if (verifyResult.switched) {
+              showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+            }
+            updatedLead = { ...lead, emailVerified: verifyResult.verified }
+          } else if (lead.website) {
+            const domain = extractDomain(lead.website)
+            const result = await window.api.findEmailForDomain(domain)
+
+            if (result.allKeysExhausted) {
+              showToast(
+                'All email finder API keys have hit rate limits. Please wait until they reset or add new API keys in Settings → Email.',
+                'error'
+              )
+              errors += 1
+              break
+            }
+
+            if (result.email) {
+              try {
+                const verifyResult = await window.api.verifyEmail(result.email)
+                if (verifyResult.switched) {
+                  showToast('Switched to Rapid Verifier (Reoon rate limited)', 'info')
+                }
+                updatedLead = {
+                  ...lead,
+                  email: result.email,
+                  emailVerified: verifyResult.verified,
+                  emailLookupAttempted: true
+                }
+              } catch {
+                updatedLead = {
+                  ...lead,
+                  email: result.email,
+                  emailVerified: false,
+                  emailLookupAttempted: true
+                }
+              }
+            } else {
+              updatedLead = {
+                ...lead,
+                email: null,
+                emailVerified: undefined,
+                emailLookupAttempted: true
+              }
+            }
+          }
+
+          if (updatedLead) {
+            setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead! : l)))
+            await persistSavedLeadEmail(updatedLead.id, {
+              email: updatedLead.email,
+              emailVerified: updatedLead.emailVerified,
+              emailLookupAttempted: updatedLead.emailLookupAttempted
+            })
+          }
+        } catch {
+          errors += 1
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithEmailCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = emailBulkCancelRef.current
+      setEmailBulkVerifying(false)
+      setEmailBulkStopRequested(false)
+      setEmailBulkProgress(null)
+      emailBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('Email verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`Email verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('Email verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllMail = (): void => {
+    emailBulkCancelRef.current = true
+    setEmailBulkStopRequested(true)
+  }
+
   // Open Facebook page
   const openFacebookPage = (url: string): void => {
     window.api.openExternalUrl(url)
@@ -389,6 +570,11 @@ function SocialLeadsPage(): JSX.Element {
   const bronzeCount = filteredLeads.filter((l) => l.score === 'bronze').length
   const unverifiedWhatsAppCount = filteredLeads.filter(
     (l) => l.phone && l.hasWhatsApp == null
+  ).length
+  const unverifiedEmailCount = filteredLeads.filter(
+    (l) =>
+      (l.email && l.emailVerified == null) ||
+      (!l.email && l.website && l.emailLookupAttempted !== true)
   ).length
 
   return (
@@ -660,6 +846,31 @@ https://www.facebook.com/businesspage2"
                         : 'Verify All WhatsApp'}
                     </button>
                   )}
+                  {emailBulkVerifying ? (
+                    <button
+                      className="scout-btn outline"
+                      onClick={handleStopVerifyAllMail}
+                      disabled={emailBulkStopRequested}
+                    >
+                      <FaTimes />{' '}
+                      {emailBulkStopRequested
+                        ? 'Stopping...'
+                        : emailBulkProgress
+                          ? `Stop (${emailBulkProgress.current}/${emailBulkProgress.total})`
+                          : 'Stop'}
+                    </button>
+                  ) : (
+                    <button
+                      className="scout-btn outline"
+                      onClick={handleVerifyAllMail}
+                      disabled={unverifiedEmailCount === 0}
+                    >
+                      <MdOutlineEmail style={{ marginRight: '6px' }} />
+                      {unverifiedEmailCount > 0
+                        ? `Verify All Mail (${unverifiedEmailCount})`
+                        : 'Verify All Mail'}
+                    </button>
+                  )}
                   <button
                     className="scout-btn outline"
                     onClick={handleExport}
@@ -779,6 +990,47 @@ https://www.facebook.com/businesspage2"
                               <MdOutlineEmail style={{ marginRight: '4px' }} />
                               {lead.email}
                             </span>
+                            {lead.emailVerified === true && (
+                              <span className="verified-badge" title="Email verified">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  stroke="none"
+                                >
+                                  <circle cx="12" cy="12" r="12" fill="#22c55e" />
+                                  <path
+                                    d="M9 12l2 2 4-4"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
+                            {lead.emailVerified === false && (
+                              <span className="unverified-badge" title="Email not verified">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  stroke="none"
+                                >
+                                  <circle cx="12" cy="12" r="12" fill="#ef4444" />
+                                  <path
+                                    d="M8 8l8 8M16 8l-8 8"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
                             <button
                               className="copy-btn"
                               onClick={() => copyToClipboard(lead.email!, 'Email')}
@@ -786,6 +1038,10 @@ https://www.facebook.com/businesspage2"
                             >
                               <FaCopy />
                             </button>
+                          </span>
+                        ) : lead.website && lead.emailLookupAttempted === true ? (
+                          <span className="contact-no-email">
+                            <FaTimes style={{ marginRight: '4px' }} /> No email found
                           </span>
                         ) : null}
 
