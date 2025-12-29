@@ -8,6 +8,7 @@ import {
   FaEdit,
   FaEnvelope,
   FaExclamationTriangle,
+  FaExternalLinkAlt,
   FaFacebook,
   FaFileExport,
   FaFilter,
@@ -5994,6 +5995,25 @@ function SavedLeadsPage(): JSX.Element {
                       </div>
 
                       {/* Facebook Page Button */}
+                      <button
+                        onClick={() => window.api.openExternalUrl(lead.facebookUrl)}
+                        title="View Facebook Page"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: 'rgba(99, 102, 241, 0.12)',
+                          color: '#6366f1',
+                          fontSize: '0.95rem'
+                        }}
+                      >
+                        <FaExternalLinkAlt />
+                      </button>
                       <button
                         onClick={() => window.api.openExternalUrl(lead.facebookUrl)}
                         title="Open Facebook Page"
