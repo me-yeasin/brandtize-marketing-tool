@@ -1,5 +1,5 @@
 import { JSX, useEffect, useRef, useState } from 'react'
-import type { MapsPlace, ReviewsResult } from '../../../preload/index.d'
+import type { MapsPlace, ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
 
 // Extended Lead type with email search capability
 interface Lead {
@@ -179,11 +179,51 @@ function MapsScoutPage(): JSX.Element {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const whatsAppQrDismissedRef = useRef(false)
   const whatsAppCancelRef = useRef(false)
+  const [whatsAppBulkVerifying, setWhatsAppBulkVerifying] = useState(false)
+  const [whatsAppBulkStopRequested, setWhatsAppBulkStopRequested] = useState(false)
+  const [whatsAppBulkProgress, setWhatsAppBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const whatsAppBulkCancelRef = useRef(false)
+  const savedMapsLeadByIdRef = useRef<Map<string, SavedMapsLead>>(new Map())
 
   // Show toast helper
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const refreshSavedMapsLeadCache = async (): Promise<void> => {
+    try {
+      const saved = await window.api.getSavedMapsLeads()
+      savedMapsLeadByIdRef.current = new Map(saved.map((l) => [l.id, l]))
+    } catch {
+      savedMapsLeadByIdRef.current = new Map()
+    }
+  }
+
+  const persistSavedLeadWhatsApp = async (leadId: string, hasWhatsApp: boolean): Promise<void> => {
+    const saved = savedMapsLeadByIdRef.current.get(leadId)
+    if (!saved) return
+    const updated: SavedMapsLead = { ...saved, hasWhatsApp }
+    const result = await window.api.updateSavedMapsLead(updated)
+    if (result.success) {
+      savedMapsLeadByIdRef.current.set(leadId, updated)
+    }
+  }
+
+  const waitWithCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (whatsAppBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return whatsAppBulkCancelRef.current
   }
 
   // Setup WhatsApp event listeners
@@ -273,6 +313,7 @@ function MapsScoutPage(): JSX.Element {
   const goldCount = leads.filter((l) => l.score === 'gold').length
   const silverCount = leads.filter((l) => l.score === 'silver').length
   const bronzeCount = leads.filter((l) => l.score === 'bronze').length
+  const unverifiedWhatsAppCount = leads.filter((l) => l.phone && l.hasWhatsApp == null).length
 
   // Handle search
   const handleSearch = async (): Promise<void> => {
@@ -525,6 +566,10 @@ function MapsScoutPage(): JSX.Element {
             : l
         )
       )
+      if (savedMapsLeadByIdRef.current.size === 0) {
+        await refreshSavedMapsLeadCache()
+      }
+      await persistSavedLeadWhatsApp(leadId, result.hasWhatsApp)
 
       // Show feedback
       if (result.hasWhatsApp) {
@@ -539,6 +584,93 @@ function MapsScoutPage(): JSX.Element {
       )
       showToast('Failed to check WhatsApp status', 'error')
     }
+  }
+
+  const handleVerifyAllWhatsApp = async (): Promise<void> => {
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first! Click the WhatsApp connect button.', 'error')
+      return
+    }
+
+    const targets = leads.filter((l) => l.phone && l.hasWhatsApp == null)
+    if (targets.length === 0) {
+      showToast('No unverified phone numbers to check.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    whatsAppBulkCancelRef.current = false
+    setWhatsAppBulkStopRequested(false)
+    setWhatsAppBulkVerifying(true)
+    setWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
+    await refreshSavedMapsLeadCache()
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (whatsAppBulkCancelRef.current) break
+
+        const target = targets[i]
+        if (!target.phone) continue
+
+        setWhatsAppBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        setLeads((prev) =>
+          prev.map((l) => (l.id === target.id ? { ...l, isLoadingWhatsApp: true } : l))
+        )
+
+        try {
+          const result = await window.api.whatsappCheckNumber(target.phone)
+          if (result.error) {
+            errors += 1
+            setLeads((prev) =>
+              prev.map((l) => (l.id === target.id ? { ...l, isLoadingWhatsApp: false } : l))
+            )
+          } else {
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === target.id
+                  ? { ...l, hasWhatsApp: result.hasWhatsApp, isLoadingWhatsApp: false }
+                  : l
+              )
+            )
+            await persistSavedLeadWhatsApp(target.id, result.hasWhatsApp)
+          }
+        } catch {
+          errors += 1
+          setLeads((prev) =>
+            prev.map((l) => (l.id === target.id ? { ...l, isLoadingWhatsApp: false } : l))
+          )
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = whatsAppBulkCancelRef.current
+      setWhatsAppBulkVerifying(false)
+      setWhatsAppBulkStopRequested(false)
+      setWhatsAppBulkProgress(null)
+      whatsAppBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('WhatsApp verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('WhatsApp verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllWhatsApp = (): void => {
+    whatsAppBulkCancelRef.current = true
+    setWhatsAppBulkStopRequested(true)
   }
 
   // Export leads to CSV
@@ -592,8 +724,10 @@ function MapsScoutPage(): JSX.Element {
     }
 
     try {
-      // Convert leads to SavedMapsLead format
-      const leadsToSave = leads.map((lead) => ({
+      const existing = await window.api.getSavedMapsLeads()
+      const existingById = new Map(existing.map((l) => [l.id, l]))
+
+      const leadsToPersist: SavedMapsLead[] = leads.map((lead) => ({
         id: lead.id,
         name: lead.name,
         address: lead.address,
@@ -612,9 +746,34 @@ function MapsScoutPage(): JSX.Element {
         savedAt: Date.now()
       }))
 
-      const result = await window.api.saveMapsLeads(leadsToSave)
-      if (result.success) {
-        showToast(`Saved ${result.count} leads successfully!`, 'success')
+      const newLeads = leadsToPersist.filter((l) => !existingById.has(l.id))
+      const leadsToUpdate = leadsToPersist
+        .filter((l) => existingById.has(l.id))
+        .map((l) => {
+          const prev = existingById.get(l.id)!
+          return { ...prev, ...l, savedAt: prev.savedAt }
+        })
+
+      let createdCount = 0
+      if (newLeads.length > 0) {
+        const result = await window.api.saveMapsLeads(newLeads)
+        if (result.success) createdCount = result.count
+      }
+
+      let updatedCount = 0
+      if (leadsToUpdate.length > 0) {
+        const results = await Promise.all(
+          leadsToUpdate.map(async (lead) => window.api.updateSavedMapsLead(lead))
+        )
+        updatedCount = results.filter((r) => r.success).length
+      }
+
+      await refreshSavedMapsLeadCache()
+
+      if (createdCount > 0 || updatedCount > 0) {
+        showToast(`Saved ${createdCount} new, updated ${updatedCount}.`, 'success')
+      } else {
+        showToast('All leads already saved.', 'info')
       }
     } catch (err) {
       console.error('Save leads error:', err)
@@ -960,6 +1119,43 @@ function MapsScoutPage(): JSX.Element {
                     ? 'WhatsApp Connected'
                     : 'Connect WhatsApp'}
               </button>
+              {whatsAppBulkVerifying ? (
+                <button
+                  className="scout-btn outline"
+                  onClick={handleStopVerifyAllWhatsApp}
+                  disabled={whatsAppBulkStopRequested}
+                  style={{
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {whatsAppBulkStopRequested
+                    ? 'Stopping...'
+                    : whatsAppBulkProgress
+                      ? `Stop (${whatsAppBulkProgress.current}/${whatsAppBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  className="scout-btn outline"
+                  onClick={handleVerifyAllWhatsApp}
+                  disabled={!whatsAppReady || unverifiedWhatsAppCount === 0}
+                  style={{
+                    height: '42px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {unverifiedWhatsAppCount > 0
+                    ? `Verify All WhatsApp (${unverifiedWhatsAppCount})`
+                    : 'Verify All WhatsApp'}
+                </button>
+              )}
               <button
                 className="scout-btn outline"
                 onClick={handleExport}
