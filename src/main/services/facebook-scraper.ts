@@ -6,6 +6,8 @@
 import { ApifyClient } from 'apify-client'
 import { getApifyApiKey, getApifyApiKeys } from '../store'
 
+let apifyMultiKeyIndex = 0
+
 // Facebook Page Lead interface
 export interface FacebookPageLead {
   id: string // Facebook Page ID
@@ -74,6 +76,16 @@ function calculateLeadScore(lead: Partial<FacebookPageLead>): 'gold' | 'silver' 
   return 'bronze'
 }
 
+function parseCount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').trim()
+    const asNumber = Number(normalized)
+    if (Number.isFinite(asNumber)) return asNumber
+  }
+  return 0
+}
+
 // Parse Apify response to our FacebookPageLead format
 function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
   // Extract rating info
@@ -92,6 +104,12 @@ function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
     ratingCountValue = item.ratingCount
   }
 
+  const websites = Array.isArray(item.websites) ? (item.websites as unknown[]) : []
+  const firstWebsite = websites.find((w) => typeof w === 'string') as string | undefined
+
+  const phones = Array.isArray(item.phones) ? (item.phones as unknown[]) : []
+  const firstPhone = phones.find((p) => typeof p === 'string') as string | undefined
+
   const lead: Partial<FacebookPageLead> = {
     id:
       (item.facebookId as string) ||
@@ -103,14 +121,14 @@ function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
 
     // Contact info
     email: (item.email as string) || null,
-    phone: (item.phone as string) || null,
-    website: (item.website as string) || null,
+    phone: (item.phone as string) || firstPhone || null,
+    website: (item.website as string) || firstWebsite || null,
     address: (item.address as string) || null,
     messenger: (item.messenger as string) || null,
 
     // Engagement
-    likes: typeof item.likes === 'number' ? item.likes : 0,
-    followers: typeof item.followers === 'number' ? item.followers : 0,
+    likes: parseCount(item.likes),
+    followers: parseCount(item.followers),
     rating: ratingValue,
     ratingCount: ratingCountValue,
 
@@ -140,7 +158,9 @@ function getApifyClient(): ApifyClient {
   let apiKey = ''
 
   if (multiKeys.length > 0) {
-    apiKey = multiKeys[0].key
+    const index = apifyMultiKeyIndex % multiKeys.length
+    apiKey = multiKeys[index]?.key || ''
+    apifyMultiKeyIndex = (apifyMultiKeyIndex + 1) % multiKeys.length
   } else {
     apiKey = getApifyApiKey()
   }
@@ -152,6 +172,61 @@ function getApifyClient(): ApifyClient {
   }
 
   return new ApifyClient({ token: apiKey })
+}
+
+async function fetchDatasetItems(
+  client: ApifyClient,
+  datasetId: string,
+  desiredLimit?: number
+): Promise<Record<string, unknown>[]> {
+  const batchSize = 1000
+  let offset = 0
+  const items: Record<string, unknown>[] = []
+
+  while (true) {
+    const limit = desiredLimit
+      ? Math.min(batchSize, Math.max(0, desiredLimit - items.length))
+      : batchSize
+    if (desiredLimit !== undefined && limit <= 0) break
+
+    const response = await client.dataset(datasetId).listItems({ offset, limit })
+    const batch = (response.items as Record<string, unknown>[]) || []
+    items.push(...batch)
+
+    if (batch.length < limit) break
+    offset += batch.length
+  }
+
+  return items
+}
+
+async function runActorWithProxyFallback(
+  client: ApifyClient,
+  actorId: string,
+  actorInput: Record<string, unknown>,
+  timeoutSeconds: number
+): Promise<{ defaultDatasetId: string }> {
+  const attempts: Record<string, unknown>[] = [
+    {
+      ...actorInput,
+      proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] }
+    },
+    { ...actorInput, proxyConfiguration: { useApifyProxy: true } },
+    { ...actorInput }
+  ]
+
+  let lastError: unknown = null
+
+  for (const input of attempts) {
+    try {
+      const run = await client.actor(actorId).call(input, { timeout: timeoutSeconds })
+      return { defaultDatasetId: run.defaultDatasetId }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError
 }
 
 /**
@@ -211,14 +286,18 @@ export async function searchFacebookPages(
 
     console.log('[FacebookScraper] Running Facebook Search Scraper with input:', actorInput)
 
-    const run = await client.actor('apify/facebook-search-scraper').call(actorInput, {
-      timeout: 300 // 5 minutes timeout
-    })
+    const timeoutSeconds = Math.max(300, Math.min(900, 300 + Math.ceil(maxResults / 100) * 120))
+    const run = await runActorWithProxyFallback(
+      client,
+      'apify/facebook-search-scraper',
+      actorInput,
+      timeoutSeconds
+    )
 
     console.log('[FacebookScraper] Run completed, fetching results...')
 
     // Get results from the dataset
-    const { items } = await client.dataset(run.defaultDatasetId).listItems()
+    const items = await fetchDatasetItems(client, run.defaultDatasetId, maxResults)
 
     console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
 
@@ -255,19 +334,18 @@ export async function scrapeFacebookPageUrls(urls: string[]): Promise<FacebookPa
     // Actor ID: apify/facebook-pages-scraper
     console.log('[FacebookScraper] Running Facebook Pages Scraper...')
 
-    const run = await client.actor('apify/facebook-pages-scraper').call(
-      {
-        startUrls: urls.map((url) => ({ url }))
-      },
-      {
-        timeout: 300 // 5 minutes timeout
-      }
+    const timeoutSeconds = Math.max(300, Math.min(900, 300 + Math.ceil(urls.length / 100) * 120))
+    const run = await runActorWithProxyFallback(
+      client,
+      'apify/facebook-pages-scraper',
+      { startUrls: urls.map((url) => ({ url })) },
+      timeoutSeconds
     )
 
     console.log('[FacebookScraper] Run completed, fetching results...')
 
     // Get results from the dataset
-    const { items } = await client.dataset(run.defaultDatasetId).listItems()
+    const items = await fetchDatasetItems(client, run.defaultDatasetId, urls.length)
 
     console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
 
