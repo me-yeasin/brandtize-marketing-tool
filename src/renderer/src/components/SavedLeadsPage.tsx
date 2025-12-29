@@ -2157,23 +2157,27 @@ function SavedLeadsPage(): JSX.Element {
       'Name',
       'Address',
       'Phone',
+      'WhatsApp Verified',
       'Website',
       'Rating',
       'Reviews',
       'Category',
       'Score',
-      'Email'
+      'Email',
+      'Email Verified'
     ]
     const rows = filteredLeads.map((lead) => [
       lead.name,
       lead.address,
       lead.phone || '',
+      lead.phone ? (lead.hasWhatsApp === true ? 'verified' : 'unverified') : '',
       lead.website || '',
       lead.rating.toString(),
       lead.reviewCount.toString(),
       lead.category,
       lead.score,
-      lead.email || ''
+      lead.email || '',
+      lead.email ? (lead.emailVerified === true ? 'verified' : 'unverified') : ''
     ])
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
