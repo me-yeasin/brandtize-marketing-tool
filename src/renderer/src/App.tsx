@@ -1,4 +1,4 @@
-import { JSX, useEffect, useState } from 'react'
+import { JSX, useCallback, useEffect, useState } from 'react'
 import AiCopywriterPage from './components/AiCopywriterPage'
 import MapsScoutPage from './components/MapsScoutPage'
 import SavedLeadsPage from './components/SavedLeadsPage'
@@ -9,11 +9,16 @@ import './styles/index.css'
 
 // Page types
 type PageType = 'main' | 'settings'
+type TaskStatus = 'idle' | 'running' | 'completed'
 
 function App(): JSX.Element {
   const [currentPage, setCurrentPage] = useState<PageType>('main')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeRoute, setActiveRoute] = useState('maps-scout')
+  const [taskStatusByRoute, setTaskStatusByRoute] = useState<Record<string, TaskStatus>>({
+    'maps-scout': 'idle',
+    'social-leads': 'idle'
+  })
   const [updateProgress, setUpdateProgress] = useState<{
     percent: number
     transferred: number
@@ -32,6 +37,13 @@ function App(): JSX.Element {
   const handleBackFromSettings = (): void => {
     setCurrentPage('main')
   }
+
+  const updateTaskStatus = useCallback((route: string, status: TaskStatus): void => {
+    setTaskStatusByRoute((prev) => {
+      if (prev[route] === status) return prev
+      return { ...prev, [route]: status }
+    })
+  }, [])
 
   useEffect(() => {
     window.api.onUpdateAvailable(({ version }) => {
@@ -53,21 +65,16 @@ function App(): JSX.Element {
     })
   }, [])
 
-  // Render page content based on active route
-  const renderPageContent = (): JSX.Element => {
+  const renderOtherRouteContent = (): JSX.Element => {
     switch (activeRoute) {
-      case 'maps-scout':
-        return <MapsScoutPage />
-      case 'saved-leads':
-        return <SavedLeadsPage />
-      case 'social-leads':
-        return <SocialLeadsPage />
       case 'ai-copywriter-mail':
         return <AiCopywriterPage initialTab="mail" />
       case 'ai-copywriter-whatsapp':
         return <AiCopywriterPage initialTab="whatsapp" />
       case 'ai-copywriter-telegram':
         return <AiCopywriterPage initialTab="telegram" />
+      case 'saved-leads':
+        return <SavedLeadsPage />
       default:
         return (
           <div className="page-content">
@@ -124,9 +131,7 @@ function App(): JSX.Element {
 
   return (
     <>
-      {currentPage === 'settings' ? (
-        <SettingsPage onBack={handleBackFromSettings} />
-      ) : (
+      <div className={currentPage === 'settings' ? 'page-hidden' : ''}>
         <div className="app-container">
           <Sidebar
             isOpen={sidebarOpen}
@@ -134,6 +139,7 @@ function App(): JSX.Element {
             activeRoute={activeRoute}
             onRouteChange={setActiveRoute}
             onOpenSettings={handleOpenSettings}
+            taskStatusByRoute={taskStatusByRoute}
           />
 
           <main className={`main-content ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
@@ -161,10 +167,26 @@ function App(): JSX.Element {
               </button>
             )}
 
-            {renderPageContent()}
+            <div className="route-host">
+              <div className={activeRoute === 'maps-scout' ? '' : 'page-hidden'}>
+                <MapsScoutPage
+                  onTaskStatusChange={(status) => updateTaskStatus('maps-scout', status)}
+                />
+              </div>
+              <div className={activeRoute === 'social-leads' ? '' : 'page-hidden'}>
+                <SocialLeadsPage
+                  onTaskStatusChange={(status) => updateTaskStatus('social-leads', status)}
+                />
+              </div>
+              {activeRoute !== 'maps-scout' && activeRoute !== 'social-leads' && (
+                <div>{renderOtherRouteContent()}</div>
+              )}
+            </div>
           </main>
         </div>
-      )}
+      </div>
+
+      {currentPage === 'settings' && <SettingsPage onBack={handleBackFromSettings} />}
 
       {renderUpdateBanner()}
     </>

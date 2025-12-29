@@ -1,6 +1,8 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import type { MapsPlace, ReviewsResult, SavedMapsLead } from '../../../preload/index.d'
 
+type TaskStatus = 'idle' | 'running' | 'completed'
+
 // Extended Lead type with email search capability
 interface Lead {
   id: string
@@ -136,7 +138,11 @@ function openTelegram(lead: Lead): void {
   window.api.openExternalUrl(tgUrl)
 }
 
-function MapsScoutPage(): JSX.Element {
+interface MapsScoutPageProps {
+  onTaskStatusChange?: (status: TaskStatus) => void
+}
+
+function MapsScoutPage({ onTaskStatusChange }: MapsScoutPageProps): JSX.Element {
   // Search form state
   const [location, setLocation] = useState('')
   const [category, setCategory] = useState('')
@@ -373,6 +379,7 @@ function MapsScoutPage(): JSX.Element {
     setError(null)
     setIsSearching(true)
     setHasSearched(false)
+    onTaskStatusChange?.('running')
 
     try {
       // Build search params with advanced options
@@ -426,9 +433,11 @@ function MapsScoutPage(): JSX.Element {
 
       setLeads(allLeads)
       setHasSearched(true)
+      onTaskStatusChange?.('completed')
     } catch (err) {
       console.error('Search error:', err)
       setError(err instanceof Error ? err.message : 'Search failed. Please try again.')
+      onTaskStatusChange?.('idle')
     } finally {
       setIsSearching(false)
     }
@@ -536,6 +545,7 @@ function MapsScoutPage(): JSX.Element {
     setEmailBulkVerifying(true)
     setEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
     await refreshSavedMapsLeadCache()
+    onTaskStatusChange?.('running')
 
     let errors = 0
     let stopped = false
@@ -643,10 +653,13 @@ function MapsScoutPage(): JSX.Element {
 
     if (stopped) {
       showToast('Email verification stopped.', 'info')
+      onTaskStatusChange?.('idle')
     } else if (errors > 0) {
       showToast(`Email verification finished with ${errors} errors.`, 'info')
+      onTaskStatusChange?.('completed')
     } else {
       showToast('Email verification finished.', 'success')
+      onTaskStatusChange?.('completed')
     }
   }
 
@@ -785,6 +798,7 @@ function MapsScoutPage(): JSX.Element {
     setWhatsAppBulkVerifying(true)
     setWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
     await refreshSavedMapsLeadCache()
+    onTaskStatusChange?.('running')
 
     let errors = 0
     let stopped = false
@@ -841,10 +855,13 @@ function MapsScoutPage(): JSX.Element {
 
     if (stopped) {
       showToast('WhatsApp verification stopped.', 'info')
+      onTaskStatusChange?.('idle')
     } else if (errors > 0) {
       showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+      onTaskStatusChange?.('completed')
     } else {
       showToast('WhatsApp verification finished.', 'success')
+      onTaskStatusChange?.('completed')
     }
   }
 

@@ -18,6 +18,8 @@ import {
 import { MdOutlineEmail, MdOutlineLocationOn, MdOutlinePhone } from 'react-icons/md'
 import type { SavedFacebookLead } from '../../../preload/index.d'
 
+type TaskStatus = 'idle' | 'running' | 'completed'
+
 // Facebook Page Lead interface
 interface FacebookPageLead {
   id: string
@@ -42,9 +44,14 @@ interface FacebookPageLead {
   score: 'gold' | 'silver' | 'bronze'
   savedAt?: number
   hasWhatsApp?: boolean | null
+  isLoadingWhatsApp?: boolean
 }
 
-function SocialLeadsPage(): JSX.Element {
+interface SocialLeadsPageProps {
+  onTaskStatusChange?: (status: TaskStatus) => void
+}
+
+function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<'facebook-page'>('facebook-page')
 
   // Search form state
@@ -122,6 +129,16 @@ function SocialLeadsPage(): JSX.Element {
     const saved = savedFacebookLeadByIdRef.current.get(leadId)
     if (!saved) return
     const updated: SavedFacebookLead = { ...saved, ...updates }
+    const result = await window.api.updateSavedFacebookLead(updated)
+    if (result.success) {
+      savedFacebookLeadByIdRef.current.set(leadId, updated)
+    }
+  }
+
+  const persistSavedLeadWhatsApp = async (leadId: string, hasWhatsApp: boolean): Promise<void> => {
+    const saved = savedFacebookLeadByIdRef.current.get(leadId)
+    if (!saved) return
+    const updated: SavedFacebookLead = { ...saved, hasWhatsApp }
     const result = await window.api.updateSavedFacebookLead(updated)
     if (result.success) {
       savedFacebookLeadByIdRef.current.set(leadId, updated)
@@ -230,6 +247,7 @@ function SocialLeadsPage(): JSX.Element {
     setError(null)
     setIsSearching(true)
     setHasSearched(false)
+    onTaskStatusChange?.('running')
 
     try {
       let results: FacebookPageLead[]
@@ -258,10 +276,12 @@ function SocialLeadsPage(): JSX.Element {
       setLeads(results)
       setHasSearched(true)
       showToast(`Found ${results.length} Facebook pages`, 'success')
+      onTaskStatusChange?.('completed')
     } catch (err) {
       console.error('Search error:', err)
       setError(err instanceof Error ? err.message : 'Search failed. Please try again.')
       showToast('Search failed. Check your Apify API key and try again.', 'error')
+      onTaskStatusChange?.('idle')
     } finally {
       setIsSearching(false)
     }
@@ -356,6 +376,52 @@ function SocialLeadsPage(): JSX.Element {
     }
   }
 
+  const handleCheckWhatsApp = async (leadId: string): Promise<void> => {
+    const lead = leads.find((l) => l.id === leadId)
+    if (!lead || !lead.phone) return
+
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isLoadingWhatsApp: true } : l)))
+
+    try {
+      const result = await window.api.whatsappCheckNumber(lead.phone)
+
+      if (result.error) {
+        showToast(result.error, 'error')
+        setLeads((prev) =>
+          prev.map((l) => (l.id === leadId ? { ...l, isLoadingWhatsApp: false } : l))
+        )
+        return
+      }
+
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId ? { ...l, hasWhatsApp: result.hasWhatsApp, isLoadingWhatsApp: false } : l
+        )
+      )
+
+      if (savedFacebookLeadByIdRef.current.size === 0) {
+        await refreshSavedFacebookLeadCache()
+      }
+      await persistSavedLeadWhatsApp(leadId, result.hasWhatsApp)
+
+      showToast(
+        result.hasWhatsApp ? `${lead.title} has WhatsApp!` : `${lead.title} does NOT have WhatsApp`,
+        'info'
+      )
+    } catch (err) {
+      console.error('WhatsApp check error:', err)
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, isLoadingWhatsApp: false } : l))
+      )
+      showToast('Failed to check WhatsApp status', 'error')
+    }
+  }
+
   const handleVerifyAllWhatsApp = async (): Promise<void> => {
     const ready = await refreshWhatsAppStatus()
     if (!ready) {
@@ -375,6 +441,7 @@ function SocialLeadsPage(): JSX.Element {
     setWhatsAppBulkStopRequested(false)
     setWhatsAppBulkVerifying(true)
     setWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
+    onTaskStatusChange?.('running')
 
     let errors = 0
     let stopped = false
@@ -416,10 +483,13 @@ function SocialLeadsPage(): JSX.Element {
 
     if (stopped) {
       showToast('WhatsApp verification stopped.', 'info')
+      onTaskStatusChange?.('idle')
     } else if (errors > 0) {
       showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+      onTaskStatusChange?.('completed')
     } else {
       showToast('WhatsApp verification finished.', 'success')
+      onTaskStatusChange?.('completed')
     }
   }
 
@@ -448,6 +518,7 @@ function SocialLeadsPage(): JSX.Element {
     setEmailBulkVerifying(true)
     setEmailBulkProgress({ current: 0, total: targets.length, errors: 0 })
     await refreshSavedFacebookLeadCache()
+    onTaskStatusChange?.('running')
 
     let errors = 0
     let stopped = false
@@ -538,10 +609,13 @@ function SocialLeadsPage(): JSX.Element {
 
     if (stopped) {
       showToast('Email verification stopped.', 'info')
+      onTaskStatusChange?.('idle')
     } else if (errors > 0) {
       showToast(`Email verification finished with ${errors} errors.`, 'info')
+      onTaskStatusChange?.('completed')
     } else {
       showToast('Email verification finished.', 'success')
+      onTaskStatusChange?.('completed')
     }
   }
 
@@ -972,15 +1046,57 @@ https://www.facebook.com/businesspage2"
                             </button>
                             <button
                               className="whatsapp-btn"
-                              onClick={() =>
-                                window.api.openExternalUrl(
-                                  `https://wa.me/${lead.phone!.replace(/[^0-9]/g, '')}`
-                                )
-                              }
-                              title="Message on WhatsApp"
+                              onClick={() => handleCheckWhatsApp(lead.id)}
+                              title={whatsAppReady ? 'Check WhatsApp' : 'Connect WhatsApp first'}
+                              disabled={!whatsAppReady || lead.isLoadingWhatsApp}
                             >
-                              <FaWhatsapp />
+                              {lead.isLoadingWhatsApp ? (
+                                <div className="action-spinner" />
+                              ) : (
+                                <FaWhatsapp />
+                              )}
                             </button>
+                            {lead.hasWhatsApp === true && (
+                              <span className="verified-badge" title="Has WhatsApp">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  stroke="none"
+                                >
+                                  <circle cx="12" cy="12" r="12" fill="#22c55e" />
+                                  <path
+                                    d="M9 12l2 2 4-4"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
+                            {lead.hasWhatsApp === false && (
+                              <span className="unverified-badge" title="No WhatsApp">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  stroke="none"
+                                >
+                                  <circle cx="12" cy="12" r="12" fill="#ef4444" />
+                                  <path
+                                    d="M8 8l8 8M16 8l-8 8"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span className="contact-no-phone">

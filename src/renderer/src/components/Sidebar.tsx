@@ -260,6 +260,7 @@ interface SidebarProps {
   activeRoute: string
   onRouteChange: (route: string) => void
   onOpenSettings: () => void
+  taskStatusByRoute?: Record<string, 'idle' | 'running' | 'completed'>
 }
 
 function Sidebar({
@@ -267,7 +268,8 @@ function Sidebar({
   onToggle,
   activeRoute,
   onRouteChange,
-  onOpenSettings
+  onOpenSettings,
+  taskStatusByRoute
 }: SidebarProps): JSX.Element {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'direct-reach': true, // Default expanded
@@ -358,6 +360,11 @@ function Sidebar({
                   >
                     <span className="nav-child-icon">{child.icon}</span>
                     <span className="nav-child-label flex-1 text-left">{child.label}</span>
+                    {taskStatusByRoute?.[child.id] &&
+                      taskStatusByRoute[child.id] !== 'idle' &&
+                      !child.children && (
+                        <span className={`nav-task-indicator ${taskStatusByRoute[child.id]}`} />
+                      )}
                     {child.children && (
                       <span
                         className={`nav-child-arrow transition-transform ${expandedGroups[child.id] ? 'rotate-180' : ''}`}

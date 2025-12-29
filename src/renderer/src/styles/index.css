@@ -234,6 +234,38 @@ body {
   position: relative;
 }
 
+.nav-task-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.nav-task-indicator.running {
+  background: #f59e0b;
+  animation: navTaskPulse 1.2s ease-in-out infinite;
+}
+
+.nav-task-indicator.completed {
+  background: #10b981;
+}
+
+@keyframes navTaskPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .nav-child::before {
   content: '';
   position: absolute;
@@ -376,6 +408,10 @@ body {
   min-height: 100vh;
   text-align: center;
   padding: 2rem;
+}
+
+.page-hidden {
+  display: none !important;
 }
 
 .page-content h1 {
