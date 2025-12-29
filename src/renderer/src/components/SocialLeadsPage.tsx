@@ -59,6 +59,10 @@ function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Elem
   const [searchQuery, setSearchQuery] = useState('')
   const [bulkUrls, setBulkUrls] = useState('')
   const [maxResults, setMaxResults] = useState(50)
+  const [keywordRequestedMaxResults, setKeywordRequestedMaxResults] = useState(0)
+  const [lastKeywordQuery, setLastKeywordQuery] = useState('')
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [noMoreResults, setNoMoreResults] = useState(false)
 
   // Advanced options state
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -234,7 +238,9 @@ function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Elem
       return
     }
 
-    if (searchMode === 'keyword' && !searchQuery.trim()) {
+    const trimmedQuery = searchQuery.trim()
+
+    if (searchMode === 'keyword' && !trimmedQuery) {
       setError('Please enter a search query (e.g., "restaurants Dhaka")')
       return
     }
@@ -249,16 +255,25 @@ function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Elem
     setHasSearched(false)
     onTaskStatusChange?.('running')
 
+    if (searchMode === 'keyword') {
+      setKeywordRequestedMaxResults(maxResults)
+      setLastKeywordQuery(trimmedQuery)
+      setNoMoreResults(false)
+    } else {
+      setKeywordRequestedMaxResults(0)
+      setLastKeywordQuery('')
+      setNoMoreResults(false)
+    }
+
     try {
       let results: FacebookPageLead[]
 
       if (searchMode === 'keyword') {
         results = await window.api.searchFacebookPages({
-          searchQuery: searchQuery.trim(),
+          searchQuery: trimmedQuery,
           maxResults
         })
       } else {
-        // Parse URLs from bulk input
         const urls = bulkUrls
           .split('\n')
           .map((url) => url.trim())
@@ -277,6 +292,10 @@ function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Elem
       setHasSearched(true)
       showToast(`Found ${results.length} Facebook pages`, 'success')
       onTaskStatusChange?.('completed')
+
+      if (searchMode === 'keyword' && results.length < maxResults) {
+        setNoMoreResults(true)
+      }
     } catch (err) {
       console.error('Search error:', err)
       setError(err instanceof Error ? err.message : 'Search failed. Please try again.')
@@ -284,6 +303,77 @@ function SocialLeadsPage({ onTaskStatusChange }: SocialLeadsPageProps): JSX.Elem
       onTaskStatusChange?.('idle')
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  const mergeUniqueFacebookLeads = (
+    existing: FacebookPageLead[],
+    incoming: FacebookPageLead[]
+  ): FacebookPageLead[] => {
+    const seen = new Set<string>()
+    for (const lead of existing) {
+      seen.add(lead.facebookUrl || lead.id)
+    }
+
+    const appended: FacebookPageLead[] = []
+    for (const lead of incoming) {
+      const key = lead.facebookUrl || lead.id
+      if (!seen.has(key)) {
+        seen.add(key)
+        appended.push(lead)
+      }
+    }
+
+    return [...existing, ...appended]
+  }
+
+  const handleLoadMore = async (): Promise<void> => {
+    if (searchMode !== 'keyword') return
+    if (!isApifyConfigured) {
+      showToast('Please configure your Apify API key in Settings > API Keys > Apify', 'error')
+      return
+    }
+    if (!lastKeywordQuery) return
+    if (isSearching || isLoadingMore || noMoreResults) return
+
+    const nextRequested = (keywordRequestedMaxResults || maxResults) + maxResults
+
+    setIsLoadingMore(true)
+    onTaskStatusChange?.('running')
+
+    try {
+      const results = await window.api.searchFacebookPages({
+        searchQuery: lastKeywordQuery,
+        maxResults: nextRequested
+      })
+
+      let addedCount = 0
+      setLeads((prev) => {
+        const merged = mergeUniqueFacebookLeads(prev, results)
+        addedCount = merged.length - prev.length
+        return merged
+      })
+
+      setKeywordRequestedMaxResults(nextRequested)
+      setHasSearched(true)
+
+      if (addedCount > 0) {
+        showToast(`Added ${addedCount} more Facebook pages`, 'success')
+      } else {
+        showToast('No more new leads found', 'info')
+      }
+
+      if (results.length < nextRequested || addedCount === 0) {
+        setNoMoreResults(true)
+      }
+
+      onTaskStatusChange?.('completed')
+    } catch (err) {
+      console.error('Load more error:', err)
+      showToast('Failed to load more results. Please try again.', 'error')
+      onTaskStatusChange?.('idle')
+    } finally {
+      setIsLoadingMore(false)
     }
   }
 
@@ -963,6 +1053,20 @@ https://www.facebook.com/businesspage2"
                   >
                     <FaSave /> Save Leads
                   </button>
+                  {searchMode === 'keyword' && (
+                    <button
+                      className="scout-btn outline"
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore || noMoreResults}
+                      title={
+                        noMoreResults
+                          ? 'No more results available'
+                          : `Load next ${maxResults} results`
+                      }
+                    >
+                      <FaChevronDown /> {isLoadingMore ? 'Loading...' : `Load Next ${maxResults}`}
+                    </button>
+                  )}
                 </div>
               </div>
 
