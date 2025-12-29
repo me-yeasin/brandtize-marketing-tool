@@ -2189,6 +2189,49 @@ function SavedLeadsPage(): JSX.Element {
     URL.revokeObjectURL(url)
   }
 
+  const handleFacebookExport = (): void => {
+    if (filteredFacebookLeads.length === 0) return
+
+    const headers = [
+      'Name',
+      'Categories',
+      'Email',
+      'Email Verified',
+      'Phone',
+      'WhatsApp Verified',
+      'Website',
+      'Address',
+      'Followers',
+      'Rating',
+      'Score',
+      'Facebook URL'
+    ]
+
+    const rows = filteredFacebookLeads.map((lead) => [
+      lead.title,
+      lead.categories.join('; '),
+      lead.email || '',
+      lead.email ? (lead.emailVerified === true ? 'verified' : 'unverified') : '',
+      lead.phone || '',
+      lead.phone ? (lead.hasWhatsApp === true ? 'verified' : 'unverified') : '',
+      lead.website || '',
+      lead.address || '',
+      lead.followers?.toString() || '',
+      lead.rating?.toString() || '',
+      lead.score,
+      lead.facebookUrl
+    ])
+
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `saved-facebook-leads-${Date.now()}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const getScoreColor = (score: string): string => {
     switch (score) {
       case 'gold':
@@ -5233,6 +5276,26 @@ function SavedLeadsPage(): JSX.Element {
                     : 'Verify All Mail'}
                 </button>
               )}
+              <button
+                onClick={handleFacebookExport}
+                disabled={filteredFacebookLeads.length === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: filteredFacebookLeads.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: filteredFacebookLeads.length === 0 ? 0.5 : 1
+                }}
+              >
+                <FaFileExport /> Export
+              </button>
               <button
                 onClick={async () => {
                   if (!confirm('Are you sure you want to clear all Facebook leads?')) return
