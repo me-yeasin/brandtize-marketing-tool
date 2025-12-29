@@ -432,6 +432,22 @@ function SavedLeadsPage(): JSX.Element {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
   const whatsAppQrDismissedRef = useRef(false)
   const whatsAppCancelRef = useRef(false)
+  const [whatsAppBulkVerifying, setWhatsAppBulkVerifying] = useState(false)
+  const [whatsAppBulkStopRequested, setWhatsAppBulkStopRequested] = useState(false)
+  const [whatsAppBulkProgress, setWhatsAppBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const whatsAppBulkCancelRef = useRef(false)
+  const [fbWhatsAppBulkVerifying, setFbWhatsAppBulkVerifying] = useState(false)
+  const [fbWhatsAppBulkStopRequested, setFbWhatsAppBulkStopRequested] = useState(false)
+  const [fbWhatsAppBulkProgress, setFbWhatsAppBulkProgress] = useState<{
+    current: number
+    total: number
+    errors: number
+  } | null>(null)
+  const fbWhatsAppBulkCancelRef = useRef(false)
 
   // Pitch generation state
   const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set())
@@ -451,6 +467,30 @@ function SavedLeadsPage(): JSX.Element {
   const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info'): void => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const waitWithCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (whatsAppBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return whatsAppBulkCancelRef.current
+  }
+
+  const waitWithFbCancel = async (ms: number): Promise<boolean> => {
+    const step = 250
+    let remaining = ms
+    while (remaining > 0) {
+      if (fbWhatsAppBulkCancelRef.current) return true
+      const duration = Math.min(step, remaining)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, duration))
+      remaining -= duration
+    }
+    return fbWhatsAppBulkCancelRef.current
   }
 
   const handleCloseWhatsAppModal = async (): Promise<void> => {
@@ -1544,6 +1584,9 @@ function SavedLeadsPage(): JSX.Element {
   })
   const fbHasWebsiteCount = facebookLeads.filter((l) => l.website !== null).length
   const fbNoWebsiteCount = facebookLeads.filter((l) => l.website === null).length
+  const fbUnverifiedWhatsAppCount = filteredFacebookLeads.filter(
+    (l) => l.phone && l.hasWhatsApp == null
+  ).length
 
   const filteredLeads = leads.filter((lead) => {
     // 1. Tab Filter
@@ -1591,6 +1634,167 @@ function SavedLeadsPage(): JSX.Element {
   })
   const hasWebsiteCount = leads.filter((l) => l.website !== null).length
   const noWebsiteCount = leads.filter((l) => l.website === null).length
+  const unverifiedWhatsAppCount = filteredLeads.filter(
+    (l) => l.phone && l.hasWhatsApp == null
+  ).length
+
+  const handleVerifyAllWhatsApp = async (): Promise<void> => {
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    const targets = filteredLeads.filter((l) => l.phone && l.hasWhatsApp == null)
+    if (targets.length === 0) {
+      showToast('No unverified phone numbers to check.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    whatsAppBulkCancelRef.current = false
+    setWhatsAppBulkStopRequested(false)
+    setWhatsAppBulkVerifying(true)
+    setWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (whatsAppBulkCancelRef.current) break
+
+        const lead = targets[i]
+        if (!lead.phone) continue
+
+        setWhatsAppBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        setLoadingWhatsAppIds((prev) => new Set(prev).add(lead.id))
+
+        try {
+          const result = await window.api.whatsappCheckNumber(lead.phone)
+          if (result.error) {
+            errors += 1
+          } else {
+            const updatedLead: SavedMapsLead = { ...lead, hasWhatsApp: result.hasWhatsApp }
+            setLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+            await window.api.updateSavedMapsLead(updatedLead)
+          }
+        } catch {
+          errors += 1
+        } finally {
+          setLoadingWhatsAppIds((prev) => {
+            const next = new Set(prev)
+            next.delete(lead.id)
+            return next
+          })
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = whatsAppBulkCancelRef.current
+      setWhatsAppBulkVerifying(false)
+      setWhatsAppBulkStopRequested(false)
+      setWhatsAppBulkProgress(null)
+      whatsAppBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('WhatsApp verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('WhatsApp verification finished.', 'success')
+    }
+  }
+
+  const handleStopVerifyAllWhatsApp = (): void => {
+    whatsAppBulkCancelRef.current = true
+    setWhatsAppBulkStopRequested(true)
+  }
+
+  const handleFbVerifyAllWhatsApp = async (): Promise<void> => {
+    if (!whatsAppReady) {
+      showToast('Please connect WhatsApp first!', 'error')
+      return
+    }
+
+    const targets = filteredFacebookLeads.filter((l) => l.phone && l.hasWhatsApp == null)
+    if (targets.length === 0) {
+      showToast('No unverified phone numbers to check.', 'info')
+      return
+    }
+
+    const delayMs = 5000
+
+    fbWhatsAppBulkCancelRef.current = false
+    setFbWhatsAppBulkStopRequested(false)
+    setFbWhatsAppBulkVerifying(true)
+    setFbWhatsAppBulkProgress({ current: 0, total: targets.length, errors: 0 })
+
+    let errors = 0
+    let stopped = false
+
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (fbWhatsAppBulkCancelRef.current) break
+
+        const lead = targets[i]
+        if (!lead.phone) continue
+
+        setFbWhatsAppBulkProgress({ current: i + 1, total: targets.length, errors })
+
+        setFbLoadingWhatsAppIds((prev) => new Set(prev).add(lead.id))
+
+        try {
+          const result = await window.api.whatsappCheckNumber(lead.phone)
+          if (result.error) {
+            errors += 1
+          } else {
+            const updatedLead: SavedFacebookLead = { ...lead, hasWhatsApp: result.hasWhatsApp }
+            setFacebookLeads((prev) => prev.map((l) => (l.id === lead.id ? updatedLead : l)))
+            await window.api.updateSavedFacebookLead(updatedLead)
+          }
+        } catch {
+          errors += 1
+        } finally {
+          setFbLoadingWhatsAppIds((prev) => {
+            const next = new Set(prev)
+            next.delete(lead.id)
+            return next
+          })
+        }
+
+        if (i < targets.length - 1) {
+          const canceled = await waitWithFbCancel(delayMs)
+          if (canceled) break
+        }
+      }
+    } finally {
+      stopped = fbWhatsAppBulkCancelRef.current
+      setFbWhatsAppBulkVerifying(false)
+      setFbWhatsAppBulkStopRequested(false)
+      setFbWhatsAppBulkProgress(null)
+      fbWhatsAppBulkCancelRef.current = false
+    }
+
+    if (stopped) {
+      showToast('WhatsApp verification stopped.', 'info')
+    } else if (errors > 0) {
+      showToast(`WhatsApp verification finished with ${errors} errors.`, 'info')
+    } else {
+      showToast('WhatsApp verification finished.', 'success')
+    }
+  }
+
+  const handleFbStopVerifyAllWhatsApp = (): void => {
+    fbWhatsAppBulkCancelRef.current = true
+    setFbWhatsAppBulkStopRequested(true)
+  }
 
   const handleExport = (): void => {
     if (filteredLeads.length === 0) return
@@ -2029,6 +2233,62 @@ function SavedLeadsPage(): JSX.Element {
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
+              {whatsAppBulkVerifying ? (
+                <button
+                  onClick={handleStopVerifyAllWhatsApp}
+                  disabled={whatsAppBulkStopRequested}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: whatsAppBulkStopRequested ? 'not-allowed' : 'pointer',
+                    opacity: whatsAppBulkStopRequested ? 0.5 : 1
+                  }}
+                >
+                  <FaTimes />
+                  {whatsAppBulkStopRequested
+                    ? 'Stopping...'
+                    : whatsAppBulkProgress
+                      ? `Stop (${whatsAppBulkProgress.current}/${whatsAppBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleVerifyAllWhatsApp}
+                  disabled={!whatsAppReady || unverifiedWhatsAppCount === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: whatsAppReady
+                      ? '1px solid rgba(37, 211, 102, 0.3)'
+                      : '1px solid rgba(148, 163, 184, 0.3)',
+                    background: whatsAppReady
+                      ? 'rgba(37, 211, 102, 0.12)'
+                      : 'rgba(15, 23, 42, 0.6)',
+                    color: whatsAppReady ? '#25d366' : '#94a3b8',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor:
+                      !whatsAppReady || unverifiedWhatsAppCount === 0 ? 'not-allowed' : 'pointer',
+                    opacity: !whatsAppReady || unverifiedWhatsAppCount === 0 ? 0.5 : 1
+                  }}
+                >
+                  <FaWhatsapp />{' '}
+                  {unverifiedWhatsAppCount > 0
+                    ? `Verify All WhatsApp (${unverifiedWhatsAppCount})`
+                    : 'Verify All WhatsApp'}
+                </button>
+              )}
               <button
                 onClick={handleExport}
                 disabled={filteredLeads.length === 0}
@@ -4454,6 +4714,62 @@ function SavedLeadsPage(): JSX.Element {
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
+              {fbWhatsAppBulkVerifying ? (
+                <button
+                  onClick={handleFbStopVerifyAllWhatsApp}
+                  disabled={fbWhatsAppBulkStopRequested}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: fbWhatsAppBulkStopRequested ? 'not-allowed' : 'pointer',
+                    opacity: fbWhatsAppBulkStopRequested ? 0.5 : 1
+                  }}
+                >
+                  <FaTimes />
+                  {fbWhatsAppBulkStopRequested
+                    ? 'Stopping...'
+                    : fbWhatsAppBulkProgress
+                      ? `Stop (${fbWhatsAppBulkProgress.current}/${fbWhatsAppBulkProgress.total})`
+                      : 'Stop'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleFbVerifyAllWhatsApp}
+                  disabled={!whatsAppReady || fbUnverifiedWhatsAppCount === 0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    border: whatsAppReady
+                      ? '1px solid rgba(37, 211, 102, 0.3)'
+                      : '1px solid rgba(148, 163, 184, 0.3)',
+                    background: whatsAppReady
+                      ? 'rgba(37, 211, 102, 0.12)'
+                      : 'rgba(15, 23, 42, 0.6)',
+                    color: whatsAppReady ? '#25d366' : '#94a3b8',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor:
+                      !whatsAppReady || fbUnverifiedWhatsAppCount === 0 ? 'not-allowed' : 'pointer',
+                    opacity: !whatsAppReady || fbUnverifiedWhatsAppCount === 0 ? 0.5 : 1
+                  }}
+                >
+                  <FaWhatsapp />{' '}
+                  {fbUnverifiedWhatsAppCount > 0
+                    ? `Verify All WhatsApp (${fbUnverifiedWhatsAppCount})`
+                    : 'Verify All WhatsApp'}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   if (!confirm('Are you sure you want to clear all Facebook leads?')) return
