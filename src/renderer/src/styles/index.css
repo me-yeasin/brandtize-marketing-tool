@@ -462,8 +462,10 @@ body {
 ======================================== */
 .settings-page {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   width: 100%;
+  overflow: hidden;
   animation: settingsPageIn 0.4s ease;
 }
 
@@ -522,7 +524,8 @@ body {
 /* Settings Content */
 .settings-content {
   flex: 1;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   overflow-y: auto;
 }
 
