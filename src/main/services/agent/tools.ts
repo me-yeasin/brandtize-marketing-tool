@@ -2,6 +2,11 @@ import { FacebookPageLead, searchFacebookPages } from '../facebook-scraper'
 import { MapsPlace, searchMapsWithSerper } from '../lead-generation'
 import { AgentLead, SearchTask } from './types'
 
+// Pagination configuration
+const MAPS_MAX_PAGES = 3 // Fetch up to 3 pages (60 results) per city
+const MAPS_RESULTS_PER_PAGE = 20
+const FACEBOOK_MAX_RESULTS = 50 // Increased from 20 to 50
+
 export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLead[]> {
   try {
     // Build location string with country for more accurate results
@@ -10,13 +15,20 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
-    console.log(`[GoogleMaps] Searching "${task.query}" in "${fullLocation}"`)
+    console.log(
+      `[GoogleMaps] Searching "${task.query}" in "${fullLocation}" (${MAPS_MAX_PAGES} pages)`
+    )
 
+    // Enable autocomplete for multi-page fetching
     const places = await searchMapsWithSerper({
       query: task.query,
       location: fullLocation,
-      num: 20 // Fetch 20 results per task
+      num: MAPS_RESULTS_PER_PAGE,
+      autocomplete: true,
+      maxPages: MAPS_MAX_PAGES
     })
+
+    console.log(`[GoogleMaps] Retrieved ${places.length} total places from ${MAPS_MAX_PAGES} pages`)
 
     return places.map(mapMapsPlaceToLead)
   } catch (error) {
@@ -34,12 +46,14 @@ export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead
       : task.location
 
     const searchQuery = `${task.query} in ${fullLocation}`
-    console.log(`[Facebook] Searching "${searchQuery}"`)
+    console.log(`[Facebook] Searching "${searchQuery}" (limit: ${FACEBOOK_MAX_RESULTS})`)
 
     const leads = await searchFacebookPages({
       searchQuery: searchQuery,
-      maxResults: 20
+      maxResults: FACEBOOK_MAX_RESULTS
     })
+
+    console.log(`[Facebook] Retrieved ${leads.length} leads`)
 
     return leads.map(mapFacebookLeadToLead)
   } catch (error) {

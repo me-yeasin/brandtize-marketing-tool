@@ -181,6 +181,15 @@ async function executeTasksUntilGoal(sender: WebContents, tasks: SearchTask[]): 
       emitLog(sender, `🔧 Filtered out ${filteredCount} leads (didn't match criteria)`, 'info')
     }
 
+    // Smart detection: warn if city yields very few results
+    if (leads.length < 5) {
+      emitLog(
+        sender,
+        `⚠️ Low results in ${task.location} (${leads.length}). Moving on...`,
+        'warning'
+      )
+    }
+
     // Process and emit leads
     for (const lead of filteredLeads) {
       if (isGoalReached(currentState!)) break
@@ -189,18 +198,21 @@ async function executeTasksUntilGoal(sender: WebContents, tasks: SearchTask[]): 
       currentState!.currentLeadCount++
       emitLead(sender, lead)
 
-      // Small delay between leads
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      // Small delay between leads (reduced for faster processing)
+      await new Promise((resolve) => setTimeout(resolve, 100))
     }
 
+    const progressPercent = Math.round(
+      (currentState!.currentLeadCount / currentState!.targetLeadCount) * 100
+    )
     emitLog(
       sender,
-      `✅ Task complete. Found ${filteredLeads.length} leads. Total: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount}`,
+      `✅ Found ${filteredLeads.length} leads in ${task.location}. Progress: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount} (${progressPercent}%)`,
       'success'
     )
 
-    // Delay between tasks
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Shorter delay between tasks for faster execution
+    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 }
 
