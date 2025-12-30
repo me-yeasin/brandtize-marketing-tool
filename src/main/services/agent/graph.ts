@@ -1,4 +1,5 @@
 import { WebContents } from 'electron'
+import { calculateLeadScore, deduplicateLeads } from './lead-quality'
 import { discoverNearbyCities, generateQueryVariations, getFallbackCities } from './nearby-cities'
 import { expandSearchForCountry, planSearchStrategy } from './planner'
 import { executeFacebookSearch, executeGoogleMapsSearch } from './tools'
@@ -7,6 +8,7 @@ import { AgentLead, AgentPreferences, AgentState, LogEntry, SearchTask } from '.
 // Global state tracking
 let currentState: AgentState | null = null
 let stopRequested = false
+let seenLeadKeys: Set<string> = new Set() // For deduplication
 
 // Configuration for never-stop behavior
 const MAX_EXPANSION_ROUNDS = 10 // Maximum rounds of expansion before giving up
@@ -48,6 +50,7 @@ export async function startAgent(
   sender: WebContents
 ): Promise<void> {
   stopRequested = false
+  seenLeadKeys = new Set() // Reset deduplication tracking
 
   currentState = {
     preferences,
@@ -320,13 +323,24 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
       emitLog(sender, `🔧 Filtered ${filteredCount} leads (criteria)`, 'info')
     }
 
+    // Apply deduplication
+    const { uniqueLeads, duplicateCount } = deduplicateLeads(filteredLeads, seenLeadKeys)
+
+    if (duplicateCount > 0) {
+      emitLog(sender, `🔄 Removed ${duplicateCount} duplicate leads`, 'info')
+    }
+
     if (leads.length < MIN_LEADS_PER_CITY) {
       emitLog(sender, `⚠️ Low results in ${task.location} (${leads.length})`, 'warning')
     }
 
-    // Process and emit leads
-    for (const lead of filteredLeads) {
+    // Calculate score and process leads
+    for (const lead of uniqueLeads) {
       if (isGoalReached(currentState!)) break
+
+      // Calculate and add score to lead metadata
+      const score = calculateLeadScore(lead)
+      lead.metadata = { ...lead.metadata, score }
 
       currentState!.results.push(lead)
       currentState!.currentLeadCount++
@@ -340,7 +354,7 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
     )
     emitLog(
       sender,
-      `✅ +${filteredLeads.length} leads from ${task.location}. Progress: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount} (${progressPercent}%)`,
+      `✅ +${uniqueLeads.length} leads from ${task.location}. Progress: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount} (${progressPercent}%)`,
       'success'
     )
 

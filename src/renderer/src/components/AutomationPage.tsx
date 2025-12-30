@@ -50,6 +50,7 @@ interface FoundLead {
     followers?: number
     latitude?: number
     longitude?: number
+    score?: 'gold' | 'silver' | 'bronze'
   }
 }
 
@@ -560,6 +561,22 @@ function AutomationPage(): JSX.Element {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {/* Score Badge */}
+                    {lead.metadata?.score === 'gold' && (
+                      <span className="badge" style={{ background: '#ca8a04', color: '#fef9c3' }}>
+                        🥇 Gold
+                      </span>
+                    )}
+                    {lead.metadata?.score === 'silver' && (
+                      <span className="badge" style={{ background: '#64748b', color: '#e2e8f0' }}>
+                        🥈 Silver
+                      </span>
+                    )}
+                    {lead.metadata?.score === 'bronze' && (
+                      <span className="badge" style={{ background: '#78350f', color: '#fef3c7' }}>
+                        🥉 Bronze
+                      </span>
+                    )}
                     <span className="badge badge-source">{lead.source}</span>
                     {lead.website ? (
                       <span className="badge" style={{ background: '#166534', color: '#bbf7d0' }}>
