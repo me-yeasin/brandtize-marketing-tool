@@ -692,148 +692,103 @@ function AutomationPage(): JSX.Element {
         <div className="panel-content">
           {foundLeads.map((lead, idx) => (
             <div key={`${lead.id}-${idx}`} className="found-lead-card">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start'
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      marginBottom: '0.25rem'
-                    }}
-                  >
-                    <span className="lead-name">{lead.name}</span>
-                    <span className="lead-category">{lead.category}</span>
+              {/* Card Header */}
+              <div className="card-header">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="lead-name" title={lead.name}>
+                    {lead.name}
                   </div>
-                  <div className="lead-detail">
-                    <FaMapMarkerAlt size={10} style={{ flexShrink: 0 }} />
-                    <span
-                      style={{
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: '200px'
-                      }}
-                    >
-                      {lead.address}
-                    </span>
-                  </div>
+                  <span className="lead-category" title={lead.category}>
+                    {lead.category}
+                  </span>
                 </div>
                 <button
-                  className="icon-btn delete-btn"
+                  className="delete-btn"
                   onClick={() => removeLead(lead.id)}
                   title="Remove Lead"
                 >
                   <FaTrash size={12} />
                 </button>
-                {lead.source === 'Facebook' && lead.metadata?.facebookUrl && (
-                  <button
-                    className="icon-btn"
-                    onClick={() => window.open(lead.metadata?.facebookUrl, '_blank')}
-                    title="View Facebook Page"
-                    style={{ background: '#1877f2', marginLeft: '0.25rem' }}
-                  >
-                    <FaGlobe size={12} />
-                  </button>
-                )}
               </div>
 
-              <div
-                style={{
-                  marginTop: '0.5rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.25rem'
-                }}
-              >
-                {lead.phone && (
-                  <div className="lead-detail">
-                    <FaPhoneAlt size={10} /> {lead.phone}
-                    {lead.hasWhatsApp && <span className="badge badge-success">WA</span>}
-                  </div>
-                )}
+              {/* Card Body */}
+              <div className="card-body">
+                <div className="lead-address">
+                  <FaMapMarkerAlt size={12} />
+                  <span className="text-truncate">{lead.address || 'No location info'}</span>
+                </div>
 
-                {lead.email && (
-                  <div className="lead-detail">
-                    <FaEnvelope size={10} /> {lead.email}
-                    {lead.emailVerified ? (
-                      <FaCheck size={10} color="#34d399" title="Verified" />
-                    ) : (
-                      <FaTimes size={10} color="#f87171" title="Not Verified" />
-                    )}
+                <div className="contact-actions">
+                  <div
+                    className={`contact-badge ${lead.phone ? 'active' : ''}`}
+                    title={lead.phone || 'No Phone'}
+                  >
+                    <FaPhoneAlt size={12} />
                   </div>
-                )}
+                  <div
+                    className={`contact-badge ${lead.email ? 'active' : ''}`}
+                    title={lead.email || 'No Email'}
+                  >
+                    <FaEnvelope size={12} />
+                  </div>
+                  <div
+                    className={`contact-badge ${lead.website ? 'active' : ''}`}
+                    title={lead.website || 'No Website'}
+                    onClick={() =>
+                      lead.website &&
+                      window.api.openExternalUrl &&
+                      window.api.openExternalUrl(lead.website)
+                    }
+                    style={{ cursor: lead.website ? 'pointer' : 'default' }}
+                  >
+                    <FaGlobe size={12} />
+                  </div>
+                  <div
+                    className={`contact-badge whatsapp ${lead.hasWhatsApp ? 'active' : ''}`}
+                    title={lead.hasWhatsApp ? 'WhatsApp Available' : 'No WhatsApp'}
+                  >
+                    <FaWhatsapp size={14} />
+                  </div>
+                </div>
+              </div>
 
-                {lead.website && (
-                  <div className="lead-detail">
-                    <FaGlobe size={10} />
-                    <a
-                      href={`https://${lead.website}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: 'inherit', textDecoration: 'none' }}
+              {/* Card Footer */}
+              <div className="card-footer">
+                <div className="badge-group">
+                  <span className="badge-source">{lead.source}</span>
+                  {lead.rating && (
+                    <span className="badge-rating">
+                      <FaStar size={10} /> {lead.rating} ({lead.reviewCount || 0})
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {lead.metadata?.score === 'silver' && (
+                    <span
+                      className="badge"
+                      style={{ background: '#64748b', color: '#e2e8f0', fontSize: '0.7rem' }}
                     >
-                      {lead.website}
-                    </a>
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginTop: '0.25rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {/* Score Badge */}
-                    {lead.metadata?.score === 'gold' && (
-                      <span className="badge" style={{ background: '#ca8a04', color: '#fef9c3' }}>
-                        🥇 Gold
-                      </span>
-                    )}
-                    {lead.metadata?.score === 'silver' && (
-                      <span className="badge" style={{ background: '#64748b', color: '#e2e8f0' }}>
-                        🥈 Silver
-                      </span>
-                    )}
-                    {lead.metadata?.score === 'bronze' && (
-                      <span className="badge" style={{ background: '#78350f', color: '#fef3c7' }}>
-                        🥉 Bronze
-                      </span>
-                    )}
-                    <span className="badge badge-source">{lead.source}</span>
-                    {lead.website ? (
-                      <span className="badge" style={{ background: '#166534', color: '#bbf7d0' }}>
-                        Has Website
-                      </span>
-                    ) : (
-                      <span className="badge" style={{ background: '#7c2d12', color: '#fed7aa' }}>
-                        No Website
-                      </span>
-                    )}
-                    {lead.rating && (
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.25rem',
-                          fontSize: '0.75rem',
-                          color: '#fbbf24'
-                        }}
-                      >
-                        <FaStar size={10} /> {lead.rating} ({lead.reviewCount})
-                      </span>
-                    )}
-                  </div>
-                  <span className="lead-status">{lead.status}</span>
+                      🥈 Silver
+                    </span>
+                  )}
+                  {lead.metadata?.score === 'bronze' && (
+                    <span
+                      className="badge"
+                      style={{ background: '#78350f', color: '#fef3c7', fontSize: '0.7rem' }}
+                    >
+                      🥉 Bronze
+                    </span>
+                  )}
+                  {lead.metadata?.score === 'gold' && (
+                    <span
+                      className="badge"
+                      style={{ background: '#eab308', color: '#fff', fontSize: '0.7rem' }}
+                    >
+                      🥇 Gold
+                    </span>
+                  )}
+                  <span className={`lead-status ${lead.status}`}>{lead.status}</span>
                 </div>
               </div>
             </div>
