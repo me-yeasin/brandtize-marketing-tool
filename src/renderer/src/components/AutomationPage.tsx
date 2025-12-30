@@ -2,6 +2,7 @@ import { JSX, useEffect, useRef, useState } from 'react'
 import {
   FaCheck,
   FaEnvelope,
+  FaFileCsv,
   FaFilter,
   FaGlobe,
   FaLaptop,
@@ -11,6 +12,7 @@ import {
   FaPhone,
   FaPhoneAlt,
   FaPlay,
+  FaSave,
   FaStar,
   FaStop,
   FaTerminal,
@@ -199,6 +201,18 @@ function AutomationPage(): JSX.Element {
     setFoundLeads((prev) => prev.filter((l) => l.id !== id))
   }
 
+  const handleSaveLeads = (): void => {
+    // Placeholder for saving leads
+    console.log('Saving leads...', foundLeads)
+    alert('Save functionality coming soon!')
+  }
+
+  const handleExportLeads = (): void => {
+    // Placeholder for exporting leads
+    console.log('Exporting leads...', foundLeads)
+    alert('Export functionality coming soon!')
+  }
+
   return (
     <div className="automation-container">
       <div className="automation-content">
@@ -384,7 +398,13 @@ function AutomationPage(): JSX.Element {
       <div className={`automation-panel ${foundLeads.length > 0 && isPanelOpen ? 'open' : ''}`}>
         <div className="panel-header">
           <h2>Found Leads ({foundLeads.length})</h2>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button className="remove-tag" onClick={handleSaveLeads} title="Save Leads">
+              <FaSave size={14} />
+            </button>
+            <button className="remove-tag" onClick={handleExportLeads} title="Export as CSV">
+              <FaFileCsv size={14} />
+            </button>
             <button className="remove-tag" onClick={clearLeads} title="Clear All Leads">
               <FaTrash size={14} />
             </button>
