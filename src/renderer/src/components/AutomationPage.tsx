@@ -1,13 +1,17 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import {
+  FaCheck,
   FaEnvelope,
   FaFilter,
+  FaGlobe,
   FaLaptop,
   FaLayerGroup,
   FaList,
   FaMapMarkerAlt,
   FaPhone,
+  FaPhoneAlt,
   FaPlay,
+  FaStar,
   FaStop,
   FaTerminal,
   FaTimes,
@@ -25,8 +29,16 @@ interface LogEntry {
 interface FoundLead {
   id: string
   name: string
-  location: string
-  type: 'Maps' | 'Facebook'
+  category: string
+  address: string
+  phone?: string
+  email?: string
+  website?: string
+  rating?: number
+  reviewCount?: number
+  hasWhatsApp?: boolean
+  emailVerified?: boolean
+  source: 'Maps' | 'Facebook'
   status: 'Qualified' | 'Pending'
 }
 
@@ -69,8 +81,13 @@ function AutomationPage(): JSX.Element {
           lead: {
             id: 'l1',
             name: 'Smile Dental Clinic',
-            location: 'New York, NY',
-            type: 'Maps',
+            category: 'Dental Clinic',
+            address: '123 Main St, New York, NY',
+            phone: '+1 555-0123',
+            website: 'www.smiledental.com',
+            rating: 4.8,
+            reviewCount: 124,
+            source: 'Maps',
             status: 'Qualified'
           }
         },
@@ -83,8 +100,15 @@ function AutomationPage(): JSX.Element {
           lead: {
             id: 'l2',
             name: "Mario's Pizza",
-            location: 'New York, NY',
-            type: 'Facebook',
+            category: 'Italian Restaurant',
+            address: '456 Oak Ave, New York, NY',
+            phone: '+1 555-9876',
+            email: 'contact@mariospizza.nyc',
+            emailVerified: true,
+            hasWhatsApp: true,
+            rating: 4.5,
+            reviewCount: 89,
+            source: 'Facebook',
             status: 'Qualified'
           }
         },
@@ -169,6 +193,10 @@ function AutomationPage(): JSX.Element {
   const clearLeads = (): void => {
     setFoundLeads([])
     setIsPanelOpen(false)
+  }
+
+  const removeLead = (id: string): void => {
+    setFoundLeads((prev) => prev.filter((l) => l.id !== id))
   }
 
   return (
@@ -372,14 +400,115 @@ function AutomationPage(): JSX.Element {
         <div className="panel-content">
           {foundLeads.map((lead, idx) => (
             <div key={`${lead.id}-${idx}`} className="found-lead-card">
-              <span className="lead-name">{lead.name}</span>
-              <div className="lead-detail">
-                <FaMapMarkerAlt size={12} /> {lead.location}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '0.25rem'
+                    }}
+                  >
+                    <span className="lead-name">{lead.name}</span>
+                    <span className="lead-category">{lead.category}</span>
+                  </div>
+                  <div className="lead-detail">
+                    <FaMapMarkerAlt size={10} style={{ flexShrink: 0 }} />
+                    <span
+                      style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '200px'
+                      }}
+                    >
+                      {lead.address}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  className="icon-btn delete-btn"
+                  onClick={() => removeLead(lead.id)}
+                  title="Remove Lead"
+                >
+                  <FaTrash size={12} />
+                </button>
               </div>
-              <div className="lead-detail">
-                <FaLayerGroup size={12} /> {lead.type} Source
+
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.25rem'
+                }}
+              >
+                {lead.phone && (
+                  <div className="lead-detail">
+                    <FaPhoneAlt size={10} /> {lead.phone}
+                    {lead.hasWhatsApp && <span className="badge badge-success">WA</span>}
+                  </div>
+                )}
+
+                {lead.email && (
+                  <div className="lead-detail">
+                    <FaEnvelope size={10} /> {lead.email}
+                    {lead.emailVerified ? (
+                      <FaCheck size={10} color="#34d399" title="Verified" />
+                    ) : (
+                      <FaTimes size={10} color="#f87171" title="Not Verified" />
+                    )}
+                  </div>
+                )}
+
+                {lead.website && (
+                  <div className="lead-detail">
+                    <FaGlobe size={10} />
+                    <a
+                      href={`https://${lead.website}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'inherit', textDecoration: 'none' }}
+                    >
+                      {lead.website}
+                    </a>
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '0.25rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="badge badge-source">{lead.source}</span>
+                    {lead.rating && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          fontSize: '0.75rem',
+                          color: '#fbbf24'
+                        }}
+                      >
+                        <FaStar size={10} /> {lead.rating} ({lead.reviewCount})
+                      </span>
+                    )}
+                  </div>
+                  <span className="lead-status">{lead.status}</span>
+                </div>
               </div>
-              <span className="lead-status">{lead.status}</span>
             </div>
           ))}
           {foundLeads.length === 0 && (
