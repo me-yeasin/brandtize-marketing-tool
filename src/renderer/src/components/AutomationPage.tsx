@@ -13,11 +13,13 @@ import {
   FaPhoneAlt,
   FaPlay,
   FaSave,
+  FaSearch,
   FaStar,
   FaStop,
   FaTerminal,
   FaTimes,
-  FaTrash
+  FaTrash,
+  FaWhatsapp
 } from 'react-icons/fa'
 import './AutomationPage.css'
 
@@ -53,7 +55,10 @@ function AutomationPage(): JSX.Element {
   const [filters, setFilters] = useState({
     hasWebsite: false,
     hasEmail: false,
-    hasPhone: false
+    hasPhone: false,
+    autoVerifyWA: false,
+    autoVerifyEmail: false,
+    autoFindEmail: false
   })
 
   // Agent State
@@ -339,6 +344,53 @@ function AutomationPage(): JSX.Element {
                       type="checkbox"
                       checked={filters.hasPhone}
                       onChange={() => toggleFilter('hasPhone')}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Advanced Actions</label>
+              <div className="toggle-group">
+                <div className="toggle-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FaWhatsapp size={14} color="#a8a29e" /> <span>Auto-Verify WhatsApp</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={filters.autoVerifyWA}
+                      onChange={() => toggleFilter('autoVerifyWA')}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                <div className="toggle-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FaCheck size={14} color="#a8a29e" /> <span>Auto-Verify Email</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={filters.autoVerifyEmail}
+                      onChange={() => toggleFilter('autoVerifyEmail')}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+
+                <div className="toggle-item">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FaSearch size={14} color="#a8a29e" /> <span>Auto-Find & Verify Email</span>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={filters.autoFindEmail}
+                      onChange={() => toggleFilter('autoFindEmail')}
                     />
                     <span className="slider"></span>
                   </label>
