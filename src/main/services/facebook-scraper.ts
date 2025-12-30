@@ -225,23 +225,59 @@ async function runActorWithProxyFallback(
 
   for (const input of attempts) {
     try {
-      const runPromise = client.actor(actorId).call(input, { timeout: timeoutSeconds })
+      // 1. Start the actor (Non-blocking)
+      const run = await client.actor(actorId).start(input, { timeout: timeoutSeconds })
+      console.log(`[Apify] Started run ${run.id} for actor ${actorId}`)
 
+      // 2. Define the Abort Logic for this specific run
+      const abortPromise = new Promise<{ defaultDatasetId: string }>((_, reject) => {
+        if (signal?.aborted) {
+          // If already aborted, reject immediately
+          reject(new Error('Aborted'))
+          return
+        }
+
+        if (signal) {
+          signal.addEventListener('abort', async () => {
+            console.log(`[Apify] Signal aborted! Sending ABORT command for run ${run.id}...`)
+            try {
+              await client.run(run.id).abort()
+              console.log(`[Apify] Run ${run.id} aborted successfully.`)
+            } catch (err) {
+              console.error(`[Apify] Failed to abort run ${run.id}:`, err)
+            }
+            reject(new Error('Aborted'))
+          })
+        }
+      })
+
+      // 3. Define the Wait Logic
+      const waitPromise = (async () => {
+        await client.run(run.id).waitForFinish()
+        // Fetch the run again to get latest status/dataset info if needed,
+        // though `run` object from start() usually has the defaultDatasetId.
+        // But to be safe on status checks:
+        const updatedRun = await client.run(run.id).get()
+        if (!updatedRun) throw new Error('Run not found')
+
+        if (updatedRun.status === 'FAILED') {
+          throw new Error(`Run ${run.id} failed`)
+        }
+
+        return { defaultDatasetId: updatedRun.defaultDatasetId }
+      })()
+
+      // 4. Race them
       if (signal) {
-        if (signal.aborted) throw new Error('Aborted')
-        const abortPromise = new Promise<{ defaultDatasetId: string }>((_, reject) => {
-          signal.addEventListener('abort', () => reject(new Error('Aborted')))
-        })
-        const run = await Promise.race([runPromise, abortPromise])
-        return { defaultDatasetId: run.defaultDatasetId }
+        return await Promise.race([waitPromise, abortPromise])
       } else {
-        const run = await runPromise
-        return { defaultDatasetId: run.defaultDatasetId }
+        return await waitPromise
       }
     } catch (error) {
       if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
-        throw error // Propagate abort immediately
+        throw error // Propagate abort immediately, do not retry
       }
+      console.warn(`[Apify] Attempt failed:`, error)
       lastError = error
     }
   }

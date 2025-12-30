@@ -25,6 +25,7 @@ export interface YelpSearchParams {
   query: string
   location: string
   maxResults?: number
+  signal?: AbortSignal
 }
 
 function getApifyClient(): ApifyClient {
@@ -90,9 +91,49 @@ export async function searchYelpBusinesses(params: YelpSearchParams): Promise<Ye
 
     console.log('[YelpScraper] Running actor epctex/yelp-scraper with input:', actorInput)
 
-    const run = await client.actor('epctex/yelp-scraper').call(actorInput, {
-      timeout: 300 // 5 minute timeout
+    console.log('[YelpScraper] Running actor epctex/yelp-scraper with input:', actorInput)
+
+    const signal = params.signal
+    const actorId = 'epctex/yelp-scraper'
+    const timeoutSeconds = 300
+
+    // 1. Start
+    const run = await client.actor(actorId).start(actorInput, { timeout: timeoutSeconds })
+    console.log(`[YelpScraper] Started run ${run.id}`)
+
+    // 2. Abort Logic
+    const abortPromise = new Promise<void>((_, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Aborted'))
+        return
+      }
+      if (signal) {
+        signal.addEventListener('abort', async () => {
+          console.log(`[YelpScraper] Signal aborted! Aborting run ${run.id}...`)
+          try {
+            await client.run(run.id).abort()
+            console.log(`[YelpScraper] Run ${run.id} aborted.`)
+          } catch (e) {
+            console.error(`[YelpScraper] Abort failed:`, e)
+          }
+          reject(new Error('Aborted'))
+        })
+      }
     })
+
+    // 3. Wait & Race
+    const waitPromise = async (): Promise<unknown> => {
+      await client.run(run.id).waitForFinish()
+      const finishedRun = await client.run(run.id).get()
+      if (!finishedRun || finishedRun.status === 'FAILED') throw new Error(`Run ${run.id} failed`)
+      return finishedRun
+    }
+
+    if (signal) {
+      await Promise.race([waitPromise(), abortPromise])
+    } else {
+      await waitPromise()
+    }
 
     console.log('[YelpScraper] Run completed, fetching results...')
 

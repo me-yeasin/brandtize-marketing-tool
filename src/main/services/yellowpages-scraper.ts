@@ -25,6 +25,7 @@ export interface YellowPagesSearchParams {
   query: string
   location: string
   maxResults?: number
+  signal?: AbortSignal
 }
 
 function getApifyClient(): ApifyClient {
@@ -89,9 +90,49 @@ export async function searchYellowPagesBusinesses(
 
     console.log('[YellowPages] Running actor easyapi/yellowpages-scraper with input:', actorInput)
 
-    const run = await client.actor('easyapi/yellowpages-scraper').call(actorInput, {
-      timeout: 300 // 5 minute timeout
+    console.log('[YellowPages] Running actor easyapi/yellowpages-scraper with input:', actorInput)
+
+    const signal = params.signal
+    const actorId = 'easyapi/yellowpages-scraper'
+    const timeoutSeconds = 300
+
+    // 1. Start
+    const run = await client.actor(actorId).start(actorInput, { timeout: timeoutSeconds })
+    console.log(`[YellowPages] Started run ${run.id}`)
+
+    // 2. Abort Logic
+    const abortPromise = new Promise<void>((_, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Aborted'))
+        return
+      }
+      if (signal) {
+        signal.addEventListener('abort', async () => {
+          console.log(`[YellowPages] Signal aborted! Aborting run ${run.id}...`)
+          try {
+            await client.run(run.id).abort()
+            console.log(`[YellowPages] Run ${run.id} aborted.`)
+          } catch (e) {
+            console.error(`[YellowPages] Abort failed:`, e)
+          }
+          reject(new Error('Aborted'))
+        })
+      }
     })
+
+    // 3. Wait & Race
+    const waitPromise = async (): Promise<unknown> => {
+      await client.run(run.id).waitForFinish()
+      const finishedRun = await client.run(run.id).get()
+      if (!finishedRun || finishedRun.status === 'FAILED') throw new Error(`Run ${run.id} failed`)
+      return finishedRun
+    }
+
+    if (signal) {
+      await Promise.race([waitPromise(), abortPromise])
+    } else {
+      await waitPromise()
+    }
 
     console.log('[YellowPages] Run completed, fetching results...')
 

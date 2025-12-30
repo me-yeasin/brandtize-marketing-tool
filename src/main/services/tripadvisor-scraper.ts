@@ -31,6 +31,7 @@ export interface TripAdvisorSearchParams {
   query: string
   location: string
   maxResults?: number
+  signal?: AbortSignal
 }
 
 function getApifyClient(): ApifyClient {
@@ -118,9 +119,53 @@ export async function searchTripAdvisorBusinesses(
 
     console.log('[TripAdvisor] Running actor maxcopell/tripadvisor with input:', actorInput)
 
-    const run = await client.actor('maxcopell/tripadvisor').call(actorInput, {
-      timeout: 300 // 5 minute timeout
+    console.log('[TripAdvisor] Running actor maxcopell/tripadvisor with input:', actorInput)
+
+    const signal = params.signal
+    const actorId = 'maxcopell/tripadvisor'
+    const timeoutSeconds = 300
+
+    // 1. Start (Non-blocking)
+    const run = await client.actor(actorId).start(actorInput, { timeout: timeoutSeconds })
+    console.log(`[TripAdvisor] Started run ${run.id}`)
+
+    // 2. Abort Logic
+    const abortPromise = new Promise<void>((_, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Aborted'))
+        return
+      }
+      if (signal) {
+        signal.addEventListener('abort', async () => {
+          console.log(`[TripAdvisor] Signal aborted! Aborting run ${run.id}...`)
+          try {
+            await client.run(run.id).abort()
+            console.log(`[TripAdvisor] Run ${run.id} aborted.`)
+          } catch (e) {
+            console.error(`[TripAdvisor] Abort failed:`, e)
+          }
+          reject(new Error('Aborted'))
+        })
+      }
     })
+
+    // 3. Wait Logic
+    const waitPromise = async (): Promise<unknown> => {
+      await client.run(run.id).waitForFinish()
+      return client.run(run.id).get()
+    }
+
+    // 4. Race
+    let runResult
+    if (signal) {
+      runResult = await Promise.race([waitPromise(), abortPromise.then(() => run)]) // fallback irrelevant as it rejects
+    } else {
+      runResult = await waitPromise()
+    }
+
+    if (!runResult || runResult.status === 'FAILED') {
+      throw new Error(`Run ${run.id} failed`)
+    }
 
     console.log('[TripAdvisor] Run completed, fetching results...')
 

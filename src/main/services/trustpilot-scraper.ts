@@ -24,6 +24,7 @@ export interface TrustpilotSearchParams {
   query: string
   location: string
   maxResults?: number
+  signal?: AbortSignal
 }
 
 function getApifyClient(): ApifyClient {
@@ -133,22 +134,64 @@ export async function searchTrustpilotBusinesses(
 
     console.log('[Trustpilot] Running Trustpilot search with input:', actorInput)
 
-    // Try nyoylab/trustpilot-scraper first, fallback to epctex
-    let run
-    try {
-      run = await client.actor('nyoylab/trustpilot-scraper').call(actorInput, {
-        timeout: 300
+    const signal = params.signal
+    const timeoutSeconds = 300
+
+    // Helper for running actor with abort
+    const runWithAbort = async (
+      actorId: string,
+      input: Record<string, unknown>
+    ): Promise<{ defaultDatasetId: string }> => {
+      if (signal?.aborted) throw new Error('Aborted')
+
+      const run = await client.actor(actorId).start(input, { timeout: timeoutSeconds })
+      console.log(`[Trustpilot] Started run ${run.id} (${actorId})`)
+
+      const abortPromise = new Promise<void>((_, reject) => {
+        if (signal?.aborted) {
+          reject(new Error('Aborted'))
+          return
+        }
+        if (signal) {
+          signal.addEventListener('abort', async () => {
+            console.log(`[Trustpilot] Signal aborted! Aborting run ${run.id}...`)
+            try {
+              await client.run(run.id).abort()
+            } catch (e) {
+              console.error('Abort failed', e)
+            }
+            reject(new Error('Aborted'))
+          })
+        }
       })
-    } catch {
+
+      const waitPromise = async (): Promise<{ defaultDatasetId: string }> => {
+        await client.run(run.id).waitForFinish()
+        const finishedRun = await client.run(run.id).get()
+        if (!finishedRun || finishedRun.status === 'FAILED') throw new Error(`Run ${run.id} failed`)
+        return finishedRun
+      }
+
+      if (signal) {
+        return await Promise.race([waitPromise(), abortPromise.then(() => run)])
+      }
+      return await waitPromise()
+    }
+
+    let run: { defaultDatasetId: string }
+    try {
+      run = await runWithAbort('nyoylab/trustpilot-scraper', actorInput)
+    } catch (err) {
+      const error = err as Error
+      // If aborted, rethrow immediately - do not fallback
+      if (signal?.aborted || error.message === 'Aborted') throw error
+
       console.log('[Trustpilot] Fallback to alternate actor...')
-      // Fallback: Use different input format for epctex actor
       const fallbackInput = {
         companyWebsite: params.query,
         contentToExtract: 'bulkCompanyInformation'
       }
-      run = await client.actor('epctex/trustpilot-scraper').call(fallbackInput, {
-        timeout: 300
-      })
+      run = await runWithAbort('epctex/trustpilot-scraper', fallbackInput)
     }
 
     console.log('[Trustpilot] Run completed, fetching results...')

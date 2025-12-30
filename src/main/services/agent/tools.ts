@@ -83,7 +83,6 @@ export async function executeYelpSearch(
   task: SearchTask,
   signal?: AbortSignal
 ): Promise<AgentLead[]> {
-  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -97,7 +96,8 @@ export async function executeYelpSearch(
     const businesses = await searchYelpBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: effectiveLimit
+      maxResults: effectiveLimit,
+      signal
     })
 
     console.log(`[Yelp] Retrieved ${businesses.length} businesses`)
@@ -112,7 +112,6 @@ export async function executeYellowPagesSearch(
   task: SearchTask,
   signal?: AbortSignal
 ): Promise<AgentLead[]> {
-  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -128,7 +127,8 @@ export async function executeYellowPagesSearch(
     const businesses = await searchYellowPagesBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: effectiveLimit
+      maxResults: effectiveLimit,
+      signal
     })
 
     console.log(`[YellowPages] Retrieved ${businesses.length} businesses`)
@@ -143,7 +143,6 @@ export async function executeTripAdvisorSearch(
   task: SearchTask,
   signal?: AbortSignal
 ): Promise<AgentLead[]> {
-  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -159,7 +158,8 @@ export async function executeTripAdvisorSearch(
     const businesses = await searchTripAdvisorBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: effectiveLimit
+      maxResults: effectiveLimit,
+      signal
     })
 
     console.log(`[TripAdvisor] Retrieved ${businesses.length} businesses`)
@@ -174,7 +174,6 @@ export async function executeTrustpilotSearch(
   task: SearchTask,
   signal?: AbortSignal
 ): Promise<AgentLead[]> {
-  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -190,7 +189,8 @@ export async function executeTrustpilotSearch(
     const businesses = await searchTrustpilotBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: effectiveLimit
+      maxResults: effectiveLimit,
+      signal
     })
 
     console.log(`[Trustpilot] Retrieved ${businesses.length} businesses`)
