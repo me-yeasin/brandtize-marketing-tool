@@ -85,6 +85,7 @@ function AutomationPage(): JSX.Element {
   const [foundLeads, setFoundLeads] = useState<FoundLead[]>([])
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const foundLeadsRef = useRef<FoundLead[]>([]) // Ref to access latest leads in closures
 
   // Check service availability on mount
   useEffect(() => {
@@ -212,6 +213,10 @@ function AutomationPage(): JSX.Element {
     // Listen for stop event
     const removeStopListener = window.api.onAgentStopped(() => {
       setIsRunning(false)
+      // Ensure panel opens when finished if we have leads (check Ref for latest value)
+      if (foundLeadsRef.current.length > 0) {
+        setIsPanelOpen(true)
+      }
       addLog('Agent process finished.', 'info')
     })
 
@@ -225,9 +230,11 @@ function AutomationPage(): JSX.Element {
   // Track previous lead count to trigger auto-open only on 0 -> 1 transition
   const prevLeadCountRef = useRef(0)
 
-  // Auto-open panel when leads are found
+  // Sync ref and auto-open logic
   useEffect(() => {
-    if (foundLeads.length === 1 && prevLeadCountRef.current === 0) {
+    foundLeadsRef.current = foundLeads // Keep ref in sync
+
+    if (foundLeads.length > 0 && prevLeadCountRef.current === 0) {
       setTimeout(() => setIsPanelOpen(true), 0)
     }
     prevLeadCountRef.current = foundLeads.length

@@ -21,8 +21,13 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
+    // Calculate max pages based on limit (20 results per page)
+    const limit = task.limit || 60 // Default to ~60 (3 pages) if no limit
+    // If limit is small (e.g. 10), we need 1 page. If 21, we need 2 pages.
+    const maxPages = Math.min(Math.ceil(limit / MAPS_RESULTS_PER_PAGE), MAPS_MAX_PAGES)
+
     console.log(
-      `[GoogleMaps] Searching "${task.query}" in "${fullLocation}" (${MAPS_MAX_PAGES} pages)`
+      `[GoogleMaps] Searching "${task.query}" in "${fullLocation}" (target: ${limit}, pages: ${maxPages})`
     )
 
     const places = await searchMapsWithSerper({
@@ -30,7 +35,7 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
       location: fullLocation,
       num: MAPS_RESULTS_PER_PAGE,
       autocomplete: true,
-      maxPages: MAPS_MAX_PAGES
+      maxPages: maxPages
     })
 
     console.log(`[GoogleMaps] Retrieved ${places.length} total places`)
@@ -47,12 +52,15 @@ export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
+    const limit = task.limit || FACEBOOK_MAX_RESULTS
+    const effectiveLimit = Math.min(limit, FACEBOOK_MAX_RESULTS)
+
     const searchQuery = `${task.query} in ${fullLocation}`
-    console.log(`[Facebook] Searching "${searchQuery}" (limit: ${FACEBOOK_MAX_RESULTS})`)
+    console.log(`[Facebook] Searching "${searchQuery}" (limit: ${effectiveLimit})`)
 
     const leads = await searchFacebookPages({
       searchQuery: searchQuery,
-      maxResults: FACEBOOK_MAX_RESULTS
+      maxResults: effectiveLimit
     })
 
     console.log(`[Facebook] Retrieved ${leads.length} leads`)
@@ -69,14 +77,15 @@ export async function executeYelpSearch(task: SearchTask): Promise<AgentLead[]> 
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
-    console.log(
-      `[Yelp] Searching "${task.query}" in "${fullLocation}" (limit: ${YELP_MAX_RESULTS})`
-    )
+    const limit = task.limit || YELP_MAX_RESULTS
+    const effectiveLimit = Math.min(limit, YELP_MAX_RESULTS)
+
+    console.log(`[Yelp] Searching "${task.query}" in "${fullLocation}" (limit: ${effectiveLimit})`)
 
     const businesses = await searchYelpBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: YELP_MAX_RESULTS
+      maxResults: effectiveLimit
     })
 
     console.log(`[Yelp] Retrieved ${businesses.length} businesses`)
@@ -93,14 +102,17 @@ export async function executeYellowPagesSearch(task: SearchTask): Promise<AgentL
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
+    const limit = task.limit || YELLOWPAGES_MAX_RESULTS
+    const effectiveLimit = Math.min(limit, YELLOWPAGES_MAX_RESULTS)
+
     console.log(
-      `[YellowPages] Searching "${task.query}" in "${fullLocation}" (limit: ${YELLOWPAGES_MAX_RESULTS})`
+      `[YellowPages] Searching "${task.query}" in "${fullLocation}" (limit: ${effectiveLimit})`
     )
 
     const businesses = await searchYellowPagesBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: YELLOWPAGES_MAX_RESULTS
+      maxResults: effectiveLimit
     })
 
     console.log(`[YellowPages] Retrieved ${businesses.length} businesses`)
@@ -117,14 +129,17 @@ export async function executeTripAdvisorSearch(task: SearchTask): Promise<AgentL
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
+    const limit = task.limit || TRIPADVISOR_MAX_RESULTS
+    const effectiveLimit = Math.min(limit, TRIPADVISOR_MAX_RESULTS)
+
     console.log(
-      `[TripAdvisor] Searching "${task.query}" in "${fullLocation}" (limit: ${TRIPADVISOR_MAX_RESULTS})`
+      `[TripAdvisor] Searching "${task.query}" in "${fullLocation}" (limit: ${effectiveLimit})`
     )
 
     const businesses = await searchTripAdvisorBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: TRIPADVISOR_MAX_RESULTS
+      maxResults: effectiveLimit
     })
 
     console.log(`[TripAdvisor] Retrieved ${businesses.length} businesses`)
@@ -141,14 +156,17 @@ export async function executeTrustpilotSearch(task: SearchTask): Promise<AgentLe
       ? `${task.location}, ${task.discoveredFromCountry}`
       : task.location
 
+    const limit = task.limit || TRUSTPILOT_MAX_RESULTS
+    const effectiveLimit = Math.min(limit, TRUSTPILOT_MAX_RESULTS)
+
     console.log(
-      `[Trustpilot] Searching "${task.query}" in "${fullLocation}" (limit: ${TRUSTPILOT_MAX_RESULTS})`
+      `[Trustpilot] Searching "${task.query}" in "${fullLocation}" (limit: ${effectiveLimit})`
     )
 
     const businesses = await searchTrustpilotBusinesses({
       query: task.query,
       location: fullLocation,
-      maxResults: TRUSTPILOT_MAX_RESULTS
+      maxResults: effectiveLimit
     })
 
     console.log(`[Trustpilot] Retrieved ${businesses.length} businesses`)

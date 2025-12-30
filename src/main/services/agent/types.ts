@@ -19,6 +19,7 @@ export interface SearchTask {
   source: 'google_maps' | 'facebook' | 'yelp' | 'yellow_pages' | 'tripadvisor' | 'trustpilot'
   status: 'pending' | 'completed' | 'failed'
   discoveredFromCountry?: string // If this city was discovered via country research
+  limit?: number
 }
 
 export interface AgentLead {
