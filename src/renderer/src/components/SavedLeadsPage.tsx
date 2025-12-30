@@ -1,4 +1,4 @@
-﻿import { JSX, useCallback, useEffect, useRef, useState } from 'react'
+﻿import { JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   FaCheck,
   FaChevronDown,
@@ -64,6 +64,143 @@ const DEFAULT_FILTERS: AdvancedFilters = {
     silver: true,
     bronze: true
   }
+}
+
+// Category Mappings for Broader Grouping
+const CATEGORY_MAPPINGS: Record<string, string[]> = {
+  'Food & Dining': [
+    'restaurant',
+    'cafe',
+    'coffee',
+    'bar',
+    'pub',
+    'bakery',
+    'food',
+    'pizza',
+    'burger',
+    'dining',
+    'sandwich',
+    'steak',
+    'sushi',
+    'seafood',
+    'diner',
+    'bistro',
+    'grill',
+    'kitchen',
+    'catering',
+    'brewery'
+  ],
+  'Health & Fitness': [
+    'gym',
+    'fitness',
+    'yoga',
+    'pilates',
+    'personal trainer',
+    'crossfit',
+    'sport',
+    'athletic',
+    'workout',
+    'martial arts',
+    'boxing'
+  ],
+  Healthcare: [
+    'hospital',
+    'clinic',
+    'doctor',
+    'medical',
+    'health',
+    'physio',
+    'therapy',
+    'chiropractor',
+    'surgery',
+    'pediatric',
+    'cardio',
+    'pharmacy',
+    'optometrist'
+  ],
+  Dentist: ['dentist', 'dental', 'orthodontist', 'endodontist'],
+  'Construction & Trade': [
+    'plumber',
+    'electrician',
+    'contractor',
+    'construction',
+    'builder',
+    'repair',
+    'roofing',
+    'hvac',
+    'carpenter',
+    'handyman',
+    'painting',
+    'remodel',
+    'renovation',
+    'paving',
+    'glass',
+    'solar'
+  ],
+  'Real Estate': ['real estate', 'realtor', 'property', 'broker', 'housing', 'apartment'],
+  'Marketing & Agency': [
+    'marketing',
+    'agency',
+    'advertising',
+    'media',
+    'seo',
+    'digital',
+    'creative',
+    'pr',
+    'consulting',
+    'design'
+  ],
+  Education: [
+    'school',
+    'education',
+    'university',
+    'college',
+    'tutor',
+    'academy',
+    'learning',
+    'training',
+    'institute'
+  ],
+  Automotive: ['auto', 'car', 'mechanic', 'garage', 'dealer', 'tire', 'towing', 'repair'],
+  'Beauty & Spa': [
+    'beauty',
+    'spa',
+    'salon',
+    'hair',
+    'nail',
+    'barber',
+    'makeup',
+    'cosmetics',
+    'aesthetics'
+  ],
+  Legal: ['legal', 'lawyer', 'attorney', 'law firm', 'notary'],
+  Finance: ['finance', 'bank', 'accounting', 'tax', 'insurance', 'wealth', 'investment'],
+  Retail: ['store', 'shop', 'boutique', 'market', 'mall', 'retail'],
+  Accommodation: ['hotel', 'lodging', 'resort', 'motel', 'hostel', 'inn', 'bnb'],
+  'Software & Tech': [
+    'software',
+    'tech',
+    'it ', // space to avoid matching 'fitness' etc
+    'computer',
+    'web',
+    'app',
+    'developer'
+  ]
+}
+
+const getBroadCategory = (specific: string): string => {
+  if (!specific) return 'Other'
+  const lower = specific.toLowerCase()
+
+  for (const [parentCategory, keywords] of Object.entries(CATEGORY_MAPPINGS)) {
+    if (keywords.some((keyword) => lower.includes(keyword))) {
+      return parentCategory
+    }
+  }
+
+  // Fallback: If no mapping found, return 'Other' to ensure clean grouping list
+  // The user requested "lower amount of least value"
+  return 'Other'
 }
 
 // Minimal WhatsApp Markdown Parser for Preview (Duplicated from AiCopywriterPage for isolated portability)
@@ -1597,6 +1734,19 @@ function SavedLeadsPage(): JSX.Element {
       if (!lead.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
     }
 
+    // 3. Category Filter
+    if (filters.category) {
+      const selectedBroad = filters.category
+      const leadCategories = lead.categories || []
+      // Check if ANY of the lead's sub-categories map to the selected broad category
+      // OR if the lead's category directly matches (for fallbacks)
+      const hasMatch = leadCategories.some((cat) => {
+        const broad = getBroadCategory(cat)
+        return broad === selectedBroad
+      })
+      if (!hasMatch) return false
+    }
+
     return true
   })
 
@@ -1616,8 +1766,9 @@ function SavedLeadsPage(): JSX.Element {
       return false
     }
     // Category
-    if (filters.category && !lead.category.toLowerCase().includes(filters.category.toLowerCase())) {
-      return false
+    if (filters.category) {
+      const leadBroad = getBroadCategory(lead.category)
+      if (leadBroad !== filters.category) return false
     }
     // Rating
     if (lead.rating < filters.minRating) return false
@@ -1659,6 +1810,28 @@ function SavedLeadsPage(): JSX.Element {
     ...filteredLeads.map((l) => ({ ...l, leadType: 'maps' as const })),
     ...filteredFacebookLeads.map((l) => ({ ...l, leadType: 'facebook' as const }))
   ]
+
+  // Compute unique categories for the dropdown
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set<string>()
+
+    // Helper to add broad category
+    const addBroad = (specific: string): void => {
+      const broad = getBroadCategory(specific)
+      if (broad !== 'Other') categories.add(broad)
+    }
+
+    leads.forEach((l) => {
+      if (l.category) addBroad(l.category)
+    })
+    facebookLeads.forEach((l) => {
+      if (l.categories && Array.isArray(l.categories)) {
+        l.categories.forEach((c) => addBroad(c))
+      }
+    })
+
+    return Array.from(categories).sort()
+  }, [leads, facebookLeads])
 
   const handleVerifyAllWhatsApp = async (): Promise<void> => {
     if (!whatsAppReady) {
@@ -5650,9 +5823,7 @@ function SavedLeadsPage(): JSX.Element {
           {/* Category Filter */}
           <div className="scout-filter" style={{ marginBottom: '1.5rem' }}>
             <span>Category</span>
-            <input
-              type="text"
-              placeholder="e.g. Restaurant, Agency"
+            <select
               value={filters.category}
               onChange={(e) => setFilters({ ...filters, category: e.target.value })}
               style={{
@@ -5662,9 +5833,17 @@ function SavedLeadsPage(): JSX.Element {
                 border: '1px solid rgba(148, 163, 184, 0.2)',
                 background: 'rgba(15, 23, 42, 0.6)',
                 color: '#f1f5f9',
-                marginTop: '0.5rem'
+                marginTop: '0.5rem',
+                outline: 'none'
               }}
-            />
+            >
+              <option value="">All Categories</option>
+              {uniqueCategories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Rating Filter */}
