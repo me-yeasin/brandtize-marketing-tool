@@ -240,209 +240,218 @@ function AutomationPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="config-grid">
-          {/* Targeting Column */}
-          <div className="config-card">
-            <h3 className="card-title">
-              <FaLayerGroup /> Target Configuration
-            </h3>
+        <div className="layout-split-screen">
+          {/* Left Column: Configuration */}
+          <div className="layout-left-col">
+            <div className="config-card">
+              <h3 className="card-title">
+                <FaLayerGroup /> Target Configuration
+              </h3>
 
-            <div className="form-group">
-              <label>Business Niche / Category</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="e.g. Dental Clinics, Italian Restaurants"
-                value={niche}
-                onChange={(e) => setNiche(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Target Locations (City or Country)</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="Type and press Enter to add..."
-                value={locationInput}
-                onChange={(e) => setLocationInput(e.target.value)}
-                onKeyDown={handleAddLocation}
-              />
-              <div className="location-tags">
-                {locations.map((loc) => (
-                  <span key={loc} className="location-tag">
-                    <FaMapMarkerAlt size={10} /> {loc}
-                    <button onClick={() => removeLocation(loc)} className="remove-tag">
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Filters/Constraints Column */}
-          <div className="config-card">
-            <h3 className="card-title">
-              <FaFilter /> Filters & Limits
-            </h3>
-
-            <div className="form-group">
-              <label>
-                Target Lead Count: <span className="slider-value">{leadLimit}</span>
-              </label>
-              <div className="slider-container">
+              <div className="form-group">
+                <label>Business Niche / Category</label>
                 <input
-                  type="range"
-                  min="10"
-                  max="500"
-                  step="10"
-                  value={leadLimit}
-                  onChange={(e) => setLeadLimit(parseInt(e.target.value))}
-                  className="range-slider"
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g. Dental Clinics, Italian Restaurants"
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
                 />
               </div>
-            </div>
 
-            <div className="form-group">
-              <label>Must Have Requirements</label>
-              <div className="toggle-group">
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaLaptop size={14} color="#a8a29e" /> <span>Website Available</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.hasWebsite}
-                      onChange={() => toggleFilter('hasWebsite')}
-                    />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaEnvelope size={14} color="#a8a29e" /> <span>Email Available</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.hasEmail}
-                      onChange={() => toggleFilter('hasEmail')}
-                    />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaPhone size={14} color="#a8a29e" /> <span>Phone Number Available</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.hasPhone}
-                      onChange={() => toggleFilter('hasPhone')}
-                    />
-                    <span className="slider"></span>
-                  </label>
+              <div className="form-group">
+                <label>Target Locations (City or Country)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Type and press Enter to add..."
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onKeyDown={handleAddLocation}
+                />
+                <div className="location-tags">
+                  {locations.map((loc) => (
+                    <span key={loc} className="location-tag">
+                      <FaMapMarkerAlt size={10} /> {loc}
+                      <button onClick={() => removeLocation(loc)} className="remove-tag">
+                        ×
+                      </button>
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Advanced Actions</label>
-              <div className="toggle-group">
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaWhatsapp size={14} color="#a8a29e" /> <span>Auto-Verify WhatsApp</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.autoVerifyWA}
-                      onChange={() => toggleFilter('autoVerifyWA')}
-                    />
-                    <span className="slider"></span>
-                  </label>
-                </div>
+            {/* Filters/Constraints Column */}
+            <div className="config-card">
+              <h3 className="card-title">
+                <FaFilter /> Filters & Limits
+              </h3>
 
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaCheck size={14} color="#a8a29e" /> <span>Auto-Verify Email</span>
-                  </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.autoVerifyEmail}
-                      onChange={() => toggleFilter('autoVerifyEmail')}
-                    />
-                    <span className="slider"></span>
-                  </label>
+              <div className="form-group">
+                <label>
+                  Target Lead Count: <span className="slider-value">{leadLimit}</span>
+                </label>
+                <div className="slider-container">
+                  <input
+                    type="range"
+                    min="10"
+                    max="500"
+                    step="10"
+                    value={leadLimit}
+                    onChange={(e) => setLeadLimit(parseInt(e.target.value))}
+                    className="range-slider"
+                  />
                 </div>
+              </div>
 
-                <div className="toggle-item">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <FaSearch size={14} color="#a8a29e" /> <span>Auto-Find & Verify Email</span>
+              <div className="form-group">
+                <label>Must Have Requirements</label>
+                <div className="toggle-group">
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaLaptop size={14} color="#a8a29e" /> <span>Website Available</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.hasWebsite}
+                        onChange={() => toggleFilter('hasWebsite')}
+                      />
+                      <span className="slider"></span>
+                    </label>
                   </div>
-                  <label className="switch">
-                    <input
-                      type="checkbox"
-                      checked={filters.autoFindEmail}
-                      onChange={() => toggleFilter('autoFindEmail')}
-                    />
-                    <span className="slider"></span>
-                  </label>
+
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaEnvelope size={14} color="#a8a29e" /> <span>Email Available</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.hasEmail}
+                        onChange={() => toggleFilter('hasEmail')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaPhone size={14} color="#a8a29e" /> <span>Phone Number Available</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.hasPhone}
+                        onChange={() => toggleFilter('hasPhone')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Advanced Actions</label>
+                <div className="toggle-group">
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaWhatsapp size={14} color="#a8a29e" /> <span>Auto-Verify WhatsApp</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.autoVerifyWA}
+                        onChange={() => toggleFilter('autoVerifyWA')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaCheck size={14} color="#a8a29e" /> <span>Auto-Verify Email</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.autoVerifyEmail}
+                        onChange={() => toggleFilter('autoVerifyEmail')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="toggle-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <FaSearch size={14} color="#a8a29e" /> <span>Auto-Find & Verify Email</span>
+                    </div>
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={filters.autoFindEmail}
+                        onChange={() => toggleFilter('autoFindEmail')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+          {/* End Left Column */}
 
-        {/* Console Section */}
-        <div className="console-section">
-          <div className="console-header">
-            <div className="console-title">
-              <FaTerminal /> Agent Activity Log
-            </div>
-            <div className="console-actions">
-              <button className="console-btn" onClick={clearLogs} title="Clear Logs">
-                <FaTrash size={12} />
-              </button>
-            </div>
-          </div>
-          <div className="console-content">
-            {logs.length === 0 && (
-              <div style={{ opacity: 0.5, fontStyle: 'italic' }}>Waiting for agent to start...</div>
-            )}
-            {logs.map((log) => (
-              <div key={log.id} className="log-entry">
-                <span className="log-time">[{log.timestamp}]</span>
-                <span className={`log-message log-${log.type}`}>
-                  {log.type === 'info' && '> '}
-                  {log.type === 'success' && '✓ '}
-                  {log.type === 'warning' && '⚠ '}
-                  {log.type === 'error' && '✗ '}
-                  {log.message}
-                </span>
+          {/* Right Column: Console & Controls */}
+          <div className="layout-right-col">
+            {/* Console Section */}
+            <div className="console-section">
+              <div className="console-header">
+                <div className="console-title">
+                  <FaTerminal /> Agent Activity Log
+                </div>
+                <div className="console-actions">
+                  <button className="console-btn" onClick={clearLogs} title="Clear Logs">
+                    <FaTrash size={12} />
+                  </button>
+                </div>
               </div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
+              <div className="console-content">
+                {logs.length === 0 && (
+                  <div style={{ opacity: 0.5, fontStyle: 'italic' }}>
+                    Waiting for agent to start...
+                  </div>
+                )}
+                {logs.map((log) => (
+                  <div key={log.id} className="log-entry">
+                    <span className="log-time">[{log.timestamp}]</span>
+                    <span className={`log-message log-${log.type}`}>
+                      {log.type === 'info' && '> '}
+                      {log.type === 'success' && '✓ '}
+                      {log.type === 'warning' && '⚠ '}
+                      {log.type === 'error' && '✗ '}
+                      {log.message}
+                    </span>
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            </div>
 
-        {/* Action Bar */}
-        <div className="action-bar">
-          {isRunning ? (
-            <button className="btn btn-danger" onClick={handleStop}>
-              <FaStop /> Stop Agent
-            </button>
-          ) : (
-            <button className="btn btn-primary" onClick={handleStart}>
-              <FaPlay /> Start Agent Process
-            </button>
-          )}
+            {/* Action Bar */}
+            <div className="action-bar">
+              {isRunning ? (
+                <button className="btn btn-danger" onClick={handleStop}>
+                  <FaStop /> Stop Agent
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={handleStart}>
+                  <FaPlay /> Start Agent Process
+                </button>
+              )}
+            </div>
+          </div>
+          {/* End Right Column */}
         </div>
       </div>
 
