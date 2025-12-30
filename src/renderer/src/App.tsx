@@ -75,6 +75,22 @@ function App(): JSX.Element {
         return <AiCopywriterPage initialTab="telegram" />
       case 'saved-leads':
         return <SavedLeadsPage />
+      case 'automation':
+        return (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              height: '100%',
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              color: '#f1f5f9'
+            }}
+          >
+            Hello World
+          </div>
+        )
       default:
         return (
           <div className="page-content">
