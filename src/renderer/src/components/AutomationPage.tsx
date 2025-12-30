@@ -288,16 +288,119 @@ function AutomationPage(): JSX.Element {
     setFoundLeads((prev) => prev.filter((l) => l.id !== id))
   }
 
-  const handleSaveLeads = (): void => {
-    // Placeholder for saving leads
-    console.log('Saving leads...', foundLeads)
-    alert('Save functionality coming soon!')
+  const handleSaveLeads = async (): Promise<void> => {
+    if (foundLeads.length === 0) {
+      addLog('No leads to save', 'warning')
+      return
+    }
+
+    try {
+      const existing = await window.api.getSavedMapsLeads()
+      const existingById = new Map(existing.map((l) => [l.id, l]))
+
+      // Convert agent leads to SavedMapsLead format
+      const leadsToPersist = foundLeads.map((lead) => ({
+        id: lead.id,
+        name: lead.name,
+        address: lead.address,
+        phone: lead.phone ?? null,
+        website: lead.website ?? null,
+        rating: lead.rating ?? 0,
+        reviewCount: lead.reviewCount ?? 0,
+        category: lead.category,
+        score: (lead.metadata?.score as 'gold' | 'silver' | 'bronze') ?? 'bronze',
+        latitude: 0,
+        longitude: 0,
+        email: lead.email,
+        emailVerified: lead.emailVerified,
+        hasWhatsApp: lead.hasWhatsApp,
+        savedAt: Date.now()
+      }))
+
+      const newLeads = leadsToPersist.filter((l) => !existingById.has(l.id))
+      const leadsToUpdate = leadsToPersist
+        .filter((l) => existingById.has(l.id))
+        .map((l) => {
+          const prev = existingById.get(l.id)!
+          return { ...prev, ...l, savedAt: prev.savedAt }
+        })
+
+      let createdCount = 0
+      if (newLeads.length > 0) {
+        const result = await window.api.saveMapsLeads(newLeads)
+        if (result.success) createdCount = result.count
+      }
+
+      let updatedCount = 0
+      if (leadsToUpdate.length > 0) {
+        const results = await Promise.all(
+          leadsToUpdate.map(async (lead) => window.api.updateSavedMapsLead(lead))
+        )
+        updatedCount = results.filter((r) => r.success).length
+      }
+
+      if (createdCount > 0 || updatedCount > 0) {
+        addLog(`✅ Saved ${createdCount} new, updated ${updatedCount} leads`, 'success')
+      } else {
+        addLog('All leads already saved', 'info')
+      }
+    } catch (err) {
+      console.error('Save leads error:', err)
+      addLog('Failed to save leads', 'error')
+    }
   }
 
   const handleExportLeads = (): void => {
-    // Placeholder for exporting leads
-    console.log('Exporting leads...', foundLeads)
-    alert('Export functionality coming soon!')
+    if (foundLeads.length === 0) {
+      addLog('No leads to export', 'warning')
+      return
+    }
+
+    const headers = [
+      'Name',
+      'Category',
+      'Address',
+      'Phone',
+      'WhatsApp',
+      'Email',
+      'Email Verified',
+      'Website',
+      'Rating',
+      'Reviews',
+      'Source',
+      'Score'
+    ]
+
+    const rows = foundLeads.map((lead) => [
+      lead.name,
+      lead.category,
+      lead.address,
+      lead.phone || '',
+      lead.hasWhatsApp === true ? 'Yes' : lead.hasWhatsApp === false ? 'No' : '',
+      lead.email || '',
+      lead.emailVerified === true ? 'Verified' : lead.emailVerified === false ? 'Invalid' : '',
+      lead.website || '',
+      lead.rating?.toString() || '',
+      lead.reviewCount?.toString() || '',
+      lead.source,
+      (lead.metadata?.score as string) || ''
+    ])
+
+    const csv = [
+      headers.join(','),
+      ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `agent-leads-${Date.now()}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    addLog(`📥 Exported ${foundLeads.length} leads to CSV`, 'success')
   }
 
   return (
