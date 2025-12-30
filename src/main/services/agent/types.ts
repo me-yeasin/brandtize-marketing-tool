@@ -16,7 +16,7 @@ export interface SearchTask {
   id: string
   query: string
   location: string
-  source: 'google_maps' | 'facebook'
+  source: 'google_maps' | 'facebook' | 'yelp' | 'yellow_pages'
   status: 'pending' | 'completed' | 'failed'
   discoveredFromCountry?: string // If this city was discovered via country research
 }
@@ -33,7 +33,7 @@ export interface AgentLead {
   reviewCount?: number
   hasWhatsApp?: boolean
   emailVerified?: boolean
-  source: 'Maps' | 'Facebook'
+  source: 'Maps' | 'Facebook' | 'Yelp' | 'YellowPages'
   status: 'Qualified' | 'Pending'
   metadata?: Record<string, unknown>
 }

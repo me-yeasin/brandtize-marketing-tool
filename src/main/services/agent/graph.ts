@@ -2,7 +2,12 @@ import { WebContents } from 'electron'
 import { calculateLeadScore, deduplicateLeads } from './lead-quality'
 import { discoverNearbyCities, generateQueryVariations, getFallbackCities } from './nearby-cities'
 import { expandSearchForCountry, planSearchStrategy } from './planner'
-import { executeFacebookSearch, executeGoogleMapsSearch } from './tools'
+import {
+  executeFacebookSearch,
+  executeGoogleMapsSearch,
+  executeYellowPagesSearch,
+  executeYelpSearch
+} from './tools'
 import { AgentLead, AgentPreferences, AgentState, LogEntry, SearchTask } from './types'
 
 // Global state tracking
@@ -309,6 +314,10 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
         leads = await executeGoogleMapsSearch(task)
       } else if (task.source === 'facebook') {
         leads = await executeFacebookSearch(task)
+      } else if (task.source === 'yelp') {
+        leads = await executeYelpSearch(task)
+      } else if (task.source === 'yellow_pages') {
+        leads = await executeYellowPagesSearch(task)
       }
     } catch (error) {
       emitLog(sender, `⚠️ Search failed for ${taskLabel}: ${error}`, 'warning')

@@ -19,11 +19,11 @@ Each object must represent a search task and follow this structure:
 {
   "query": "string (the exact search term to use)",
   "location": "string (the specific city for this search)",
-  "source": "google_maps" | "facebook"
+  "source": "google_maps" | "facebook" | "yelp" | "yellow_pages"
 }
 
 Guidance:
-1. Create one Google Maps task and one Facebook task per location.
+1. Create one task per source per location (4 tasks per city: Google Maps, Facebook, Yelp, Yellow Pages).
 2. Keep queries simple: just the niche name works best.
 3. Do not include any explanation or markdown formatting. Just the raw JSON array.
 `
@@ -96,7 +96,7 @@ export async function planSearchStrategy(
     Niche: ${niche}
     Target Cities: ${allCityNames.join(', ')}
     
-    Create search tasks for each city (Google Maps + Facebook).
+    Create search tasks for each city (Google Maps + Facebook + Yelp + Yellow Pages).
   `
 
   const messages: ChatMessage[] = [
@@ -147,6 +147,26 @@ export async function planSearchStrategy(
         query: niche,
         location: cityInfo.city,
         source: 'facebook',
+        status: 'pending',
+        discoveredFromCountry: cityInfo.fromCountry
+      })
+
+      // Yelp task
+      fallbackTasks.push({
+        id: crypto.randomUUID(),
+        query: niche,
+        location: cityInfo.city,
+        source: 'yelp',
+        status: 'pending',
+        discoveredFromCountry: cityInfo.fromCountry
+      })
+
+      // Yellow Pages task
+      fallbackTasks.push({
+        id: crypto.randomUUID(),
+        query: niche,
+        location: cityInfo.city,
+        source: 'yellow_pages',
         status: 'pending',
         discoveredFromCountry: cityInfo.fromCountry
       })
