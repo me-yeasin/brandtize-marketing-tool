@@ -295,6 +295,13 @@ export interface BrandtizeAPI {
   }) => Promise<FacebookPageLead[]>
   scrapeFacebookPageUrls: (urls: string[]) => Promise<FacebookPageLead[]>
   isApifyConfigured: () => Promise<boolean>
+
+  // Agent (Automation)
+  startAgent: (preferences: unknown) => void
+  stopAgent: () => void
+  onAgentLog: (callback: (log: unknown) => void) => () => void
+  onAgentLeadFound: (callback: (lead: unknown) => void) => () => void
+  onAgentStopped: (callback: () => void) => () => void
 }
 
 // Saved Maps Lead type

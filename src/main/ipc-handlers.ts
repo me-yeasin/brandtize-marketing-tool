@@ -17,6 +17,7 @@ import {
   getApiKeys,
   getApifyApiKey,
   getApifyApiKeys,
+  getEmailPitches,
   getGoogleApiKeys,
   getGroqApiKeys,
   getHunterApiKeys,
@@ -24,7 +25,6 @@ import {
   getMailCampaignGroups,
   getMailCampaigns,
   getMistralApiKeys,
-  getEmailPitches,
   getReoonApiKeys,
   getSavedFacebookLeads,
   getSavedMapsLeads,
@@ -683,5 +683,18 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('get-email-pitches', () => {
     return getEmailPitches()
+  })
+
+  // ========================================
+  // AGENT
+  // ========================================
+  ipcMain.on('agent:start', async (event, preferences) => {
+    const { startAgent } = await import('./services/agent/graph')
+    startAgent(preferences, event.sender)
+  })
+
+  ipcMain.on('agent:stop', async () => {
+    const { stopAgent } = await import('./services/agent/graph')
+    stopAgent()
   })
 }

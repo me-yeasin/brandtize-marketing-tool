@@ -73,85 +73,6 @@ function AutomationPage(): JSX.Element {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
 
-  // Mock simulation effect
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (isRunning) {
-      const actions: { msg: string; type: LogEntry['type']; lead?: FoundLead }[] = [
-        { msg: 'Initializing AI Agent...', type: 'info' },
-        { msg: `Targeting Niche: ${niche || 'General'}`, type: 'info' },
-        { msg: 'Connecting to Serper Google Maps API...', type: 'info' },
-        { msg: 'Scraping Page 1 for "New York"...', type: 'info' },
-        {
-          msg: 'Found: "Smile Dental Clinic" (+1 555-0123)',
-          type: 'success',
-          lead: {
-            id: 'l1',
-            name: 'Smile Dental Clinic',
-            category: 'Dental Clinic',
-            address: '123 Main St, New York, NY',
-            phone: '+1 555-0123',
-            website: 'www.smiledental.com',
-            rating: 4.8,
-            reviewCount: 124,
-            source: 'Maps',
-            status: 'Qualified'
-          }
-        },
-        { msg: 'Filtering leads (Website check)...', type: 'warning' },
-        { msg: 'Switching to Facebook Page Scraper...', type: 'info' },
-        { msg: 'Analyzing social signals...', type: 'info' },
-        {
-          msg: 'Found: "Mario\'s Pizza" (Email found)',
-          type: 'success',
-          lead: {
-            id: 'l2',
-            name: "Mario's Pizza",
-            category: 'Italian Restaurant',
-            address: '456 Oak Ave, New York, NY',
-            phone: '+1 555-9876',
-            email: 'contact@mariospizza.nyc',
-            emailVerified: true,
-            hasWhatsApp: true,
-            rating: 4.5,
-            reviewCount: 89,
-            source: 'Facebook',
-            status: 'Qualified'
-          }
-        },
-        { msg: 'Moving to Page 2...', type: 'info' }
-      ]
-      let step = 0
-
-      interval = setInterval(() => {
-        if (step < actions.length) {
-          const action = actions[step]
-          addLog(action.msg, action.type)
-          if (action.lead) {
-            setFoundLeads((prev) => [...prev, action.lead!])
-          }
-          step++
-        } else {
-          // Loop random logs
-          const randomAction = actions[Math.floor(Math.random() * actions.length)]
-          addLog(randomAction.msg, randomAction.type)
-        }
-      }, 2000)
-    }
-    return () => clearInterval(interval)
-  }, [isRunning, niche])
-
-  // Track previous lead count to trigger auto-open only on 0 -> 1 transition
-  const prevLeadCountRef = useRef(0)
-
-  // Auto-open panel when leads are found
-  useEffect(() => {
-    if (foundLeads.length === 1 && prevLeadCountRef.current === 0) {
-      setIsPanelOpen(true)
-    }
-    prevLeadCountRef.current = foundLeads.length
-  }, [foundLeads])
-
   const addLog = (
     message: string,
     type: 'info' | 'success' | 'warning' | 'error' = 'info'
@@ -164,6 +85,42 @@ function AutomationPage(): JSX.Element {
     }
     setLogs((prev) => [...prev, newLog])
   }
+
+  // IPC Event Listeners
+  useEffect(() => {
+    // Listen for logs
+    const removeLogListener = window.api.onAgentLog((log) => {
+      setLogs((prev) => [...prev, log as LogEntry])
+    })
+
+    // Listen for found leads
+    const removeLeadListener = window.api.onAgentLeadFound((lead) => {
+      setFoundLeads((prev) => [...prev, lead as FoundLead])
+    })
+
+    // Listen for stop event
+    const removeStopListener = window.api.onAgentStopped(() => {
+      setIsRunning(false)
+      addLog('Agent process finished.', 'info')
+    })
+
+    return () => {
+      removeLogListener()
+      removeLeadListener()
+      removeStopListener()
+    }
+  }, [])
+
+  // Track previous lead count to trigger auto-open only on 0 -> 1 transition
+  const prevLeadCountRef = useRef(0)
+
+  // Auto-open panel when leads are found
+  useEffect(() => {
+    if (foundLeads.length === 1 && prevLeadCountRef.current === 0) {
+      setTimeout(() => setIsPanelOpen(true), 0)
+    }
+    prevLeadCountRef.current = foundLeads.length
+  }, [foundLeads])
 
   const handleAddLocation = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' && locationInput.trim()) {
@@ -188,12 +145,26 @@ function AutomationPage(): JSX.Element {
       return
     }
     setIsRunning(true)
-    addLog('Agent process started', 'success')
+    clearLogs()
+
+    // Send start command to main process
+    try {
+      window.api.startAgent({
+        niche,
+        locations: locations.length > 0 ? locations : [locationInput].filter(Boolean),
+        leadLimit,
+        filters
+      })
+    } catch (error) {
+      console.error('Failed to start agent:', error)
+      setIsRunning(false)
+      addLog('Failed to start agent process', 'error')
+    }
   }
 
   const handleStop = (): void => {
-    setIsRunning(false)
-    addLog('Agent process stopped by user', 'warning')
+    window.api.stopAgent()
+    addLog('Stopping agent...', 'warning')
   }
 
   const clearLogs = (): void => setLogs([])

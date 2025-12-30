@@ -537,5 +537,29 @@ contextBridge.exposeInMainWorld('api', {
     }[]
   > => ipcRenderer.invoke('scrape-facebook-page-urls', urls),
 
-  isApifyConfigured: (): Promise<boolean> => ipcRenderer.invoke('is-apify-configured')
+  isApifyConfigured: (): Promise<boolean> => ipcRenderer.invoke('is-apify-configured'),
+
+  // ========================================
+  // AGENT (Automation)
+  // ========================================
+  startAgent: (preferences: unknown): void => ipcRenderer.send('agent:start', preferences),
+  stopAgent: (): void => ipcRenderer.send('agent:stop'),
+
+  onAgentLog: (callback: (log: unknown) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, log: unknown): void => callback(log)
+    ipcRenderer.on('agent-log', listener)
+    return () => ipcRenderer.removeListener('agent-log', listener)
+  },
+
+  onAgentLeadFound: (callback: (lead: unknown) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, lead: unknown): void => callback(lead)
+    ipcRenderer.on('agent-lead-found', listener)
+    return () => ipcRenderer.removeListener('agent-lead-found', listener)
+  },
+
+  onAgentStopped: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('agent-stopped', listener)
+    return () => ipcRenderer.removeListener('agent-stopped', listener)
+  }
 })
