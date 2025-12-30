@@ -15,7 +15,10 @@ const YELLOWPAGES_MAX_RESULTS = 50
 const TRIPADVISOR_MAX_RESULTS = 50
 const TRUSTPILOT_MAX_RESULTS = 50
 
-export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeGoogleMapsSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -35,7 +38,8 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
       location: fullLocation,
       num: MAPS_RESULTS_PER_PAGE,
       autocomplete: true,
-      maxPages: maxPages
+      maxPages: maxPages,
+      signal
     })
 
     console.log(`[GoogleMaps] Retrieved ${places.length} total places`)
@@ -46,7 +50,10 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
   }
 }
 
-export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeFacebookSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -60,7 +67,8 @@ export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead
 
     const leads = await searchFacebookPages({
       searchQuery: searchQuery,
-      maxResults: effectiveLimit
+      maxResults: effectiveLimit,
+      signal
     })
 
     console.log(`[Facebook] Retrieved ${leads.length} leads`)
@@ -71,7 +79,11 @@ export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead
   }
 }
 
-export async function executeYelpSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeYelpSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
+  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -96,7 +108,11 @@ export async function executeYelpSearch(task: SearchTask): Promise<AgentLead[]> 
   }
 }
 
-export async function executeYellowPagesSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeYellowPagesSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
+  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -123,7 +139,11 @@ export async function executeYellowPagesSearch(task: SearchTask): Promise<AgentL
   }
 }
 
-export async function executeTripAdvisorSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeTripAdvisorSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
+  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`
@@ -150,7 +170,11 @@ export async function executeTripAdvisorSearch(task: SearchTask): Promise<AgentL
   }
 }
 
-export async function executeTrustpilotSearch(task: SearchTask): Promise<AgentLead[]> {
+export async function executeTrustpilotSearch(
+  task: SearchTask,
+  signal?: AbortSignal
+): Promise<AgentLead[]> {
+  if (signal?.aborted) return []
   try {
     const fullLocation = task.discoveredFromCountry
       ? `${task.location}, ${task.discoveredFromCountry}`

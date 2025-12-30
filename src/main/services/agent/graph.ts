@@ -16,12 +16,17 @@ import { AgentLead, AgentPreferences, AgentState, LogEntry, SearchTask } from '.
 let currentState: AgentState | null = null
 let stopRequested = false
 let seenLeadKeys: Set<string> = new Set() // For deduplication
+let globalAbortController: AbortController | null = null
 
 // Configuration for never-stop behavior
 const MAX_EXPANSION_ROUNDS = 10 // Maximum rounds of expansion before giving up
 
 export function stopAgent(): void {
   stopRequested = true
+  if (globalAbortController) {
+    globalAbortController.abort()
+    globalAbortController = null
+  }
 }
 
 function emitLog(sender: WebContents, message: string, type: LogEntry['type'] = 'info'): void {
@@ -56,7 +61,9 @@ export async function startAgent(
   sender: WebContents
 ): Promise<void> {
   stopRequested = false
+  stopRequested = false
   seenLeadKeys = new Set() // Reset deduplication tracking
+  globalAbortController = new AbortController()
 
   currentState = {
     preferences,
@@ -141,7 +148,12 @@ async function neverStopLoop(sender: WebContents, initialTasks: SearchTask[]): P
   const usedQueries: string[] = [currentState!.preferences.niche]
 
   // MAIN WHILE LOOP - Never stops until goal reached or max rounds
-  while (!stopRequested && !isGoalReached(currentState!) && expansionRound < MAX_EXPANSION_ROUNDS) {
+  while (
+    !stopRequested &&
+    !isGoalReached(currentState!) &&
+    expansionRound < MAX_EXPANSION_ROUNDS &&
+    !globalAbortController?.signal.aborted
+  ) {
     // Execute pending tasks
     if (pendingTasks.length > 0) {
       emitLog(
@@ -149,12 +161,13 @@ async function neverStopLoop(sender: WebContents, initialTasks: SearchTask[]): P
         `📊 Round ${expansionRound + 1}: ${pendingTasks.length} tasks pending`,
         'info'
       )
-      await executeTasks(sender, pendingTasks)
+      await executeTasks(sender, pendingTasks, globalAbortController!.signal)
       pendingTasks = [] // Clear after execution
     }
 
     // Check if we need to continue
-    if (stopRequested || isGoalReached(currentState!)) break
+    if (stopRequested || isGoalReached(currentState!) || globalAbortController?.signal.aborted)
+      break
 
     // EXPANSION STRATEGIES
     expansionRound++
@@ -294,7 +307,11 @@ async function generateMoreTasks(
 // Actually, to "return early", we need the main function to await a "Goal Reached" signal OR "All Done" signal.
 
 /* RE-IMPLEMENTATION OF EXECUTION LOGIC */
-async function executeTaskBatchRace(sender: WebContents, tasks: SearchTask[]): Promise<void> {
+async function executeTaskBatchRace(
+  sender: WebContents,
+  tasks: SearchTask[],
+  signal: AbortSignal
+): Promise<void> {
   // Shared state implies we just launch them all.
   // We want to return AS SOON AS goal reached or ALL finished.
 
@@ -312,19 +329,35 @@ async function executeTaskBatchRace(sender: WebContents, tasks: SearchTask[]): P
       return
     }
 
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+
+    const onAbort = (): void => {
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort)
+
     tasks.forEach((task) => {
       // DYNAMIC LIMIT
       const needed = currentState!.targetLeadCount - currentState!.currentLeadCount
       const limit = Math.max(5, needed + 5)
       task.limit = limit
 
-      executeSourceAndProcess(sender, task).finally(() => {
-        activeCount--
-        // Check if we should finish
-        if (isGoalReached(currentState!) || activeCount === 0) {
-          resolve() // This releases the main loop!
-        }
-      })
+      executeSourceAndProcess(sender, task, signal)
+        .finally(() => {
+          activeCount--
+          // Check if we should finish
+          if (isGoalReached(currentState!) || activeCount === 0 || signal.aborted) {
+            signal.removeEventListener('abort', onAbort)
+            resolve() // This releases the main loop!
+          }
+        })
+        .catch((err) => {
+          // If detailed error handling needed
+          console.error('Task error:', err)
+        })
     })
   })
 }
@@ -332,7 +365,11 @@ async function executeTaskBatchRace(sender: WebContents, tasks: SearchTask[]): P
 /**
  * Execute a single source, process its results, and update state.
  */
-async function executeSourceAndProcess(sender: WebContents, task: SearchTask): Promise<void> {
+async function executeSourceAndProcess(
+  sender: WebContents,
+  task: SearchTask,
+  signal: AbortSignal
+): Promise<void> {
   // If goal already reached (by another fast task), skip execution if possible
   if (isGoalReached(currentState!)) return
 
@@ -341,17 +378,17 @@ async function executeSourceAndProcess(sender: WebContents, task: SearchTask): P
 
     // Execute specific tool
     if (task.source === 'google_maps') {
-      leads = await executeGoogleMapsSearch(task)
+      leads = await executeGoogleMapsSearch(task, signal)
     } else if (task.source === 'facebook') {
-      leads = await executeFacebookSearch(task)
+      leads = await executeFacebookSearch(task, signal)
     } else if (task.source === 'yelp') {
-      leads = await executeYelpSearch(task)
+      leads = await executeYelpSearch(task, signal)
     } else if (task.source === 'yellow_pages') {
-      leads = await executeYellowPagesSearch(task)
+      leads = await executeYellowPagesSearch(task, signal)
     } else if (task.source === 'tripadvisor') {
-      leads = await executeTripAdvisorSearch(task)
+      leads = await executeTripAdvisorSearch(task, signal)
     } else if (task.source === 'trustpilot') {
-      leads = await executeTrustpilotSearch(task)
+      leads = await executeTrustpilotSearch(task, signal)
     }
 
     // Post-process immediately
@@ -360,6 +397,9 @@ async function executeSourceAndProcess(sender: WebContents, task: SearchTask): P
     }
   } catch (error) {
     console.error(`[${task.source}] Search failed:`, error)
+    if (error instanceof Error && error.message === 'Aborted') {
+      return // Ignore abort errors
+    }
     emitLog(sender, `⚠️ Source failed: ${task.source} - ${error}`, 'warning')
   }
 }
@@ -374,7 +414,12 @@ async function processLeadsBatch(
   location: string
 ): Promise<void> {
   // 1. Goal Check
-  if (isGoalReached(currentState!)) return
+  if (isGoalReached(currentState!)) {
+    if (globalAbortController) {
+      globalAbortController.abort() // Cancel other running tasks immediately
+    }
+    return
+  }
 
   emitLog(sender, `✅ ${source}: ${leads.length} leads`, 'success')
 
@@ -455,7 +500,12 @@ async function processLeadsBatch(
     }
 
     // 5. Check Goal Again
-    if (isGoalReached(currentState!)) break
+    if (isGoalReached(currentState!)) {
+      if (globalAbortController) {
+        globalAbortController.abort()
+      }
+      break
+    }
   }
 
   if (addedCount > 0) {
@@ -473,7 +523,11 @@ async function processLeadsBatch(
 // --------------------------------------------------------
 // Wrapper to replace original executeTasks
 // --------------------------------------------------------
-async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<void> {
+async function executeTasks(
+  sender: WebContents,
+  tasks: SearchTask[],
+  signal: AbortSignal
+): Promise<void> {
   const tasksByLocation = new Map<string, SearchTask[]>()
   for (const task of tasks) {
     const key = task.discoveredFromCountry
@@ -496,5 +550,5 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
   }
 
   // Run batch with Race Logic
-  await executeTaskBatchRace(sender, tasks)
+  await executeTaskBatchRace(sender, tasks, signal)
 }

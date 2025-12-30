@@ -45,6 +45,7 @@ export interface FacebookSearchParams {
   searchQuery?: string // Keyword search (e.g., "restaurants dhaka")
   pageUrls?: string[] // Direct page URLs to scrape
   maxResults?: number // Limit results (default 100)
+  signal?: AbortSignal
 }
 
 // Calculate lead score based on engagement and contact info
@@ -208,7 +209,8 @@ async function runActorWithProxyFallback(
   client: ApifyClient,
   actorId: string,
   actorInput: Record<string, unknown>,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  signal?: AbortSignal
 ): Promise<{ defaultDatasetId: string }> {
   const attempts: Record<string, unknown>[] = [
     {
@@ -223,9 +225,23 @@ async function runActorWithProxyFallback(
 
   for (const input of attempts) {
     try {
-      const run = await client.actor(actorId).call(input, { timeout: timeoutSeconds })
-      return { defaultDatasetId: run.defaultDatasetId }
+      const runPromise = client.actor(actorId).call(input, { timeout: timeoutSeconds })
+
+      if (signal) {
+        if (signal.aborted) throw new Error('Aborted')
+        const abortPromise = new Promise<{ defaultDatasetId: string }>((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('Aborted')))
+        })
+        const run = await Promise.race([runPromise, abortPromise])
+        return { defaultDatasetId: run.defaultDatasetId }
+      } else {
+        const run = await runPromise
+        return { defaultDatasetId: run.defaultDatasetId }
+      }
     } catch (error) {
+      if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+        throw error // Propagate abort immediately
+      }
       lastError = error
     }
   }
@@ -295,7 +311,8 @@ export async function searchFacebookPages(
       client,
       'apify/facebook-search-scraper',
       actorInput,
-      timeoutSeconds
+      timeoutSeconds,
+      params.signal
     )
 
     console.log('[FacebookScraper] Run completed, fetching results...')
@@ -324,7 +341,10 @@ export async function searchFacebookPages(
 /**
  * Scrape specific Facebook page URLs using Apify Facebook Pages Scraper
  */
-export async function scrapeFacebookPageUrls(urls: string[]): Promise<FacebookPageLead[]> {
+export async function scrapeFacebookPageUrls(
+  urls: string[],
+  signal?: AbortSignal
+): Promise<FacebookPageLead[]> {
   console.log('[FacebookScraper] Scraping', urls.length, 'Facebook page URLs')
 
   if (!urls || urls.length === 0) {
@@ -343,7 +363,8 @@ export async function scrapeFacebookPageUrls(urls: string[]): Promise<FacebookPa
       client,
       'apify/facebook-pages-scraper',
       { startUrls: urls.map((url) => ({ url })) },
-      timeoutSeconds
+      timeoutSeconds,
+      signal
     )
 
     console.log('[FacebookScraper] Run completed, fetching results...')

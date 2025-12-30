@@ -171,7 +171,8 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ q: query, num: 10, page })
+      body: JSON.stringify({ q: query, num: 10, page }),
+      signal: undefined // serper search not yet used in agent loop directly, but good practice
     })
   }
 
@@ -263,6 +264,7 @@ export interface MapsSearchParams {
   start?: number // Pagination offset: 0 (page 1), 20 (page 2), 40 (page 3), etc.
   autocomplete?: boolean // Whether to auto-fetch multiple pages
   maxPages?: number // Max pages to fetch when autocomplete is true (default 3)
+  signal?: AbortSignal // Cancellation signal
 }
 
 export async function searchMapsWithSerper(params: MapsSearchParams): Promise<MapsPlace[]> {
@@ -325,7 +327,8 @@ export async function searchMapsWithSerper(params: MapsSearchParams): Promise<Ma
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: params.signal
     })
   }
 
@@ -479,7 +482,8 @@ export interface ReviewsResult {
 export async function fetchReviewsWithSerper(
   placeId: string,
   businessName: string,
-  num: number = 10
+  num: number = 10,
+  signal?: AbortSignal
 ): Promise<ReviewsResult> {
   const multiKeys = getSerperApiKeys()
   const singleKey = getApiKeys().serperApiKey
@@ -507,7 +511,8 @@ export async function fetchReviewsWithSerper(
       body: JSON.stringify({
         cid: placeId,
         num: num
-      })
+      }),
+      signal: signal
     })
   }
 
@@ -632,7 +637,7 @@ export async function fetchReviewsWithSerper(
 }
 
 // Jina Reader API - Content Scraping with key rotation on rate limit
-export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
+export async function scrapeWithJina(url: string, signal?: AbortSignal): Promise<ScrapedContent> {
   const multiKeys = getJinaApiKeys()
   const singleKey = getApiKeys().jinaApiKey
 
@@ -654,7 +659,8 @@ export async function scrapeWithJina(url: string): Promise<ScrapedContent> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         Accept: 'text/plain'
-      }
+      },
+      signal: signal
     })
   }
 
