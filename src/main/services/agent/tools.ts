@@ -1,5 +1,6 @@
 import { FacebookPageLead, searchFacebookPages } from '../facebook-scraper'
 import { MapsPlace, searchMapsWithSerper } from '../lead-generation'
+import { searchTripAdvisorBusinesses, TripAdvisorBusiness } from '../tripadvisor-scraper'
 import { searchYellowPagesBusinesses, YellowPagesBusiness } from '../yellowpages-scraper'
 import { searchYelpBusinesses, YelpBusiness } from '../yelp-scraper'
 import { AgentLead, SearchTask } from './types'
@@ -10,6 +11,7 @@ const MAPS_RESULTS_PER_PAGE = 20
 const FACEBOOK_MAX_RESULTS = 50
 const YELP_MAX_RESULTS = 50
 const YELLOWPAGES_MAX_RESULTS = 50
+const TRIPADVISOR_MAX_RESULTS = 50
 
 export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLead[]> {
   try {
@@ -107,6 +109,30 @@ export async function executeYellowPagesSearch(task: SearchTask): Promise<AgentL
   }
 }
 
+export async function executeTripAdvisorSearch(task: SearchTask): Promise<AgentLead[]> {
+  try {
+    const fullLocation = task.discoveredFromCountry
+      ? `${task.location}, ${task.discoveredFromCountry}`
+      : task.location
+
+    console.log(
+      `[TripAdvisor] Searching "${task.query}" in "${fullLocation}" (limit: ${TRIPADVISOR_MAX_RESULTS})`
+    )
+
+    const businesses = await searchTripAdvisorBusinesses({
+      query: task.query,
+      location: fullLocation,
+      maxResults: TRIPADVISOR_MAX_RESULTS
+    })
+
+    console.log(`[TripAdvisor] Retrieved ${businesses.length} businesses`)
+    return businesses.map(mapTripAdvisorBusinessToLead)
+  } catch (error) {
+    console.error(`TripAdvisor search failed for "${task.query}":`, error)
+    return []
+  }
+}
+
 function mapMapsPlaceToLead(place: MapsPlace): AgentLead {
   return {
     id: place.cid || crypto.randomUUID(),
@@ -180,6 +206,28 @@ function mapYellowPagesBusinessToLead(business: YellowPagesBusiness): AgentLead 
     status: 'Pending',
     metadata: {
       yellowPagesUrl: business.yellowPagesUrl || ''
+    }
+  }
+}
+
+function mapTripAdvisorBusinessToLead(business: TripAdvisorBusiness): AgentLead {
+  return {
+    id: business.id || crypto.randomUUID(),
+    name: business.name || 'Unknown Business',
+    category: business.category || business.subcategories?.[0] || 'TripAdvisor Business',
+    address: business.address || business.city || '',
+    phone: business.phone || undefined,
+    email: business.email || undefined,
+    website: business.website || undefined,
+    rating: business.rating || undefined,
+    reviewCount: business.reviewCount || undefined,
+    source: 'TripAdvisor',
+    status: 'Pending',
+    metadata: {
+      tripAdvisorUrl: business.tripAdvisorUrl || '',
+      priceLevel: business.priceLevel || '',
+      latitude: business.latitude,
+      longitude: business.longitude
     }
   }
 }

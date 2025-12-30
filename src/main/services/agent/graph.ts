@@ -5,6 +5,7 @@ import { expandSearchForCountry, planSearchStrategy } from './planner'
 import {
   executeFacebookSearch,
   executeGoogleMapsSearch,
+  executeTripAdvisorSearch,
   executeYellowPagesSearch,
   executeYelpSearch
 } from './tools'
@@ -318,6 +319,8 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
         leads = await executeYelpSearch(task)
       } else if (task.source === 'yellow_pages') {
         leads = await executeYellowPagesSearch(task)
+      } else if (task.source === 'tripadvisor') {
+        leads = await executeTripAdvisorSearch(task)
       }
     } catch (error) {
       emitLog(sender, `⚠️ Search failed for ${taskLabel}: ${error}`, 'warning')
