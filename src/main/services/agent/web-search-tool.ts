@@ -23,14 +23,9 @@ export async function webSearchTool(query: string): Promise<SearchResult[]> {
 export async function searchBestCitiesForNiche(
   country: string,
   niche: string,
-  services?: string,
   filterNoWebsite?: boolean
 ): Promise<SearchResult[]> {
   let query = `best cities in ${country} for ${niche} businesses`
-
-  if (services) {
-    query += ` that need ${services}`
-  }
 
   if (filterNoWebsite) {
     query += ` with low online presence no website`

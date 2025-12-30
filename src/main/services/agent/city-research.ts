@@ -11,13 +11,13 @@ export async function researchBestCities(
   country: string,
   preferences: AgentPreferences
 ): Promise<string[]> {
-  const { niche, services, filters } = preferences
+  const { niche, filters } = preferences
   const filterNoWebsite = filters.hasWebsite // When true, we want businesses WITHOUT websites
 
   console.log(`[CityResearch] Researching best cities in ${country} for "${niche}"...`)
 
   // 1. Search for best cities
-  const searchResults = await searchBestCitiesForNiche(country, niche, services, filterNoWebsite)
+  const searchResults = await searchBestCitiesForNiche(country, niche, filterNoWebsite)
 
   if (searchResults.length === 0) {
     console.log(`[CityResearch] No search results, falling back to competition analysis`)
@@ -47,7 +47,6 @@ export async function researchBestCities(
   const cities = await extractCitiesWithAI(
     country,
     niche,
-    services || '',
     filterNoWebsite,
     searchResults.map((r) => r.snippet).join('\n'),
     additionalContext
@@ -63,7 +62,6 @@ export async function researchBestCities(
 async function extractCitiesWithAI(
   country: string,
   niche: string,
-  services: string,
   filterNoWebsite: boolean,
   snippets: string,
   detailedContent: string
@@ -74,7 +72,6 @@ async function extractCitiesWithAI(
 
   const prompt = `Based on the following research about ${niche} businesses in ${country}, extract 5-7 specific city names that would be the best targets for lead generation.
 
-${services ? `Our services: ${services}` : ''}
 ${filterContext}
 
 Search snippets:

@@ -1,6 +1,5 @@
 export interface AgentPreferences {
   niche: string
-  services?: string
   locations: string[]
   leadLimit: number
   filters: {

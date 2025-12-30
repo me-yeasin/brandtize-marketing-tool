@@ -49,7 +49,6 @@ interface FoundLead {
 function AutomationPage(): JSX.Element {
   // State for inputs
   const [niche, setNiche] = useState('')
-  const [services, setServices] = useState('')
   const [locationInput, setLocationInput] = useState('')
   const [locations, setLocations] = useState<string[]>([])
   const [leadLimit, setLeadLimit] = useState(100)
@@ -152,7 +151,6 @@ function AutomationPage(): JSX.Element {
     try {
       window.api.startAgent({
         niche,
-        services,
         locations: locations.length > 0 ? locations : [locationInput].filter(Boolean),
         leadLimit,
         filters
@@ -233,17 +231,6 @@ function AutomationPage(): JSX.Element {
               </div>
 
               <div className="form-group">
-                <label>Our Services (Optional)</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g., Web Design, Social Media Marketing"
-                  value={services}
-                  onChange={(e) => setServices(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
                 <label>Target Locations (City or Country)</label>
                 <input
                   type="text"
@@ -294,7 +281,7 @@ function AutomationPage(): JSX.Element {
                 <div className="toggle-group">
                   <div className="toggle-item">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <FaLaptop size={14} color="#a8a29e" /> <span>Website Available</span>
+                      <FaLaptop size={14} color="#a8a29e" /> <span>No Website</span>
                     </div>
                     <label className="switch">
                       <input
@@ -557,6 +544,15 @@ function AutomationPage(): JSX.Element {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className="badge badge-source">{lead.source}</span>
+                    {lead.website ? (
+                      <span className="badge" style={{ background: '#166534', color: '#bbf7d0' }}>
+                        Has Website
+                      </span>
+                    ) : (
+                      <span className="badge" style={{ background: '#7c2d12', color: '#fed7aa' }}>
+                        No Website
+                      </span>
+                    )}
                     {lead.rating && (
                       <span
                         style={{

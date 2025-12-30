@@ -4,9 +4,17 @@ import { AgentLead, SearchTask } from './types'
 
 export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLead[]> {
   try {
+    // Build location string with country for more accurate results
+    // e.g., "Dhaka, Bangladesh" instead of just "Dhaka"
+    const fullLocation = task.discoveredFromCountry
+      ? `${task.location}, ${task.discoveredFromCountry}`
+      : task.location
+
+    console.log(`[GoogleMaps] Searching "${task.query}" in "${fullLocation}"`)
+
     const places = await searchMapsWithSerper({
       query: task.query,
-      location: task.location,
+      location: fullLocation,
       num: 20 // Fetch 20 results per task
     })
 
@@ -19,8 +27,17 @@ export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLe
 
 export async function executeFacebookSearch(task: SearchTask): Promise<AgentLead[]> {
   try {
+    // Include location in search query for Facebook
+    // e.g., "Restaurants in Dhaka, Bangladesh"
+    const fullLocation = task.discoveredFromCountry
+      ? `${task.location}, ${task.discoveredFromCountry}`
+      : task.location
+
+    const searchQuery = `${task.query} in ${fullLocation}`
+    console.log(`[Facebook] Searching "${searchQuery}"`)
+
     const leads = await searchFacebookPages({
-      searchQuery: task.query,
+      searchQuery: searchQuery,
       maxResults: 20
     })
 
