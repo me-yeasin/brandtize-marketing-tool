@@ -1,4 +1,5 @@
 import { JSX, useEffect, useState } from 'react'
+import { FaDatabase } from 'react-icons/fa'
 import ApiKeyCard from './ApiKeyCard'
 
 interface ApiKeyEntry {
@@ -58,19 +59,7 @@ function ApifySettings(): JSX.Element {
       <ApiKeyCard
         title="Apify"
         description="Web scraping and automation platform for Facebook data"
-        icon={
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-          </svg>
-        }
+        icon={<FaDatabase size={24} />}
         apiKey={apiKey}
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}

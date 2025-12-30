@@ -1,4 +1,5 @@
 import { JSX, useEffect, useState } from 'react'
+import { FaSearch } from 'react-icons/fa'
 import ApiKeyCard from './ApiKeyCard'
 
 interface ApiKeyEntry {
@@ -58,20 +59,7 @@ function SerperSettings(): JSX.Element {
       <ApiKeyCard
         title="Serper"
         description="Fast and affordable Google Search API"
-        icon={
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.3-4.3"></path>
-          </svg>
-        }
+        icon={<FaSearch size={24} />}
         apiKey={apiKey}
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}

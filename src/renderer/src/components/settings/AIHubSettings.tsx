@@ -1,4 +1,5 @@
 import { JSX, useEffect, useState } from 'react'
+import { FaBolt, FaCheck, FaCloud, FaNetworkWired } from 'react-icons/fa'
 
 type AiProvider = 'groq' | 'mistral' | 'google'
 
@@ -16,59 +17,21 @@ const providers: ProviderInfo[] = [
     name: 'groq',
     displayName: 'Groq',
     description: 'Ultra-fast LLM inference with Llama, Mixtral, and more. Best for speed.',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-      </svg>
-    )
+    icon: <FaBolt size={32} />
   },
   {
     id: 'google',
     name: 'gemini',
     displayName: 'Gemini',
     description: "Google's most capable AI model with multimodal abilities.",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <circle cx="12" cy="12" r="10"></circle>
-        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
-        <path d="M2 12h20"></path>
-      </svg>
-    )
+    icon: <FaNetworkWired size={32} />
   },
   {
     id: 'mistral',
     name: 'mistral',
     displayName: 'Mistral',
     description: 'Efficient and powerful open-weight models from Mistral AI.',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="32"
-        height="32"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
-      </svg>
-    )
+    icon: <FaCloud size={32} />
   }
 ]
 
@@ -159,18 +122,7 @@ function AIHubSettings(): JSX.Element {
               <div className="provider-card-action">
                 {isActive ? (
                   <button className="provider-btn active" disabled>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
+                    <FaCheck />
                     Active
                   </button>
                 ) : isConfigured ? (

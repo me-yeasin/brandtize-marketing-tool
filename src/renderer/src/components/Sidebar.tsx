@@ -1,5 +1,21 @@
 import { JSX, useState } from 'react'
-import { FaEnvelope, FaTelegramPlane, FaWhatsapp } from 'react-icons/fa'
+import {
+  FaAddressBook,
+  FaBug,
+  FaChevronDown,
+  FaEnvelope,
+  FaLinkedin,
+  FaPaperPlane,
+  FaReddit,
+  FaRobot,
+  FaSave,
+  FaSearchLocation,
+  FaShareAlt,
+  FaSignal,
+  FaTelegramPlane,
+  FaTwitter,
+  FaWhatsapp
+} from 'react-icons/fa'
 import { TfiWrite } from 'react-icons/tfi'
 
 // Navigation structure with parent-child relationships
@@ -21,235 +37,61 @@ const navigationGroups: NavGroup[] = [
   {
     id: 'direct-reach',
     label: 'Direct Reach',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-      </svg>
-    ),
+    icon: <FaPaperPlane />,
     children: [
       {
         id: 'maps-scout',
         label: 'Maps Scout',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-        )
+        icon: <FaSearchLocation />
       },
 
       {
         id: 'bug-hunter',
         label: 'Bug Hunter',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="8" y="6" width="8" height="14" rx="4"></rect>
-            <path d="M19 7v2c0 .6-.4 1-1 1h-2"></path>
-            <path d="M5 7v2c0 .6.4 1 1 1h2"></path>
-            <path d="M19 15v2c0 .6-.4 1-1 1h-2"></path>
-            <path d="M5 15v2c0 .6.4 1 1 1h2"></path>
-            <path d="M12 6V3"></path>
-          </svg>
-        )
+        icon: <FaBug />
       },
       {
         id: 'direct-contact',
         label: 'Direct Contact',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-        )
+        icon: <FaAddressBook />
       },
 
       {
         id: 'social-leads',
         label: 'Social',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="2" y1="12" x2="22" y2="12"></line>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-          </svg>
-        )
+        icon: <FaShareAlt />
       },
       {
         id: 'automation',
         label: 'Automation',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-            <line x1="8" y1="21" x2="16" y2="21"></line>
-            <line x1="12" y1="17" x2="12" y2="21"></line>
-            <path d="M10 9l4 4"></path>
-            <path d="M14 9l-4 4"></path>
-          </svg>
-        )
+        icon: <FaRobot />
       },
       {
         id: 'saved-leads',
         label: 'Saved Leads',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <polyline points="17 21 17 13 7 13 7 21"></polyline>
-            <polyline points="7 3 7 8 15 8"></polyline>
-          </svg>
-        )
+        icon: <FaSave />
       }
     ]
   },
   {
     id: 'social-signal',
     label: 'Social Signal',
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="18" cy="5" r="3"></circle>
-        <circle cx="6" cy="12" r="3"></circle>
-        <circle cx="18" cy="19" r="3"></circle>
-        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-      </svg>
-    ),
+    icon: <FaSignal />,
     children: [
       {
         id: 'x-monitor',
         label: 'X Monitor',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
-          </svg>
-        )
+        icon: <FaTwitter />
       },
       {
         id: 'linkedin-pulse',
         label: 'LinkedIn Pulse',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-            <rect x="2" y="9" width="4" height="12"></rect>
-            <circle cx="4" cy="4" r="2"></circle>
-          </svg>
-        )
+        icon: <FaLinkedin />
       },
       {
         id: 'reddit-community',
         label: 'Reddit / Community',
-        icon: (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-        )
+        icon: <FaReddit />
       }
     ]
   },
@@ -319,20 +161,7 @@ function Sidebar({
           <span className="text-white text-lg font-medium">BRANDTIZE</span>
         </div>
         <button className="sidebar-close-btn" onClick={onToggle} title="Close Sidebar">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="11 17 6 12 11 7"></polyline>
-            <polyline points="18 17 13 12 18 7"></polyline>
-          </svg>
+          <FaChevronDown className="rotate-90" />
         </button>
       </div>
 
@@ -348,19 +177,7 @@ function Sidebar({
               <span className="nav-parent-icon">{group.icon}</span>
               <span className="nav-parent-label">{group.label}</span>
               <span className="nav-parent-arrow">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                <FaChevronDown size={14} />
               </span>
             </button>
 
@@ -392,19 +209,7 @@ function Sidebar({
                       <span
                         className={`nav-child-arrow transition-transform ${expandedGroups[child.id] ? 'rotate-180' : ''}`}
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
+                        <FaChevronDown size={12} />
                       </span>
                     )}
                   </button>

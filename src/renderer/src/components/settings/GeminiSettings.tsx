@@ -1,4 +1,5 @@
 import { JSX, useEffect, useState } from 'react'
+import { FaNetworkWired } from 'react-icons/fa'
 import ApiKeyCard from './ApiKeyCard'
 
 interface ApiKeyEntry {
@@ -58,21 +59,7 @@ function GeminiSettings(): JSX.Element {
       <ApiKeyCard
         title="Google Gemini"
         description="Google's most capable AI model with multimodal abilities"
-        icon={
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
-            <path d="M2 12h20"></path>
-          </svg>
-        }
+        icon={<FaNetworkWired size={24} />}
         apiKey={apiKey}
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}
