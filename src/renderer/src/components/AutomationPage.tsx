@@ -1,15 +1,15 @@
 import { JSX, useEffect, useRef, useState } from 'react'
 import {
-    FaEnvelope,
-    FaFilter,
-    FaLaptop,
-    FaLayerGroup,
-    FaMapMarkerAlt,
-    FaPhone,
-    FaPlay,
-    FaStop,
-    FaTerminal,
-    FaTrash
+  FaEnvelope,
+  FaFilter,
+  FaLaptop,
+  FaLayerGroup,
+  FaMapMarkerAlt,
+  FaPhone,
+  FaPlay,
+  FaStop,
+  FaTerminal,
+  FaTrash
 } from 'react-icons/fa'
 import './AutomationPage.css'
 
