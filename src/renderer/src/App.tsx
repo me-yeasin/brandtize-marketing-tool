@@ -1,6 +1,7 @@
 import { JSX, useCallback, useEffect, useState } from 'react'
 import { FaBars } from 'react-icons/fa'
 import AiCopywriterPage from './components/AiCopywriterPage'
+import AutomationPage from './components/AutomationPage'
 import MapsScoutPage from './components/MapsScoutPage'
 import SavedLeadsPage from './components/SavedLeadsPage'
 import SettingsPage from './components/SettingsPage'
@@ -77,21 +78,7 @@ function App(): JSX.Element {
       case 'saved-leads':
         return <SavedLeadsPage />
       case 'automation':
-        return (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              height: '100%',
-              fontSize: '2rem',
-              fontWeight: 'bold',
-              color: '#f1f5f9'
-            }}
-          >
-            Hello World
-          </div>
-        )
+        return <AutomationPage />
       default:
         return (
           <div className="page-content">
