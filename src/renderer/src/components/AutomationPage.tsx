@@ -49,6 +49,7 @@ interface FoundLead {
 function AutomationPage(): JSX.Element {
   // State for inputs
   const [niche, setNiche] = useState('')
+  const [services, setServices] = useState('')
   const [locationInput, setLocationInput] = useState('')
   const [locations, setLocations] = useState<string[]>([])
   const [leadLimit, setLeadLimit] = useState(100)
@@ -151,6 +152,7 @@ function AutomationPage(): JSX.Element {
     try {
       window.api.startAgent({
         niche,
+        services,
         locations: locations.length > 0 ? locations : [locationInput].filter(Boolean),
         leadLimit,
         filters
@@ -227,6 +229,17 @@ function AutomationPage(): JSX.Element {
                   placeholder="e.g. Dental Clinics, Italian Restaurants"
                   value={niche}
                   onChange={(e) => setNiche(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Our Services (Optional)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="e.g., Web Design, Social Media Marketing"
+                  value={services}
+                  onChange={(e) => setServices(e.target.value)}
                 />
               </div>
 
