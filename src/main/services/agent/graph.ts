@@ -351,9 +351,77 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
       const score = calculateLeadScore(lead)
       lead.metadata = { ...lead.metadata, score }
 
-      currentState!.results.push(lead)
-      currentState!.currentLeadCount++
-      emitLead(sender, lead)
+      // Auto-enrichment based on filter settings
+      const filters = currentState!.preferences.filters
+      let skipLead = false
+
+      // Auto-verify WhatsApp - skip leads without verified WhatsApp
+      if (filters.autoVerifyWA && lead.phone) {
+        const { enrichLeadWithWhatsApp } = await import('./lead-enrichment')
+        const waResult = await enrichLeadWithWhatsApp(lead)
+        if (waResult.hasWhatsApp !== undefined) {
+          lead.hasWhatsApp = waResult.hasWhatsApp
+          if (!waResult.hasWhatsApp) {
+            emitLog(sender, `⏭️ Skipped (no WhatsApp): ${lead.name}`, 'info')
+            skipLead = true
+          } else {
+            emitLog(sender, `✅ WhatsApp verified: ${lead.name}`, 'success')
+          }
+        }
+      } else if (filters.autoVerifyWA && !lead.phone) {
+        // No phone = skip if WhatsApp verification required
+        emitLog(sender, `⏭️ Skipped (no phone): ${lead.name}`, 'info')
+        skipLead = true
+      }
+
+      // Auto-verify Email - skip leads with invalid email
+      if (!skipLead && filters.autoVerifyEmail && lead.email) {
+        const { enrichLeadWithEmailVerification } = await import('./lead-enrichment')
+        const emailResult = await enrichLeadWithEmailVerification(lead)
+        if (emailResult.emailVerified !== undefined) {
+          lead.emailVerified = emailResult.emailVerified
+          if (!emailResult.emailVerified) {
+            emitLog(sender, `⏭️ Skipped (invalid email): ${lead.name}`, 'info')
+            skipLead = true
+          } else {
+            emitLog(sender, `✅ Email verified: ${lead.name}`, 'success')
+          }
+        }
+      } else if (!skipLead && filters.autoVerifyEmail && !lead.email) {
+        // No email = skip if email verification required
+        emitLog(sender, `⏭️ Skipped (no email): ${lead.name}`, 'info')
+        skipLead = true
+      }
+
+      // Auto-find and verify Email - skip leads where email not found or invalid
+      if (!skipLead && filters.autoFindEmail && !lead.email && lead.website) {
+        const { enrichLeadWithEmailFinder } = await import('./lead-enrichment')
+        const findResult = await enrichLeadWithEmailFinder(lead)
+        if (findResult.email) {
+          lead.email = findResult.email
+          lead.emailVerified = findResult.emailVerified
+          if (!findResult.emailVerified) {
+            emitLog(sender, `⏭️ Skipped (found but invalid): ${lead.name}`, 'info')
+            skipLead = true
+          } else {
+            emitLog(sender, `✅ Found & verified: ${lead.email}`, 'success')
+          }
+        } else {
+          emitLog(sender, `⏭️ Skipped (no email found): ${lead.name}`, 'info')
+          skipLead = true
+        }
+      } else if (!skipLead && filters.autoFindEmail && !lead.email && !lead.website) {
+        // No email and no website = skip if find email required
+        emitLog(sender, `⏭️ Skipped (no email/website): ${lead.name}`, 'info')
+        skipLead = true
+      }
+
+      // Only add lead if it passed all verification checks
+      if (!skipLead) {
+        currentState!.results.push(lead)
+        currentState!.currentLeadCount++
+        emitLead(sender, lead)
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 50))
     }

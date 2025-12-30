@@ -69,12 +69,45 @@ function AutomationPage(): JSX.Element {
     autoFindEmail: false
   })
 
+  // Service availability state
+  const [whatsappConnected, setWhatsappConnected] = useState(false)
+  const [hasReoonKey, setHasReoonKey] = useState(false)
+  const [hasEmailFinderKey, setHasEmailFinderKey] = useState(false)
+
+  // WhatsApp connection state
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
+  const [whatsAppQrCode, setWhatsAppQrCode] = useState<string | null>(null)
+  const [whatsAppInitializing, setWhatsAppInitializing] = useState(false)
+
   // Agent State
   const [isRunning, setIsRunning] = useState(false)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [foundLeads, setFoundLeads] = useState<FoundLead[]>([])
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
+
+  // Check service availability on mount
+  useEffect(() => {
+    const checkServices = async (): Promise<void> => {
+      try {
+        // Check WhatsApp status
+        const waStatus = await window.api.whatsappGetStatus()
+        setWhatsappConnected(waStatus?.isReady ?? false)
+
+        // Check API keys via getApiKeys
+        const apiKeys = await window.api.getApiKeys?.()
+        if (apiKeys) {
+          setHasReoonKey((apiKeys.reoonApiKey?.length ?? 0) > 0)
+          setHasEmailFinderKey(
+            (apiKeys.hunterApiKey?.length ?? 0) > 0 || (apiKeys.snovClientId?.length ?? 0) > 0
+          )
+        }
+      } catch (error) {
+        console.error('Error checking services:', error)
+      }
+    }
+    checkServices()
+  }, [])
 
   // Auto-scroll logs
   useEffect(() => {
@@ -92,6 +125,76 @@ function AutomationPage(): JSX.Element {
       type
     }
     setLogs((prev) => [...prev, newLog])
+  }
+
+  // WhatsApp event listeners
+  useEffect(() => {
+    const offQr = window.api.onWhatsAppQr((qr) => {
+      setWhatsAppQrCode(qr)
+      setShowWhatsAppModal(true)
+      setWhatsAppInitializing(false)
+    })
+
+    const offReady = window.api.onWhatsAppReady(() => {
+      setWhatsappConnected(true)
+      setWhatsAppQrCode(null)
+      setShowWhatsAppModal(false)
+      setWhatsAppInitializing(false)
+    })
+
+    const offDisconnected = window.api.onWhatsAppDisconnected(() => {
+      setWhatsappConnected(false)
+      setWhatsAppInitializing(false)
+    })
+
+    const offAuthFailure = window.api.onWhatsAppAuthFailure(() => {
+      setWhatsappConnected(false)
+      setWhatsAppInitializing(false)
+      setShowWhatsAppModal(false)
+    })
+
+    return () => {
+      offQr()
+      offReady()
+      offDisconnected()
+      offAuthFailure()
+    }
+  }, [])
+
+  // WhatsApp connect handler
+  const handleConnectWhatsApp = async (): Promise<void> => {
+    if (whatsappConnected) {
+      addLog('WhatsApp is already connected.', 'info')
+      return
+    }
+
+    setWhatsAppInitializing(true)
+    addLog('Initializing WhatsApp...', 'info')
+    try {
+      const result = await window.api.whatsappInitialize()
+      if (!result.success) {
+        addLog(result.error || 'Failed to initialize WhatsApp', 'error')
+        setWhatsAppInitializing(false)
+        return
+      }
+
+      const status = await window.api.whatsappGetStatus()
+      setWhatsappConnected(status.isReady)
+      if (status.qrCode) {
+        setWhatsAppQrCode(status.qrCode)
+        setShowWhatsAppModal(true)
+        setWhatsAppInitializing(false)
+      } else if (status.isReady) {
+        setWhatsAppQrCode(null)
+        setShowWhatsAppModal(false)
+        setWhatsAppInitializing(false)
+        addLog('WhatsApp connected successfully!', 'success')
+      }
+    } catch (err) {
+      console.error('WhatsApp init error:', err)
+      addLog('Failed to initialize WhatsApp', 'error')
+      setWhatsAppInitializing(false)
+    }
   }
 
   // IPC Event Listeners
@@ -334,46 +437,72 @@ function AutomationPage(): JSX.Element {
               <div className="form-group">
                 <label>Advanced Actions</label>
                 <div className="toggle-group">
+                  {/* Auto-Verify WhatsApp */}
                   <div className="toggle-item">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <FaWhatsapp size={14} color="#a8a29e" /> <span>Auto-Verify WhatsApp</span>
                     </div>
-                    <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={filters.autoVerifyWA}
-                        onChange={() => toggleFilter('autoVerifyWA')}
-                      />
-                      <span className="slider"></span>
-                    </label>
+                    {whatsappConnected ? (
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={filters.autoVerifyWA}
+                          onChange={() => toggleFilter('autoVerifyWA')}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    ) : (
+                      <button
+                        className="btn-primary"
+                        style={{ padding: '4px 12px', fontSize: '0.75rem' }}
+                        onClick={handleConnectWhatsApp}
+                        disabled={whatsAppInitializing}
+                      >
+                        {whatsAppInitializing ? 'Connecting...' : 'Connect WhatsApp'}
+                      </button>
+                    )}
                   </div>
 
+                  {/* Auto-Verify Email */}
                   <div className="toggle-item">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <FaCheck size={14} color="#a8a29e" /> <span>Auto-Verify Email</span>
                     </div>
-                    <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={filters.autoVerifyEmail}
-                        onChange={() => toggleFilter('autoVerifyEmail')}
-                      />
-                      <span className="slider"></span>
-                    </label>
+                    {hasReoonKey ? (
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={filters.autoVerifyEmail}
+                          onChange={() => toggleFilter('autoVerifyEmail')}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', color: '#ef4444' }}>
+                        Add Reoon API key
+                      </span>
+                    )}
                   </div>
 
+                  {/* Auto-Find Email */}
                   <div className="toggle-item">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <FaSearch size={14} color="#a8a29e" /> <span>Auto-Find & Verify Email</span>
                     </div>
-                    <label className="switch">
-                      <input
-                        type="checkbox"
-                        checked={filters.autoFindEmail}
-                        onChange={() => toggleFilter('autoFindEmail')}
-                      />
-                      <span className="slider"></span>
-                    </label>
+                    {hasEmailFinderKey ? (
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={filters.autoFindEmail}
+                          onChange={() => toggleFilter('autoFindEmail')}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', color: '#ef4444' }}>
+                        Add Hunter/Snov key
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -615,6 +744,75 @@ function AutomationPage(): JSX.Element {
           )}
         </div>
       </div>
+
+      {/* WhatsApp QR Modal */}
+      {showWhatsAppModal && whatsAppQrCode && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowWhatsAppModal(false)}
+        >
+          <div
+            style={{
+              background: '#1e293b',
+              borderRadius: '12px',
+              padding: '2rem',
+              textAlign: 'center',
+              maxWidth: '350px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginBottom: '1rem', color: '#25D366' }}>
+              <FaWhatsapp style={{ marginRight: '0.5rem' }} />
+              Scan QR Code
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1rem' }}>
+              Open WhatsApp on your phone → Settings → Linked Devices → Link a Device
+            </p>
+            <div
+              style={{
+                background: 'white',
+                padding: '1rem',
+                borderRadius: '8px',
+                display: 'inline-block'
+              }}
+            >
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(whatsAppQrCode)}`}
+                alt="WhatsApp QR Code"
+                style={{ width: '200px', height: '200px' }}
+              />
+            </div>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '1rem' }}>
+              Waiting for scan...
+            </p>
+            <button
+              style={{
+                marginTop: '1rem',
+                padding: '8px 16px',
+                background: '#ef4444',
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                cursor: 'pointer'
+              }}
+              onClick={() => {
+                setShowWhatsAppModal(false)
+                window.api.whatsappDisconnect()
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
