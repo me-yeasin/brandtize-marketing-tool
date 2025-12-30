@@ -19,6 +19,7 @@ export interface SearchTask {
   location: string
   source: 'google_maps' | 'facebook'
   status: 'pending' | 'completed' | 'failed'
+  discoveredFromCountry?: string // If this city was discovered via country research
 }
 
 export interface AgentLead {
@@ -52,4 +53,10 @@ export interface AgentState {
   logs: LogEntry[]
   isRunning: boolean
   currentTaskIndex: number
+  // Goal tracking
+  targetLeadCount: number
+  currentLeadCount: number
+  // For expanding search when goal not met
+  processedCountries: string[]
+  searchedCities: string[]
 }

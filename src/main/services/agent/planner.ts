@@ -1,28 +1,35 @@
 import { ChatMessage, streamChatResponse } from '../ai-service'
+import { researchBestCities } from './city-research'
+import { classifyLocations } from './location-detector'
 import { AgentPreferences, SearchTask } from './types'
+
+// Callback type for progress updates
+export interface PlannerCallbacks {
+  onLocationClassified?: (location: string, type: 'city' | 'country') => void
+  onResearchingCountry?: (country: string) => void
+  onCitiesDiscovered?: (country: string, cities: string[]) => void
+}
 
 const PLANNER_SYSTEM_PROMPT = `
 You are an expert Lead Generation Strategist.
-Your goal is to break down a high-level user request (Niche + Locations) into a specific, step-by-step search plan for Google Maps and Facebook.
+Your goal is to create search tasks for the given locations and business niche.
 
 Output your plan strictly as a JSON array of objects.
 Each object must represent a search task and follow this structure:
 {
   "query": "string (the exact search term to use)",
-  "location": "string (the specific city/region for this search)",
+  "location": "string (the specific city for this search)",
   "source": "google_maps" | "facebook"
 }
 
 Guidance:
-1.  If multiple locations are provided, create separate tasks for each.
-2.  Start with "google_maps" for broad discovery.
-3.  If the niche is very broad (e.g., "Restaurants"), consider breaking it down into sub-niches if helpful, or keep it broad if the location is specific.
-4.  Do not include any explanation or markdown formatting (like \`\`\`json). Just the raw JSON array.
+1. Create one Google Maps task and one Facebook task per location.
+2. Keep queries simple: just the niche name works best.
+3. Do not include any explanation or markdown formatting. Just the raw JSON array.
 `
 
 async function generateText(messages: ChatMessage[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    // fullText removed as it was unused
     streamChatResponse(messages, {
       onToken: () => {},
       onComplete: (text) => {
@@ -35,31 +42,64 @@ async function generateText(messages: ChatMessage[]): Promise<string> {
   })
 }
 
-export async function planSearchStrategy(preferences: AgentPreferences): Promise<SearchTask[]> {
+/**
+ * Main planning function with smart location handling
+ * - Cities: Creates direct search tasks
+ * - Countries: Researches best cities first, then creates tasks
+ */
+export async function planSearchStrategy(
+  preferences: AgentPreferences,
+  callbacks?: PlannerCallbacks
+): Promise<SearchTask[]> {
   const { niche, locations } = preferences
 
   if (!niche || locations.length === 0) {
     return []
   }
 
+  // 1. Classify all locations as city or country
+  console.log('[Planner] Classifying locations...')
+  const classifiedLocations = await classifyLocations(locations)
+
+  // Report classifications
+  for (const loc of classifiedLocations) {
+    callbacks?.onLocationClassified?.(loc.original, loc.type)
+  }
+
+  // 2. Process locations and expand countries into cities
+  const expandedCities: { city: string; fromCountry?: string }[] = []
+
+  for (const loc of classifiedLocations) {
+    if (loc.type === 'city') {
+      // Direct city - add as-is
+      expandedCities.push({ city: loc.original })
+    } else {
+      // Country - research best cities
+      callbacks?.onResearchingCountry?.(loc.original)
+      console.log(`[Planner] Researching cities in ${loc.original}...`)
+
+      const discoveredCities = await researchBestCities(loc.original, preferences)
+      callbacks?.onCitiesDiscovered?.(loc.original, discoveredCities)
+
+      for (const city of discoveredCities) {
+        expandedCities.push({ city, fromCountry: loc.original })
+      }
+    }
+  }
+
+  console.log(`[Planner] Expanded to ${expandedCities.length} cities`)
+
+  // 3. Create search tasks for all cities
+  const allCityNames = expandedCities.map((c) => c.city)
+
   const userMessage = `
     Niche: ${niche}
-    Target Locations: ${locations.join(', ')}
+    Target Cities: ${allCityNames.join(', ')}
     
-    Create a search plan.
+    Create search tasks for each city (Google Maps + Facebook).
   `
 
   const messages: ChatMessage[] = [
-    { id: 'system', role: 'assistant', text: PLANNER_SYSTEM_PROMPT }, // using 'assistant' as role since 'system' might not be strictly supported by all adapters in ChatMessage interface, but looking at ai-service it maps 'user' to Human and others to AI. We should check if we can pass a system prompt properly.
-    // Actually ai-service.ts lines 116-123 only maps 'user' -> HumanMessage and others to AIMessage.
-    // To properly support SystemMessage, I might need to update ai-service or just put it in the first user message?
-    // Let's try putting it as the first message. Ideally we should update ai-service to support system messages.
-    // For now, I'll Prepend it to the user message or send it as the first 'user' message with a clear instruction context.
-    // However, LLMs often behave better with a proper System prompt.
-    // Let's look at ai-service again. It exports convertToLangChainMessages but it's not exported.
-    // Wait, createContinuationMessages uses SystemMessage.
-    // But convertToLangChainMessages only does Human/AI.
-    // I will cheat and prepend the system instruction to the prompt for now to avoid refactoring ai-service in this step.
     { id: 'user-1', role: 'user', text: `${PLANNER_SYSTEM_PROMPT}\n\n${userMessage}` }
   ]
 
@@ -72,27 +112,86 @@ export async function planSearchStrategy(preferences: AgentPreferences): Promise
       .replace(/```/g, '')
       .trim()
 
-    const tasks = JSON.parse(cleanJson) as Omit<SearchTask, 'id' | 'status'>[]
+    const rawTasks = JSON.parse(cleanJson) as Omit<SearchTask, 'id' | 'status'>[]
 
-    // Hydrate with IDs and status
-    return tasks.map((t) => ({
-      ...t,
-      id: crypto.randomUUID(),
-      status: 'pending'
-    }))
+    // Hydrate with IDs, status, and metadata
+    return rawTasks.map((t) => {
+      const cityInfo = expandedCities.find((c) => c.city.toLowerCase() === t.location.toLowerCase())
+
+      return {
+        ...t,
+        id: crypto.randomUUID(),
+        status: 'pending' as const,
+        discoveredFromCountry: cityInfo?.fromCountry
+      }
+    })
   } catch (error) {
     console.error('Error generating search plan:', error)
     // Fallback: simple 1-to-1 mapping if AI fails
     const fallbackTasks: SearchTask[] = []
-    for (const loc of locations) {
+
+    for (const cityInfo of expandedCities) {
+      // Google Maps task
       fallbackTasks.push({
         id: crypto.randomUUID(),
-        query: `${niche} in ${loc}`,
-        location: loc,
+        query: niche,
+        location: cityInfo.city,
         source: 'google_maps',
-        status: 'pending'
+        status: 'pending',
+        discoveredFromCountry: cityInfo.fromCountry
+      })
+
+      // Facebook task
+      fallbackTasks.push({
+        id: crypto.randomUUID(),
+        query: niche,
+        location: cityInfo.city,
+        source: 'facebook',
+        status: 'pending',
+        discoveredFromCountry: cityInfo.fromCountry
       })
     }
+
     return fallbackTasks
   }
+}
+
+/**
+ * Research additional cities from a country to expand search
+ * Used when goal is not met and we need more leads
+ */
+export async function expandSearchForCountry(
+  country: string,
+  preferences: AgentPreferences,
+  alreadySearchedCities: string[]
+): Promise<SearchTask[]> {
+  console.log(`[Planner] Expanding search for ${country}...`)
+
+  const allCities = await researchBestCities(country, preferences)
+  const newCities = allCities.filter(
+    (city) =>
+      !alreadySearchedCities.some((searched) => searched.toLowerCase() === city.toLowerCase())
+  )
+
+  if (newCities.length === 0) {
+    console.log(`[Planner] No new cities found in ${country}`)
+    return []
+  }
+
+  console.log(`[Planner] Found ${newCities.length} new cities: ${newCities.join(', ')}`)
+
+  const tasks: SearchTask[] = []
+  for (const city of newCities.slice(0, 3)) {
+    // Limit expansion to 3 new cities
+    tasks.push({
+      id: crypto.randomUUID(),
+      query: preferences.niche,
+      location: city,
+      source: 'google_maps',
+      status: 'pending',
+      discoveredFromCountry: country
+    })
+  }
+
+  return tasks
 }
