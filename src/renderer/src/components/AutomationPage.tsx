@@ -44,6 +44,13 @@ interface FoundLead {
   emailVerified?: boolean
   source: 'Maps' | 'Facebook'
   status: 'Qualified' | 'Pending'
+  metadata?: {
+    facebookUrl?: string
+    likes?: number
+    followers?: number
+    latitude?: number
+    longitude?: number
+  }
 }
 
 function AutomationPage(): JSX.Element {
@@ -492,6 +499,16 @@ function AutomationPage(): JSX.Element {
                 >
                   <FaTrash size={12} />
                 </button>
+                {lead.source === 'Facebook' && lead.metadata?.facebookUrl && (
+                  <button
+                    className="icon-btn"
+                    onClick={() => window.open(lead.metadata?.facebookUrl, '_blank')}
+                    title="View Facebook Page"
+                    style={{ background: '#1877f2', marginLeft: '0.25rem' }}
+                  >
+                    <FaGlobe size={12} />
+                  </button>
+                )}
               </div>
 
               <div

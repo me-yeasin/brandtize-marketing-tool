@@ -68,11 +68,24 @@ function mapMapsPlaceToLead(place: MapsPlace): AgentLead {
 }
 
 function mapFacebookLeadToLead(lead: FacebookPageLead): AgentLead {
+  // Debug: log what we're receiving from Facebook
+  console.log('[FacebookMapping] Raw lead data:', {
+    title: lead.title,
+    phone: lead.phone,
+    email: lead.email,
+    website: lead.website,
+    address: lead.address,
+    categories: lead.categories,
+    rating: lead.rating,
+    likes: lead.likes,
+    followers: lead.followers
+  })
+
   return {
-    id: lead.id,
-    name: lead.title,
-    category: lead.categories[0] || 'Business',
-    address: lead.address || '',
+    id: lead.id || crypto.randomUUID(),
+    name: lead.title || 'Unknown Business',
+    category: lead.categories?.[0] || 'Facebook Page',
+    address: lead.address || lead.facebookUrl || '', // Use Facebook URL as fallback for address
     phone: lead.phone || undefined,
     email: lead.email || undefined,
     website: lead.website || undefined,
@@ -82,9 +95,11 @@ function mapFacebookLeadToLead(lead: FacebookPageLead): AgentLead {
     source: 'Facebook',
     status: 'Pending',
     metadata: {
-      likes: lead.likes,
-      followers: lead.followers,
-      facebookUrl: lead.facebookUrl
+      likes: lead.likes || 0,
+      followers: lead.followers || 0,
+      facebookUrl: lead.facebookUrl || '',
+      score: lead.score || 'bronze',
+      intro: lead.intro || ''
     }
   }
 }

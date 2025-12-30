@@ -88,6 +88,10 @@ function parseCount(value: unknown): number {
 
 // Parse Apify response to our FacebookPageLead format
 function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
+  // Debug: log raw Apify data to see what fields are available
+  console.log('[FacebookParser] RAW Apify item keys:', Object.keys(item))
+  console.log('[FacebookParser] RAW Apify item:', JSON.stringify(item, null, 2).slice(0, 1000))
+
   // Extract rating info
   let ratingValue: number | null = null
   let ratingCountValue: number | null = null
