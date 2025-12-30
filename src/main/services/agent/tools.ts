@@ -1,6 +1,7 @@
 import { FacebookPageLead, searchFacebookPages } from '../facebook-scraper'
 import { MapsPlace, searchMapsWithSerper } from '../lead-generation'
 import { searchTripAdvisorBusinesses, TripAdvisorBusiness } from '../tripadvisor-scraper'
+import { searchTrustpilotBusinesses, TrustpilotBusiness } from '../trustpilot-scraper'
 import { searchYellowPagesBusinesses, YellowPagesBusiness } from '../yellowpages-scraper'
 import { searchYelpBusinesses, YelpBusiness } from '../yelp-scraper'
 import { AgentLead, SearchTask } from './types'
@@ -12,6 +13,7 @@ const FACEBOOK_MAX_RESULTS = 50
 const YELP_MAX_RESULTS = 50
 const YELLOWPAGES_MAX_RESULTS = 50
 const TRIPADVISOR_MAX_RESULTS = 50
+const TRUSTPILOT_MAX_RESULTS = 50
 
 export async function executeGoogleMapsSearch(task: SearchTask): Promise<AgentLead[]> {
   try {
@@ -133,6 +135,29 @@ export async function executeTripAdvisorSearch(task: SearchTask): Promise<AgentL
   }
 }
 
+export async function executeTrustpilotSearch(task: SearchTask): Promise<AgentLead[]> {
+  try {
+    const fullLocation = task.discoveredFromCountry
+      ? `${task.location}, ${task.discoveredFromCountry}`
+      : task.location
+
+    console.log(
+      `[Trustpilot] Searching "${task.query}" in "${fullLocation}" (limit: ${TRUSTPILOT_MAX_RESULTS})`
+    )
+
+    const businesses = await searchTrustpilotBusinesses({
+      query: task.query,
+      location: fullLocation,
+      maxResults: TRUSTPILOT_MAX_RESULTS
+    })
+
+    console.log(`[Trustpilot] Retrieved ${businesses.length} businesses`)
+    return businesses.map(mapTrustpilotBusinessToLead)
+  } catch (error) {
+    console.error(`Trustpilot search failed for "${task.query}":`, error)
+    return []
+  }
+}
 function mapMapsPlaceToLead(place: MapsPlace): AgentLead {
   return {
     id: place.cid || crypto.randomUUID(),
@@ -228,6 +253,24 @@ function mapTripAdvisorBusinessToLead(business: TripAdvisorBusiness): AgentLead 
       priceLevel: business.priceLevel || '',
       latitude: business.latitude,
       longitude: business.longitude
+    }
+  }
+}
+
+function mapTrustpilotBusinessToLead(business: TrustpilotBusiness): AgentLead {
+  return {
+    id: business.id || crypto.randomUUID(),
+    name: business.name || 'Unknown Business',
+    category: business.category || 'Trustpilot Business',
+    address: business.location || '',
+    website: business.website || undefined,
+    rating: business.rating || undefined,
+    reviewCount: business.reviewCount || undefined,
+    source: 'Trustpilot',
+    status: 'Pending',
+    metadata: {
+      trustpilotUrl: business.trustpilotUrl || '',
+      isVerified: business.isVerified || false
     }
   }
 }

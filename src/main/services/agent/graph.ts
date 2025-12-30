@@ -6,6 +6,7 @@ import {
   executeFacebookSearch,
   executeGoogleMapsSearch,
   executeTripAdvisorSearch,
+  executeTrustpilotSearch,
   executeYellowPagesSearch,
   executeYelpSearch
 } from './tools'
@@ -290,46 +291,88 @@ async function generateMoreTasks(
 }
 
 /**
- * Execute a batch of search tasks
+ * Execute a batch of search tasks - PARALLEL MODE
+ * Groups tasks by location and runs all sources simultaneously for each location
  */
 async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<void> {
+  // Group tasks by location for parallel execution
+  const tasksByLocation = new Map<string, SearchTask[]>()
   for (const task of tasks) {
+    const key = task.discoveredFromCountry
+      ? `${task.location}|${task.discoveredFromCountry}`
+      : task.location
+    if (!tasksByLocation.has(key)) {
+      tasksByLocation.set(key, [])
+    }
+    tasksByLocation.get(key)!.push(task)
+  }
+
+  // Process each location with parallel source searches
+  for (const [locationKey, locationTasks] of tasksByLocation) {
     if (stopRequested || isGoalReached(currentState!)) break
 
-    currentState!.currentTaskIndex++
+    const [location, country] = locationKey.split('|')
+    const taskLabel = country ? `${location} (${country})` : location
 
-    if (!currentState!.searchedCities.includes(task.location)) {
-      currentState!.searchedCities.push(task.location)
+    if (!currentState!.searchedCities.includes(location)) {
+      currentState!.searchedCities.push(location)
     }
 
-    const taskLabel = task.discoveredFromCountry
-      ? `${task.location} (${task.discoveredFromCountry})`
-      : task.location
+    // Log start of parallel search for this location
+    const sourceCount = locationTasks.length
+    emitLog(
+      sender,
+      `⚡ Parallel search: "${locationTasks[0].query}" in ${taskLabel} (${sourceCount} sources)`,
+      'info'
+    )
 
-    emitLog(sender, `🔎 Searching "${task.query}" in ${taskLabel} (${task.source})`, 'info')
-
-    let leads: AgentLead[] = []
-
-    try {
-      if (task.source === 'google_maps') {
-        leads = await executeGoogleMapsSearch(task)
-      } else if (task.source === 'facebook') {
-        leads = await executeFacebookSearch(task)
-      } else if (task.source === 'yelp') {
-        leads = await executeYelpSearch(task)
-      } else if (task.source === 'yellow_pages') {
-        leads = await executeYellowPagesSearch(task)
-      } else if (task.source === 'tripadvisor') {
-        leads = await executeTripAdvisorSearch(task)
+    // Execute all sources for this location IN PARALLEL
+    const executeSource = async (
+      task: SearchTask
+    ): Promise<{ source: string; leads: AgentLead[] }> => {
+      try {
+        let leads: AgentLead[] = []
+        if (task.source === 'google_maps') {
+          leads = await executeGoogleMapsSearch(task)
+        } else if (task.source === 'facebook') {
+          leads = await executeFacebookSearch(task)
+        } else if (task.source === 'yelp') {
+          leads = await executeYelpSearch(task)
+        } else if (task.source === 'yellow_pages') {
+          leads = await executeYellowPagesSearch(task)
+        } else if (task.source === 'tripadvisor') {
+          leads = await executeTripAdvisorSearch(task)
+        } else if (task.source === 'trustpilot') {
+          leads = await executeTrustpilotSearch(task)
+        }
+        return { source: task.source, leads }
+      } catch (error) {
+        console.error(`[${task.source}] Search failed:`, error)
+        return { source: task.source, leads: [] }
       }
-    } catch (error) {
-      emitLog(sender, `⚠️ Search failed for ${taskLabel}: ${error}`, 'warning')
-      continue
+    }
+
+    // Run all sources in parallel
+    const results = await Promise.allSettled(locationTasks.map(executeSource))
+    currentState!.currentTaskIndex += locationTasks.length
+
+    // Collect all leads from parallel results
+    let allLeads: AgentLead[] = []
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const { source, leads } = result.value
+        if (leads.length > 0) {
+          emitLog(sender, `✅ ${source}: ${leads.length} leads`, 'success')
+          allLeads = allLeads.concat(leads)
+        }
+      } else {
+        emitLog(sender, `⚠️ Source failed: ${result.reason}`, 'warning')
+      }
     }
 
     // Apply filters
-    const filteredLeads = applyFilters(leads, currentState!.preferences.filters)
-    const filteredCount = leads.length - filteredLeads.length
+    const filteredLeads = applyFilters(allLeads, currentState!.preferences.filters)
+    const filteredCount = allLeads.length - filteredLeads.length
 
     if (filteredCount > 0) {
       emitLog(sender, `🔧 Filtered ${filteredCount} leads (criteria)`, 'info')
@@ -342,8 +385,8 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
       emitLog(sender, `🔄 Removed ${duplicateCount} duplicate leads`, 'info')
     }
 
-    if (leads.length < MIN_LEADS_PER_CITY) {
-      emitLog(sender, `⚠️ Low results in ${task.location} (${leads.length})`, 'warning')
+    if (allLeads.length < MIN_LEADS_PER_CITY) {
+      emitLog(sender, `⚠️ Low results in ${location} (${allLeads.length})`, 'warning')
     }
 
     // Calculate score and process leads
@@ -434,7 +477,7 @@ async function executeTasks(sender: WebContents, tasks: SearchTask[]): Promise<v
     )
     emitLog(
       sender,
-      `✅ +${uniqueLeads.length} leads from ${task.location}. Progress: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount} (${progressPercent}%)`,
+      `✅ +${uniqueLeads.length} leads from ${location}. Progress: ${currentState!.currentLeadCount}/${currentState!.targetLeadCount} (${progressPercent}%)`,
       'success'
     )
 

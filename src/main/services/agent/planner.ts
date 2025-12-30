@@ -19,11 +19,11 @@ Each object must represent a search task and follow this structure:
 {
   "query": "string (the exact search term to use)",
   "location": "string (the specific city for this search)",
-  "source": "google_maps" | "facebook" | "yelp" | "yellow_pages" | "tripadvisor"
+  "source": "google_maps" | "facebook" | "yelp" | "yellow_pages" | "tripadvisor" | "trustpilot"
 }
 
 Guidance:
-1. Create one task per source per location (5 tasks per city: Google Maps, Facebook, Yelp, Yellow Pages, TripAdvisor).
+1. Create one task per source per location (6 tasks per city: Google Maps, Facebook, Yelp, Yellow Pages, TripAdvisor, Trustpilot).
 2. Keep queries simple: just the niche name works best.
 3. Do not include any explanation or markdown formatting. Just the raw JSON array.
 `
@@ -177,6 +177,16 @@ export async function planSearchStrategy(
         query: niche,
         location: cityInfo.city,
         source: 'tripadvisor',
+        status: 'pending',
+        discoveredFromCountry: cityInfo.fromCountry
+      })
+
+      // Trustpilot task
+      fallbackTasks.push({
+        id: crypto.randomUUID(),
+        query: niche,
+        location: cityInfo.city,
+        source: 'trustpilot',
         status: 'pending',
         discoveredFromCountry: cityInfo.fromCountry
       })
