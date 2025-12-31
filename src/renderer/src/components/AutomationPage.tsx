@@ -42,7 +42,7 @@ interface FoundLead {
   reviewCount?: number
   hasWhatsApp?: boolean
   emailVerified?: boolean
-  source: 'Maps' | 'Facebook' | 'Yelp' | 'YellowPages' | 'TripAdvisor' | 'Trustpilot'
+  source: 'Maps' | 'Facebook'
   status: 'Qualified' | 'Pending'
   metadata?: {
     facebookUrl?: string

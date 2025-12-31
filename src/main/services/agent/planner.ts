@@ -19,11 +19,11 @@ Each object must represent a search task and follow this structure:
 {
   "query": "string (the exact search term to use)",
   "location": "string (the specific city for this search)",
-  "source": "google_maps" | "facebook" | "yelp" | "yellow_pages" | "tripadvisor" | "trustpilot"
+  "source": "google_maps" | "facebook"
 }
 
 Guidance:
-1. Create one task per source per location (6 tasks per city: Google Maps, Facebook, Yelp, Yellow Pages, TripAdvisor, Trustpilot).
+1. Create one task per source per location (2 tasks per city: Google Maps and Facebook).
 2. Keep queries simple: just the niche name works best.
 3. Do not include any explanation or markdown formatting. Just the raw JSON array.
 `
@@ -96,7 +96,7 @@ export async function planSearchStrategy(
     Niche: ${niche}
     Target Cities: ${allCityNames.join(', ')}
     
-    Create search tasks for each city (Google Maps + Facebook + Yelp + Yellow Pages).
+    Create search tasks for each city (Google Maps + Facebook).
   `
 
   const messages: ChatMessage[] = [
@@ -147,46 +147,6 @@ export async function planSearchStrategy(
         query: niche,
         location: cityInfo.city,
         source: 'facebook',
-        status: 'pending',
-        discoveredFromCountry: cityInfo.fromCountry
-      })
-
-      // Yelp task
-      fallbackTasks.push({
-        id: crypto.randomUUID(),
-        query: niche,
-        location: cityInfo.city,
-        source: 'yelp',
-        status: 'pending',
-        discoveredFromCountry: cityInfo.fromCountry
-      })
-
-      // Yellow Pages task
-      fallbackTasks.push({
-        id: crypto.randomUUID(),
-        query: niche,
-        location: cityInfo.city,
-        source: 'yellow_pages',
-        status: 'pending',
-        discoveredFromCountry: cityInfo.fromCountry
-      })
-
-      // TripAdvisor task
-      fallbackTasks.push({
-        id: crypto.randomUUID(),
-        query: niche,
-        location: cityInfo.city,
-        source: 'tripadvisor',
-        status: 'pending',
-        discoveredFromCountry: cityInfo.fromCountry
-      })
-
-      // Trustpilot task
-      fallbackTasks.push({
-        id: crypto.randomUUID(),
-        query: niche,
-        location: cityInfo.city,
-        source: 'trustpilot',
         status: 'pending',
         discoveredFromCountry: cityInfo.fromCountry
       })

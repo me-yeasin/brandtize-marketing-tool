@@ -2,14 +2,7 @@ import { WebContents } from 'electron'
 import { calculateLeadScore, deduplicateLeads } from './lead-quality'
 import { discoverNearbyCities, generateQueryVariations, getFallbackCities } from './nearby-cities'
 import { expandSearchForCountry, planSearchStrategy } from './planner'
-import {
-  executeFacebookSearch,
-  executeGoogleMapsSearch,
-  executeTripAdvisorSearch,
-  executeTrustpilotSearch,
-  executeYellowPagesSearch,
-  executeYelpSearch
-} from './tools'
+import { executeFacebookSearch, executeGoogleMapsSearch } from './tools'
 import { AgentLead, AgentPreferences, AgentState, LogEntry, SearchTask } from './types'
 
 // Global state tracking
@@ -381,14 +374,6 @@ async function executeSourceAndProcess(
       leads = await executeGoogleMapsSearch(task, signal)
     } else if (task.source === 'facebook') {
       leads = await executeFacebookSearch(task, signal)
-    } else if (task.source === 'yelp') {
-      leads = await executeYelpSearch(task, signal)
-    } else if (task.source === 'yellow_pages') {
-      leads = await executeYellowPagesSearch(task, signal)
-    } else if (task.source === 'tripadvisor') {
-      leads = await executeTripAdvisorSearch(task, signal)
-    } else if (task.source === 'trustpilot') {
-      leads = await executeTrustpilotSearch(task, signal)
     }
 
     // Post-process immediately
