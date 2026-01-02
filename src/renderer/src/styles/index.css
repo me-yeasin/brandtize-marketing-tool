@@ -877,7 +877,8 @@ body {
 ======================================== */
 
 .wrapper-container {
-  height: 100%;
+  height: 100vh;
+  max-height: 100vh;
   width: 100%;
   padding: 2rem; /* Consistent padding */
   background:
@@ -885,6 +886,14 @@ body {
     radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.05), transparent 40%),
     var(--main-bg, #0f172a);
   color: #f8fafc; /* Slate-50 off-white */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.campaign-tab-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
