@@ -18,7 +18,6 @@ export function stopAgent(): void {
   stopRequested = true
   if (globalAbortController) {
     globalAbortController.abort()
-    globalAbortController = null
   }
 }
 
@@ -47,6 +46,10 @@ function applyFilters(leads: AgentLead[], filters: AgentPreferences['filters']):
 
 function isGoalReached(state: AgentState): boolean {
   return state.currentLeadCount >= state.targetLeadCount
+}
+
+function shouldStop(signal?: AbortSignal): boolean {
+  return stopRequested || signal?.aborted === true
 }
 
 function startHeartbeat(
@@ -119,21 +122,25 @@ export async function startAgent(
       { intervalMs: 15000, maxBeats: 6 }
     )
 
-    const initialPlan = await planSearchStrategy(preferences, {
-      onLocationClassified: (location, type) => {
-        emitLog(sender, `📍 ${location} → ${type}`, 'info')
+    const initialPlan = await planSearchStrategy(
+      preferences,
+      {
+        onLocationClassified: (location, type) => {
+          emitLog(sender, `📍 ${location} → ${type}`, 'info')
+        },
+        onResearchingCountry: (country) => {
+          emitLog(sender, `🔍 Researching best cities in ${country}...`, 'info')
+          currentState!.processedCountries.push(country)
+        },
+        onCitiesDiscovered: (country, cities) => {
+          emitLog(sender, `✅ Found ${cities.length} cities in ${country}`, 'success')
+        }
       },
-      onResearchingCountry: (country) => {
-        emitLog(sender, `🔍 Researching best cities in ${country}...`, 'info')
-        currentState!.processedCountries.push(country)
-      },
-      onCitiesDiscovered: (country, cities) => {
-        emitLog(sender, `✅ Found ${cities.length} cities in ${country}`, 'success')
-      }
-    })
+      globalAbortController.signal
+    )
     stopPlanningHeartbeat()
 
-    if (stopRequested) return
+    if (shouldStop(globalAbortController.signal)) return
 
     currentState.plan = initialPlan
     sender.send('agent-plan-updated', initialPlan)
@@ -214,7 +221,7 @@ async function neverStopLoop(sender: WebContents, initialTasks: SearchTask[]): P
       globalAbortController!.signal,
       { intervalMs: 15000, maxBeats: 6 }
     )
-    const newTasks = await generateMoreTasks(sender, usedQueries)
+    const newTasks = await generateMoreTasks(sender, usedQueries, globalAbortController!.signal)
     stopExpansionHeartbeat()
 
     if (newTasks.length > 0) {
@@ -236,7 +243,8 @@ async function neverStopLoop(sender: WebContents, initialTasks: SearchTask[]): P
  */
 async function generateMoreTasks(
   sender: WebContents,
-  usedQueries: string[]
+  usedQueries: string[],
+  signal: AbortSignal
 ): Promise<SearchTask[]> {
   const newTasks: SearchTask[] = []
   const niche = currentState!.preferences.niche
@@ -246,12 +254,13 @@ async function generateMoreTasks(
     emitLog(sender, `🌍 Strategy 1: Researching more cities from countries...`, 'info')
 
     for (const country of currentState!.processedCountries) {
-      if (stopRequested || isGoalReached(currentState!)) break
+      if (shouldStop(signal) || isGoalReached(currentState!)) break
 
       const countryTasks = await expandSearchForCountry(
         country,
         currentState!.preferences,
-        currentState!.searchedCities
+        currentState!.searchedCities,
+        signal
       )
 
       if (countryTasks.length > 0) {
@@ -273,7 +282,8 @@ async function generateMoreTasks(
     const nearbyCities = await discoverNearbyCities(
       lastCity,
       lastCountry,
-      currentState!.searchedCities
+      currentState!.searchedCities,
+      signal
     )
     if (nearbyCities.length === 0) {
       emitLog(sender, `⚠️ No nearby cities discovered near ${lastCity}`, 'warning')
@@ -306,7 +316,7 @@ async function generateMoreTasks(
   // Strategy 3: Try query variations
   emitLog(sender, `💡 Strategy 3: Trying query variations for "${niche}"...`, 'info')
 
-  const queryVariations = await generateQueryVariations(niche, usedQueries)
+  const queryVariations = await generateQueryVariations(niche, usedQueries, signal)
   if (queryVariations.length === 0) {
     emitLog(sender, `⚠️ No query variations generated for "${niche}"`, 'warning')
   } else {
@@ -427,7 +437,7 @@ async function executeSourceAndProcess(
   signal: AbortSignal
 ): Promise<void> {
   // If goal already reached (by another fast task), skip execution if possible
-  if (isGoalReached(currentState!)) return
+  if (isGoalReached(currentState!) || shouldStop(signal)) return
 
   if (
     task.location &&
@@ -442,6 +452,7 @@ async function executeSourceAndProcess(
   let stopSearchHeartbeat: () => void = () => {}
 
   try {
+    if (shouldStop(signal)) return
     let leads: AgentLead[] = []
 
     emitLog(sender, `🔎 ${task.source}: "${task.query}" in "${fullLocation}"`, 'info')
@@ -465,6 +476,7 @@ async function executeSourceAndProcess(
       )
     }
 
+    if (shouldStop(signal)) return
     if (leads.length === 0) {
       emitLog(
         sender,
@@ -473,10 +485,14 @@ async function executeSourceAndProcess(
       )
       return
     }
-    await processLeadsBatch(sender, leads, task.source, task.location)
+    await processLeadsBatch(sender, leads, task.source, task.location, signal)
   } catch (error) {
+    if (shouldStop(signal)) return
     console.error(`[${task.source}] Search failed:`, error)
-    if (error instanceof Error && error.message === 'Aborted') {
+    if (
+      signal.aborted ||
+      (error instanceof Error && (error.name === 'AbortError' || error.message === 'Aborted'))
+    ) {
       return // Ignore abort errors
     }
     emitLog(sender, `⚠️ Source failed: ${task.source} - ${error}`, 'warning')
@@ -492,10 +508,11 @@ async function processLeadsBatch(
   sender: WebContents,
   leads: AgentLead[],
   source: string,
-  location: string
+  location: string,
+  signal: AbortSignal
 ): Promise<void> {
   // 1. Goal Check
-  if (isGoalReached(currentState!)) {
+  if (isGoalReached(currentState!) || shouldStop(signal)) {
     if (globalAbortController) {
       globalAbortController.abort() // Cancel other running tasks immediately
     }
@@ -527,7 +544,7 @@ async function processLeadsBatch(
 
   let addedCount = 0
   for (const lead of uniqueLeads) {
-    if (isGoalReached(currentState!)) break
+    if (isGoalReached(currentState!) || shouldStop(signal)) break
 
     // Calculate Score
     const score = calculateLeadScore(lead)
@@ -549,7 +566,10 @@ async function processLeadsBatch(
 
     if (filters.autoVerifyWA && lead.phone) {
       emitLog(sender, `🔍 Verifying WhatsApp: ${lead.phone} (${lead.name})`, 'info')
-      const waResult = await (await getEnrichment()).enrichLeadWithWhatsApp(lead)
+      if (shouldStop(signal)) return
+      const enrichment = await getEnrichment()
+      const waResult = await enrichment.enrichLeadWithWhatsApp(lead, signal)
+      if (shouldStop(signal)) return
 
       if (waResult.enrichmentLog) {
         let waLogType: LogEntry['type'] = 'warning'
@@ -573,7 +593,10 @@ async function processLeadsBatch(
     if (!skipLead && filters.autoFindEmail && !lead.email) {
       if (lead.website) {
         emitLog(sender, `🔍 Finding email: ${lead.website} (${lead.name})`, 'info')
-        const emailFindResult = await (await getEnrichment()).enrichLeadWithEmailFinder(lead)
+        if (shouldStop(signal)) return
+        const enrichment = await getEnrichment()
+        const emailFindResult = await enrichment.enrichLeadWithEmailFinder(lead, signal)
+        if (shouldStop(signal)) return
 
         if (emailFindResult.enrichmentLog) {
           let findLogType: LogEntry['type'] = 'info'
@@ -600,7 +623,10 @@ async function processLeadsBatch(
 
     if (!skipLead && filters.autoVerifyEmail && lead.email && lead.emailVerified === undefined) {
       emitLog(sender, `🔍 Verifying email: ${lead.email} (${lead.name})`, 'info')
-      const emailResult = await (await getEnrichment()).enrichLeadWithEmailVerification(lead)
+      if (shouldStop(signal)) return
+      const enrichment = await getEnrichment()
+      const emailResult = await enrichment.enrichLeadWithEmailVerification(lead, signal)
+      if (shouldStop(signal)) return
 
       if (emailResult.enrichmentLog) {
         let emailLogType: LogEntry['type'] = 'warning'

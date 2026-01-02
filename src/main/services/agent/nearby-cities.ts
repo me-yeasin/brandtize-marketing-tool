@@ -7,7 +7,8 @@ import { ChatMessage, streamChatResponse } from '../ai-service'
 export async function discoverNearbyCities(
   currentCity: string,
   country: string | undefined,
-  excludeCities: string[]
+  excludeCities: string[],
+  signal?: AbortSignal
 ): Promise<string[]> {
   console.log(
     `[NearbyCities] Discovering cities near ${currentCity}${country ? `, ${country}` : ''}...`
@@ -24,31 +25,44 @@ Please list 5-7 nearby cities or towns that:
 
 Output ONLY city names, one per line. No explanations or numbering.`
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let response = ''
 
-    streamChatResponse([{ id: 'user', role: 'user', text: prompt }] as ChatMessage[], {
-      onToken: (token) => {
-        response += token
-      },
-      onComplete: () => {
-        const cities = response
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && line.length < 50)
-          .filter((line) => !line.match(/^\d+\.?\s*/))
-          .map((line) => line.replace(/^[-•*]\s*/, ''))
-          .filter((city) => !excludeCities.some((exc) => exc.toLowerCase() === city.toLowerCase()))
-          .slice(0, 7)
+    streamChatResponse(
+      [{ id: 'user', role: 'user', text: prompt }] as ChatMessage[],
+      {
+        onToken: (token) => {
+          response += token
+        },
+        onComplete: () => {
+          const cities = response
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && line.length < 50)
+            .filter((line) => !line.match(/^\d+\.?\s*/))
+            .map((line) => line.replace(/^[-•*]\s*/, ''))
+            .filter(
+              (city) => !excludeCities.some((exc) => exc.toLowerCase() === city.toLowerCase())
+            )
+            .slice(0, 7)
 
-        console.log(`[NearbyCities] Discovered: ${cities.join(', ')}`)
-        resolve(cities)
+          console.log(`[NearbyCities] Discovered: ${cities.join(', ')}`)
+          resolve(cities)
+        },
+        onError: (error) => {
+          if (error === 'Aborted') {
+            const err = new Error('Aborted')
+            ;(err as { name?: string }).name = 'AbortError'
+            reject(err)
+            return
+          }
+          console.log('[NearbyCities] AI failed, returning empty list')
+          resolve([])
+        }
       },
-      onError: () => {
-        console.log('[NearbyCities] AI failed, returning empty list')
-        resolve([])
-      }
-    })
+      undefined,
+      signal
+    )
   })
 }
 
@@ -58,7 +72,8 @@ Output ONLY city names, one per line. No explanations or numbering.`
  */
 export async function generateQueryVariations(
   niche: string,
-  usedQueries: string[]
+  usedQueries: string[],
+  signal?: AbortSignal
 ): Promise<string[]> {
   console.log(`[QueryVariation] Generating alternatives for "${niche}"...`)
 
@@ -76,32 +91,43 @@ Already used: ${usedList}
 
 Output ONLY search terms, one per line. No explanations.`
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let response = ''
 
-    streamChatResponse([{ id: 'user', role: 'user', text: prompt }] as ChatMessage[], {
-      onToken: (token) => {
-        response += token
-      },
-      onComplete: () => {
-        const queries = response
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && line.length < 50)
-          .filter((line) => !line.match(/^\d+\.?\s*/))
-          .map((line) => line.replace(/^[-•*]\s*/, ''))
-          .filter(
-            (query) => !usedQueries.some((used) => used.toLowerCase() === query.toLowerCase())
-          )
-          .slice(0, 5)
+    streamChatResponse(
+      [{ id: 'user', role: 'user', text: prompt }] as ChatMessage[],
+      {
+        onToken: (token) => {
+          response += token
+        },
+        onComplete: () => {
+          const queries = response
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && line.length < 50)
+            .filter((line) => !line.match(/^\d+\.?\s*/))
+            .map((line) => line.replace(/^[-•*]\s*/, ''))
+            .filter(
+              (query) => !usedQueries.some((used) => used.toLowerCase() === query.toLowerCase())
+            )
+            .slice(0, 5)
 
-        console.log(`[QueryVariation] Generated: ${queries.join(', ')}`)
-        resolve(queries)
+          console.log(`[QueryVariation] Generated: ${queries.join(', ')}`)
+          resolve(queries)
+        },
+        onError: (error) => {
+          if (error === 'Aborted') {
+            const err = new Error('Aborted')
+            ;(err as { name?: string }).name = 'AbortError'
+            reject(err)
+            return
+          }
+          resolve([])
+        }
       },
-      onError: () => {
-        resolve([])
-      }
-    })
+      undefined,
+      signal
+    )
   })
 }
 

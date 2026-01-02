@@ -60,8 +60,28 @@ export function calculateBackoffDelay(attempt: number, config: RetryConfig): num
   return Math.min(delay, config.maxDelayMs)
 }
 
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    const err = new Error('Aborted')
+    ;(err as { name?: string }).name = 'AbortError'
+    return Promise.reject(err)
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timeout)
+      const err = new Error('Aborted')
+      ;(err as { name?: string }).name = 'AbortError'
+      reject(err)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 export function formatErrorForUser(error: unknown): string {

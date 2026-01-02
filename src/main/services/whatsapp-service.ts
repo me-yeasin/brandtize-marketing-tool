@@ -25,6 +25,30 @@ let lastError: string | null = null
 const CHECK_DELAY_MS = 5000 // 5 seconds between each check to be safe
 let lastCheckTime = 0
 
+function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    const err = new Error('Aborted')
+    ;(err as { name?: string }).name = 'AbortError'
+    return Promise.reject(err)
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timeout)
+      const err = new Error('Aborted')
+      ;(err as { name?: string }).name = 'AbortError'
+      reject(err)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 // Get the data path for storing session
 function getDataPath(): string {
   return join(app.getPath('userData'), '.wwebjs_auth')
@@ -246,11 +270,19 @@ export function getWhatsAppStatus(): {
  * @param phoneNumber - The phone number to check (with country code, e.g., "1234567890" or "+1234567890")
  * @returns Object with hasWhatsApp status and formatted number
  */
-export async function checkWhatsAppNumber(phoneNumber: string): Promise<{
+export async function checkWhatsAppNumber(
+  phoneNumber: string,
+  signal?: AbortSignal
+): Promise<{
   hasWhatsApp: boolean
   formattedNumber: string | null
   error: string | null
 }> {
+  if (signal?.aborted) {
+    const err = new Error('Aborted')
+    ;(err as { name?: string }).name = 'AbortError'
+    throw err
+  }
   if (!client || !isClientReady) {
     return {
       hasWhatsApp: false,
@@ -265,11 +297,16 @@ export async function checkWhatsAppNumber(phoneNumber: string): Promise<{
   if (timeSinceLastCheck < CHECK_DELAY_MS) {
     const waitTime = CHECK_DELAY_MS - timeSinceLastCheck
     console.log(`[WhatsApp] Rate limiting: waiting ${waitTime}ms before check`)
-    await new Promise((resolve) => setTimeout(resolve, waitTime))
+    await sleepWithSignal(waitTime, signal)
   }
   lastCheckTime = Date.now()
 
   try {
+    if (signal?.aborted) {
+      const err = new Error('Aborted')
+      ;(err as { name?: string }).name = 'AbortError'
+      throw err
+    }
     // Clean the phone number - remove all non-numeric characters except leading +
     let cleanNumber = phoneNumber.replace(/[^\d+]/g, '')
     // Remove leading + if present (WhatsApp API expects just numbers)

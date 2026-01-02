@@ -151,7 +151,11 @@ export interface LeadGenerationCallbacks {
   onError: (error: string) => void
 }
 
-export async function searchWithSerper(query: string, page: number = 1): Promise<SearchResult[]> {
+export async function searchWithSerper(
+  query: string,
+  page: number = 1,
+  signal?: AbortSignal
+): Promise<SearchResult[]> {
   const multiKeys = getSerperApiKeys()
   const singleKey = getApiKeys().serperApiKey
 
@@ -175,7 +179,7 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ q: query, num: 10, page }),
-      signal: undefined // serper search not yet used in agent loop directly, but good practice
+      signal
     })
   }
 
@@ -685,9 +689,34 @@ function isRateLimitError(response: Response, data?: unknown): boolean {
   return false
 }
 
+function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    const err = new Error('Aborted')
+    ;(err as { name?: string }).name = 'AbortError'
+    return Promise.reject(err)
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timeout)
+      const err = new Error('Aborted')
+      ;(err as { name?: string }).name = 'AbortError'
+      reject(err)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 // Hunter.io API with multi-key rotation
 export async function findEmailByDomainWithRotation(
-  domain: string
+  domain: string,
+  signal?: AbortSignal
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const hunterKeys = getHunterApiKeys()
   const singleKey = getApiKeys().hunterApiKey
@@ -710,7 +739,8 @@ export async function findEmailByDomainWithRotation(
 
   try {
     const response = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${keyEntry.key}`
+      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&api_key=${keyEntry.key}`,
+      { signal }
     )
 
     const data = await response.json()
@@ -737,7 +767,8 @@ export async function findEmailByDomainWithRotation(
 export async function findEmailByNameWithRotation(
   firstName: string,
   lastName: string,
-  domain: string
+  domain: string,
+  signal?: AbortSignal
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const hunterKeys = getHunterApiKeys()
   const singleKey = getApiKeys().hunterApiKey
@@ -759,7 +790,8 @@ export async function findEmailByNameWithRotation(
 
   try {
     const response = await fetch(
-      `https://api.hunter.io/v2/email-finder?domain=${encodeURIComponent(domain)}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&api_key=${keyEntry.key}`
+      `https://api.hunter.io/v2/email-finder?domain=${encodeURIComponent(domain)}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&api_key=${keyEntry.key}`,
+      { signal }
     )
 
     const data = await response.json()
@@ -786,7 +818,8 @@ export async function findEmailByNameWithRotation(
 // Snov.io with multi-key rotation
 export async function getSnovAccessTokenWithKey(
   clientId: string,
-  clientSecret: string
+  clientSecret: string,
+  signal?: AbortSignal
 ): Promise<{ token: string | null; rateLimited: boolean }> {
   try {
     const response = await fetch('https://api.snov.io/v1/oauth/access_token', {
@@ -796,7 +829,8 @@ export async function getSnovAccessTokenWithKey(
         grant_type: 'client_credentials',
         client_id: clientId,
         client_secret: clientSecret
-      })
+      }),
+      signal
     })
 
     const data = await response.json()
@@ -815,7 +849,8 @@ export async function getSnovAccessTokenWithKey(
 }
 
 export async function findEmailByDomainSnovWithRotation(
-  domain: string
+  domain: string,
+  signal?: AbortSignal
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const snovKeys = getSnovApiKeys()
   const { snovClientId, snovClientSecret } = getApiKeys()
@@ -841,7 +876,8 @@ export async function findEmailByDomainSnovWithRotation(
   const currentKey = allKeys[index]
   const { token, rateLimited: tokenRateLimited } = await getSnovAccessTokenWithKey(
     currentKey.clientId,
-    currentKey.clientSecret
+    currentKey.clientSecret,
+    signal
   )
 
   if (tokenRateLimited) {
@@ -861,7 +897,8 @@ export async function findEmailByDomainSnovWithRotation(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: new URLSearchParams({ domain })
+      body: new URLSearchParams({ domain }),
+      signal
     })
 
     if (isRateLimitError(startResponse)) {
@@ -875,10 +912,10 @@ export async function findEmailByDomainSnovWithRotation(
 
     // Poll for results
     for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 1000))
+      await sleepWithSignal(1000, signal)
       const resultResponse = await fetch(
         `https://api.snov.io/v2/domain-search/domain-emails/result/${taskHash}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, signal }
       )
 
       if (isRateLimitError(resultResponse)) {
@@ -901,7 +938,10 @@ export async function findEmailByDomainSnovWithRotation(
       if (resultData.status === 'completed') break
     }
     return { email: null, rateLimited: false, keyIndex: index }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+      throw error
+    }
     return { email: null, rateLimited: false, keyIndex: index }
   }
 }
@@ -910,7 +950,8 @@ export async function findEmailByDomainSnovWithRotation(
 export async function findEmailByNameSnovWithRotation(
   firstName: string,
   lastName: string,
-  domain: string
+  domain: string,
+  signal?: AbortSignal
 ): Promise<{ email: string | null; rateLimited: boolean; keyIndex: number }> {
   const snovKeys = getSnovApiKeys()
   const { snovClientId, snovClientSecret } = getApiKeys()
@@ -936,7 +977,8 @@ export async function findEmailByNameSnovWithRotation(
   const currentKey = allKeys[index]
   const { token, rateLimited: tokenRateLimited } = await getSnovAccessTokenWithKey(
     currentKey.clientId,
-    currentKey.clientSecret
+    currentKey.clientSecret,
+    signal
   )
 
   if (tokenRateLimited) {
@@ -959,7 +1001,8 @@ export async function findEmailByNameSnovWithRotation(
       },
       body: JSON.stringify({
         rows: [{ first_name: firstName, last_name: lastName, domain }]
-      })
+      }),
+      signal
     })
 
     if (isRateLimitError(startResponse)) {
@@ -976,11 +1019,11 @@ export async function findEmailByNameSnovWithRotation(
 
     // Step 2: Poll for results (max 10 attempts, 1 second apart)
     for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 1000))
+      await sleepWithSignal(1000, signal)
 
       const resultResponse = await fetch(
         `https://api.snov.io/v2/emails-by-domain-by-name/result?task_hash=${taskHash}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, signal }
       )
 
       if (isRateLimitError(resultResponse)) {
@@ -1010,7 +1053,10 @@ export async function findEmailByNameSnovWithRotation(
     }
 
     return { email: null, rateLimited: false, keyIndex: index }
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+      throw error
+    }
     return { email: null, rateLimited: false, keyIndex: index }
   }
 }
@@ -1020,7 +1066,8 @@ export async function findEmailByNameSnovWithRotation(
 export async function findEmailWithFallback(
   domain: string,
   firstName?: string,
-  lastName?: string
+  lastName?: string,
+  signal?: AbortSignal
 ): Promise<{ email: string | null; source: string; allKeysExhausted?: boolean }> {
   const hunterKeys = getHunterApiKeys()
   const snovKeys = getSnovApiKeys()
@@ -1042,12 +1089,12 @@ export async function findEmailWithFallback(
     const totalHunterKeys = hunterKeys.length || (hunterApiKey ? 1 : 0)
     for (let attempt = 0; attempt < totalHunterKeys + 1; attempt++) {
       if (firstName && lastName) {
-        const result = await findEmailByNameWithRotation(firstName, lastName, domain)
+        const result = await findEmailByNameWithRotation(firstName, lastName, domain, signal)
         if (result.email) return { email: result.email, source: 'hunter_name', allExhausted: false }
         if (!result.rateLimited) return { email: null, source: 'none', allExhausted: false }
       }
 
-      const domainResult = await findEmailByDomainWithRotation(domain)
+      const domainResult = await findEmailByDomainWithRotation(domain, signal)
       if (domainResult.email)
         return { email: domainResult.email, source: 'hunter_domain', allExhausted: false }
       if (!domainResult.rateLimited) return { email: null, source: 'none', allExhausted: false }
@@ -1066,7 +1113,12 @@ export async function findEmailWithFallback(
     const totalSnovKeys = snovKeys.length || (snovClientId && snovClientSecret ? 1 : 0)
     for (let attempt = 0; attempt < totalSnovKeys + 1; attempt++) {
       if (firstName && lastName) {
-        const nameResult = await findEmailByNameSnovWithRotation(firstName, lastName, domain)
+        const nameResult = await findEmailByNameSnovWithRotation(
+          firstName,
+          lastName,
+          domain,
+          signal
+        )
         if (nameResult.email)
           return { email: nameResult.email, source: 'snov_name', allExhausted: false }
         if (!nameResult.rateLimited) {
@@ -1077,7 +1129,7 @@ export async function findEmailWithFallback(
         }
       }
 
-      const domainResult = await findEmailByDomainSnovWithRotation(domain)
+      const domainResult = await findEmailByDomainSnovWithRotation(domain, signal)
       if (domainResult.email)
         return { email: domainResult.email, source: 'snov_domain', allExhausted: false }
       if (!domainResult.rateLimited) return { email: null, source: 'none', allExhausted: false }
@@ -1103,12 +1155,12 @@ export async function findEmailWithFallback(
     clearExhaustedState('hunter')
 
     if (firstName && lastName) {
-      const result = await findEmailByNameWithRotation(firstName, lastName, domain)
+      const result = await findEmailByNameWithRotation(firstName, lastName, domain, signal)
       if (result.email) return { email: result.email, source: 'hunter_name', isReset: true }
       if (!result.rateLimited) return { email: null, source: 'none', isReset: true }
     }
 
-    const domainResult = await findEmailByDomainWithRotation(domain)
+    const domainResult = await findEmailByDomainWithRotation(domain, signal)
     if (domainResult.email)
       return { email: domainResult.email, source: 'hunter_domain', isReset: true }
     if (!domainResult.rateLimited) return { email: null, source: 'none', isReset: true }
@@ -1170,7 +1222,8 @@ export async function findEmailWithFallback(
 // Reoon API - Email Verification with multi-key rotation
 // Flow: Always try first key first → rotate through keys → fallback to Rapid → check first key reset
 export async function verifyEmailWithReoon(
-  email: string
+  email: string,
+  signal?: AbortSignal
 ): Promise<{ verified: boolean; rateLimited: boolean; allKeysExhausted: boolean }> {
   const REOON_COOLDOWN_MS = 24 * 60 * 60 * 1000
   const reoonKeys = getReoonApiKeys()
@@ -1203,7 +1256,8 @@ export async function verifyEmailWithReoon(
   ): Promise<{ verified: boolean; rateLimited: boolean; error: boolean }> => {
     try {
       const response = await fetch(
-        `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${apiKey}&mode=power`
+        `https://emailverifier.reoon.com/api/v1/verify?email=${encodeURIComponent(email)}&key=${apiKey}&mode=power`,
+        { signal }
       )
 
       const data = await response.json()
@@ -1236,6 +1290,9 @@ export async function verifyEmailWithReoon(
       )
       return { verified, rateLimited: false, error: false }
     } catch (err) {
+      if (signal?.aborted || (err instanceof Error && err.message === 'Aborted')) {
+        throw err
+      }
       console.log(`[Reoon] Exception for ${email}:`, err)
       return { verified: false, rateLimited: false, error: true }
     }
@@ -1283,11 +1340,15 @@ export async function verifyEmailWithReoon(
 // Rapid Email Verifier - Free Open Source fallback (no API key needed)
 // https://rapid-email-verifier.fly.dev/ - unlimited, no auth required
 // GitHub: https://github.com/umuterturk/email-verifier
-export async function verifyEmailWithRapidVerifier(email: string): Promise<boolean> {
+export async function verifyEmailWithRapidVerifier(
+  email: string,
+  signal?: AbortSignal
+): Promise<boolean> {
   try {
     console.log(`[Rapid Verifier] Verifying email (free fallback): ${email}`)
     const response = await fetch(
-      `https://rapid-email-verifier.fly.dev/api/validate?email=${encodeURIComponent(email)}`
+      `https://rapid-email-verifier.fly.dev/api/validate?email=${encodeURIComponent(email)}`,
+      { signal }
     )
 
     if (!response.ok) {
@@ -1327,6 +1388,9 @@ export async function verifyEmailWithRapidVerifier(email: string): Promise<boole
     )
     return isValid
   } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.message === 'Aborted')) {
+      throw error
+    }
     console.log('[Rapid Verifier] Error:', error)
     return false
   }

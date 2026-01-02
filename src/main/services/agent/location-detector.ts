@@ -78,33 +78,46 @@ function quickCityCheck(location: string): boolean {
 /**
  * Use AI to classify ambiguous locations
  */
-async function aiClassifyLocation(location: string): Promise<'city' | 'country'> {
+async function aiClassifyLocation(
+  location: string,
+  signal?: AbortSignal
+): Promise<'city' | 'country'> {
   const prompt = `Classify this location as either "city" or "country". Only respond with one word: city or country.
 
 Location: "${location}"
 
 Answer:`
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let response = ''
 
-    streamChatResponse([{ id: 'user', role: 'user', text: prompt }] as ChatMessage[], {
-      onToken: (token) => {
-        response += token
-      },
-      onComplete: () => {
-        const normalized = response.toLowerCase().trim()
-        if (normalized.includes('country')) {
-          resolve('country')
-        } else {
+    streamChatResponse(
+      [{ id: 'user', role: 'user', text: prompt }] as ChatMessage[],
+      {
+        onToken: (token) => {
+          response += token
+        },
+        onComplete: () => {
+          const normalized = response.toLowerCase().trim()
+          if (normalized.includes('country')) {
+            resolve('country')
+          } else {
+            resolve('city')
+          }
+        },
+        onError: (error) => {
+          if (error === 'Aborted') {
+            const err = new Error('Aborted')
+            ;(err as { name?: string }).name = 'AbortError'
+            reject(err)
+            return
+          }
           resolve('city')
         }
       },
-      onError: () => {
-        // Default to city on error (safer - doesn't trigger extra research)
-        resolve('city')
-      }
-    })
+      undefined,
+      signal
+    )
   })
 }
 
@@ -119,7 +132,10 @@ export interface ClassifiedLocation {
  * Detect if a location is a city or country
  * Uses heuristics first, then AI for ambiguous cases
  */
-export async function detectLocationType(location: string): Promise<LocationType> {
+export async function detectLocationType(
+  location: string,
+  signal?: AbortSignal
+): Promise<LocationType> {
   // 1. Quick country check
   if (quickCountryCheck(location)) {
     console.log(`[LocationDetector] "${location}" → country (known list)`)
@@ -134,7 +150,12 @@ export async function detectLocationType(location: string): Promise<LocationType
 
   // 3. Use AI for ambiguous cases
   console.log(`[LocationDetector] "${location}" → using AI classification...`)
-  const result = await aiClassifyLocation(location)
+  if (signal?.aborted) {
+    const err = new Error('Aborted')
+    ;(err as { name?: string }).name = 'AbortError'
+    throw err
+  }
+  const result = await aiClassifyLocation(location, signal)
   console.log(`[LocationDetector] "${location}" → ${result} (AI)`)
   return result
 }
@@ -142,11 +163,14 @@ export async function detectLocationType(location: string): Promise<LocationType
 /**
  * Classify multiple locations
  */
-export async function classifyLocations(locations: string[]): Promise<ClassifiedLocation[]> {
+export async function classifyLocations(
+  locations: string[],
+  signal?: AbortSignal
+): Promise<ClassifiedLocation[]> {
   const results: ClassifiedLocation[] = []
 
   for (const location of locations) {
-    const type = await detectLocationType(location)
+    const type = await detectLocationType(location, signal)
     results.push({ original: location, type })
   }
 

@@ -4,10 +4,10 @@ import { SearchResult, searchWithSerper } from '../lead-generation'
  * Web Search Tool - Uses Serper API to search the web for market research queries
  * Used by the agent to research best cities in a country for a given niche
  */
-export async function webSearchTool(query: string): Promise<SearchResult[]> {
+export async function webSearchTool(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   try {
     console.log(`[WebSearchTool] Searching: "${query}"`)
-    const results = await searchWithSerper(query)
+    const results = await searchWithSerper(query, 1, signal)
     console.log(`[WebSearchTool] Found ${results.length} results`)
     return results
   } catch (error) {
@@ -23,7 +23,8 @@ export async function webSearchTool(query: string): Promise<SearchResult[]> {
 export async function searchBestCitiesForNiche(
   country: string,
   niche: string,
-  filterNoWebsite?: boolean
+  filterNoWebsite?: boolean,
+  signal?: AbortSignal
 ): Promise<SearchResult[]> {
   let query = `best cities in ${country} for ${niche} businesses`
 
@@ -31,7 +32,7 @@ export async function searchBestCitiesForNiche(
     query += ` with low online presence no website`
   }
 
-  return webSearchTool(query)
+  return webSearchTool(query, signal)
 }
 
 /**
@@ -39,8 +40,9 @@ export async function searchBestCitiesForNiche(
  */
 export async function searchCompetitionAnalysis(
   country: string,
-  niche: string
+  niche: string,
+  signal?: AbortSignal
 ): Promise<SearchResult[]> {
   const query = `${niche} market competition ${country} underserved areas low competition cities`
-  return webSearchTool(query)
+  return webSearchTool(query, signal)
 }

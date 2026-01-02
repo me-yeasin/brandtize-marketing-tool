@@ -15,11 +15,21 @@ export interface EnrichmentResult {
   enrichmentLog?: string
 }
 
+function isAbortError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || error.message === 'Aborted'
+  }
+  return false
+}
+
 /**
  * Enrich lead with WhatsApp verification
  * Returns true if phone has WhatsApp, false otherwise
  */
-export async function enrichLeadWithWhatsApp(lead: AgentLead): Promise<EnrichmentResult> {
+export async function enrichLeadWithWhatsApp(
+  lead: AgentLead,
+  signal?: AbortSignal
+): Promise<EnrichmentResult> {
   if (!lead.phone) {
     return { enrichmentLog: 'No phone number to verify' }
   }
@@ -31,7 +41,7 @@ export async function enrichLeadWithWhatsApp(lead: AgentLead): Promise<Enrichmen
 
   try {
     console.log(`[Enrichment] Verifying WhatsApp for: ${lead.phone}`)
-    const result = await checkWhatsAppNumber(lead.phone)
+    const result = await checkWhatsAppNumber(lead.phone, signal)
 
     return {
       hasWhatsApp: result.hasWhatsApp,
@@ -40,6 +50,9 @@ export async function enrichLeadWithWhatsApp(lead: AgentLead): Promise<Enrichmen
         : `❌ No WhatsApp: ${lead.phone}`
     }
   } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw error
+    }
     console.error('[Enrichment] WhatsApp check failed:', error)
     return { enrichmentLog: `WhatsApp check failed: ${error}` }
   }
@@ -49,7 +62,10 @@ export async function enrichLeadWithWhatsApp(lead: AgentLead): Promise<Enrichmen
  * Enrich lead with email verification
  * Verifies if email is valid using Reoon/Rapid verifier
  */
-export async function enrichLeadWithEmailVerification(lead: AgentLead): Promise<EnrichmentResult> {
+export async function enrichLeadWithEmailVerification(
+  lead: AgentLead,
+  signal?: AbortSignal
+): Promise<EnrichmentResult> {
   if (!lead.email) {
     return { enrichmentLog: 'No email to verify' }
   }
@@ -58,7 +74,7 @@ export async function enrichLeadWithEmailVerification(lead: AgentLead): Promise<
     console.log(`[Enrichment] Verifying email: ${lead.email}`)
 
     // Try Reoon first
-    const reoonResult = await verifyEmailWithReoon(lead.email)
+    const reoonResult = await verifyEmailWithReoon(lead.email, signal)
 
     if (reoonResult.verified !== undefined) {
       return {
@@ -70,7 +86,7 @@ export async function enrichLeadWithEmailVerification(lead: AgentLead): Promise<
     }
 
     // Fallback to Rapid Verifier
-    const rapidResult = await verifyEmailWithRapidVerifier(lead.email)
+    const rapidResult = await verifyEmailWithRapidVerifier(lead.email, signal)
 
     return {
       emailVerified: rapidResult,
@@ -79,6 +95,9 @@ export async function enrichLeadWithEmailVerification(lead: AgentLead): Promise<
         : `❌ Email invalid (Rapid): ${lead.email}`
     }
   } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw error
+    }
     console.error('[Enrichment] Email verification failed:', error)
     return { enrichmentLog: `Email verification failed: ${error}` }
   }
@@ -104,7 +123,10 @@ function extractDomain(website: string): string | null {
  * Enrich lead by finding and verifying email from website
  * Uses Hunter.io/Snov.io to find email, then verifies it
  */
-export async function enrichLeadWithEmailFinder(lead: AgentLead): Promise<EnrichmentResult> {
+export async function enrichLeadWithEmailFinder(
+  lead: AgentLead,
+  signal?: AbortSignal
+): Promise<EnrichmentResult> {
   // Skip if already has email
   if (lead.email) {
     return { enrichmentLog: 'Lead already has email' }
@@ -127,7 +149,7 @@ export async function enrichLeadWithEmailFinder(lead: AgentLead): Promise<Enrich
     const { findEmailWithFallback } = await import('../lead-generation')
 
     // Try to find email
-    const result = await findEmailWithFallback(domain, undefined, undefined)
+    const result = await findEmailWithFallback(domain, undefined, undefined, signal)
 
     if (!result.email) {
       return { enrichmentLog: `No email found for ${domain}` }
@@ -136,7 +158,7 @@ export async function enrichLeadWithEmailFinder(lead: AgentLead): Promise<Enrich
     console.log(`[Enrichment] Found email: ${result.email}, now verifying...`)
 
     // Verify the found email
-    const verifyResult = await verifyEmailWithReoon(result.email)
+    const verifyResult = await verifyEmailWithReoon(result.email, signal)
     const verified = verifyResult.verified ?? false
 
     return {
@@ -147,6 +169,9 @@ export async function enrichLeadWithEmailFinder(lead: AgentLead): Promise<Enrich
         : `⚠️ Found but unverified: ${result.email}`
     }
   } catch (error) {
+    if (signal?.aborted || isAbortError(error)) {
+      throw error
+    }
     console.error('[Enrichment] Email finder failed:', error)
     return { enrichmentLog: `Email finder failed: ${error}` }
   }

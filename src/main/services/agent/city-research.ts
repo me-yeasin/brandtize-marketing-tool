@@ -3,13 +3,21 @@ import { AgentPreferences } from './types'
 import { webReaderTool } from './web-reader-tool'
 import { searchBestCitiesForNiche, searchCompetitionAnalysis } from './web-search-tool'
 
+function isAbortError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || error.message === 'Aborted'
+  }
+  return false
+}
+
 /**
  * Research and extract best cities from a country for the given niche
  * Uses web search + AI to analyze and return city names
  */
 export async function researchBestCities(
   country: string,
-  preferences: AgentPreferences
+  preferences: AgentPreferences,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const { niche, filters } = preferences
   const filterNoWebsite = filters.hasWebsite // When true, we want businesses WITHOUT websites
@@ -17,11 +25,11 @@ export async function researchBestCities(
   console.log(`[CityResearch] Researching best cities in ${country} for "${niche}"...`)
 
   // 1. Search for best cities
-  const searchResults = await searchBestCitiesForNiche(country, niche, filterNoWebsite)
+  const searchResults = await searchBestCitiesForNiche(country, niche, filterNoWebsite, signal)
 
   if (searchResults.length === 0) {
     console.log(`[CityResearch] No search results, falling back to competition analysis`)
-    const competitionResults = await searchCompetitionAnalysis(country, niche)
+    const competitionResults = await searchCompetitionAnalysis(country, niche, signal)
     if (competitionResults.length === 0) {
       console.log(`[CityResearch] No results found, using default major cities`)
       return getDefaultCitiesForCountry(country)
@@ -34,11 +42,14 @@ export async function researchBestCities(
 
   for (const url of topUrls) {
     try {
-      const content = await webReaderTool(url)
+      const content = await webReaderTool(url, signal)
       if (content) {
         additionalContext += content.slice(0, 3000) + '\n\n'
       }
-    } catch {
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) {
+        throw error
+      }
       // Ignore read errors
     }
   }
@@ -49,7 +60,8 @@ export async function researchBestCities(
     niche,
     filterNoWebsite,
     searchResults.map((r) => r.snippet).join('\n'),
-    additionalContext
+    additionalContext,
+    signal
   )
 
   console.log(`[CityResearch] Discovered ${cities.length} cities: ${cities.join(', ')}`)
@@ -64,7 +76,8 @@ async function extractCitiesWithAI(
   niche: string,
   filterNoWebsite: boolean,
   snippets: string,
-  detailedContent: string
+  detailedContent: string,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const filterContext = filterNoWebsite
     ? 'Focus on cities where many businesses lack online presence or websites.'
@@ -87,32 +100,43 @@ Instructions:
 
 Cities:`
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let response = ''
 
-    streamChatResponse([{ id: 'user', role: 'user', text: prompt }] as ChatMessage[], {
-      onToken: (token) => {
-        response += token
-      },
-      onComplete: () => {
-        const cities = response
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && line.length < 50) // Filter out non-city lines
-          .filter((line) => !line.match(/^\d+\.?\s*/)) // Remove numbered lines
-          .map((line) => line.replace(/^[-•*]\s*/, '')) // Remove bullet points
-          .slice(0, 7) // Max 7 cities
+    streamChatResponse(
+      [{ id: 'user', role: 'user', text: prompt }] as ChatMessage[],
+      {
+        onToken: (token) => {
+          response += token
+        },
+        onComplete: () => {
+          const cities = response
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && line.length < 50)
+            .filter((line) => !line.match(/^\d+\.?\s*/))
+            .map((line) => line.replace(/^[-•*]\s*/, ''))
+            .slice(0, 7)
 
-        if (cities.length === 0) {
+          if (cities.length === 0) {
+            resolve(getDefaultCitiesForCountry(country))
+          } else {
+            resolve(cities)
+          }
+        },
+        onError: (error) => {
+          if (error === 'Aborted') {
+            const err = new Error('Aborted')
+            ;(err as { name?: string }).name = 'AbortError'
+            reject(err)
+            return
+          }
           resolve(getDefaultCitiesForCountry(country))
-        } else {
-          resolve(cities)
         }
       },
-      onError: () => {
-        resolve(getDefaultCitiesForCountry(country))
-      }
-    })
+      undefined,
+      signal
+    )
   })
 }
 

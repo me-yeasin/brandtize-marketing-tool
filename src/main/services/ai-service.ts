@@ -51,6 +51,13 @@ interface StreamState {
   hasStartedStreaming: boolean
 }
 
+function isAbortError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || error.message === 'Aborted'
+  }
+  return false
+}
+
 function createGroqClientWithModel(modelId: string): ChatGroq | null {
   const { groqApiKey } = getApiKeys()
 
@@ -144,7 +151,8 @@ async function attemptStreamWithGroqModel(
   modelId: string,
   langChainMessages: BaseMessage[],
   callbacks: StreamCallbacks,
-  state: StreamState
+  state: StreamState,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; error?: unknown }> {
   const client = createGroqClientWithModel(modelId)
 
@@ -156,6 +164,11 @@ async function attemptStreamWithGroqModel(
     const stream = await client.stream(langChainMessages)
 
     for await (const chunk of stream) {
+      if (signal?.aborted) {
+        const err = new Error('Aborted')
+        ;(err as { name?: string }).name = 'AbortError'
+        throw err
+      }
       const token = chunk.content as string
 
       if (token) {
@@ -175,7 +188,8 @@ async function attemptStreamWithMistralModel(
   modelId: string,
   langChainMessages: BaseMessage[],
   callbacks: StreamCallbacks,
-  state: StreamState
+  state: StreamState,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; error?: unknown }> {
   const client = createMistralClientWithModel(modelId)
 
@@ -187,6 +201,11 @@ async function attemptStreamWithMistralModel(
     const stream = await client.stream(langChainMessages)
 
     for await (const chunk of stream) {
+      if (signal?.aborted) {
+        const err = new Error('Aborted')
+        ;(err as { name?: string }).name = 'AbortError'
+        throw err
+      }
       const token = chunk.content as string
 
       if (token) {
@@ -206,7 +225,8 @@ async function attemptStreamWithGoogleModel(
   modelId: string,
   langChainMessages: BaseMessage[],
   callbacks: StreamCallbacks,
-  state: StreamState
+  state: StreamState,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; error?: unknown }> {
   const client = createGoogleClientWithModel(modelId)
 
@@ -218,6 +238,11 @@ async function attemptStreamWithGoogleModel(
     const stream = await client.stream(langChainMessages)
 
     for await (const chunk of stream) {
+      if (signal?.aborted) {
+        const err = new Error('Aborted')
+        ;(err as { name?: string }).name = 'AbortError'
+        throw err
+      }
       const token = chunk.content as string
 
       if (token) {
@@ -236,7 +261,8 @@ async function attemptStreamWithGoogleModel(
 export async function streamChatResponse(
   messages: ChatMessage[],
   callbacks: StreamCallbacks,
-  retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
+  retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG,
+  signal?: AbortSignal
 ): Promise<void> {
   const provider = getSelectedAiProvider()
   const { groqApiKey, mistralApiKey, googleApiKey } = getApiKeys()
@@ -287,16 +313,24 @@ export async function streamChatResponse(
   let totalModelSwitches = 0
 
   while (true) {
+    if (signal?.aborted) {
+      callbacks.onError('Aborted')
+      return
+    }
     const currentModel = models[currentModelIndex].id
 
     for (let attempt = 0; attempt < retryConfig.maxRetries; attempt++) {
+      if (signal?.aborted) {
+        callbacks.onError('Aborted')
+        return
+      }
       if (attempt > 0) {
         callbacks.onRetry?.(currentModel, attempt + 1, retryConfig.maxRetries)
         const delay = calculateBackoffDelay(attempt, retryConfig)
-        await sleep(delay)
+        await sleep(delay, signal)
       }
 
-      const result = await attemptStream(currentModel, langChainMessages, callbacks, state)
+      const result = await attemptStream(currentModel, langChainMessages, callbacks, state, signal)
 
       if (result.success) {
         callbacks.onComplete(state.partialText)
@@ -304,6 +338,10 @@ export async function streamChatResponse(
       }
 
       const error = result.error
+      if (isAbortError(error)) {
+        callbacks.onError('Aborted')
+        return
+      }
 
       if (!isRetryableError(error)) {
         callbacks.onError(formatErrorForUser(error))

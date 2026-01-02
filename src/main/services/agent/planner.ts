@@ -28,17 +28,22 @@ Guidance:
 3. Do not include any explanation or markdown formatting. Just the raw JSON array.
 `
 
-async function generateText(messages: ChatMessage[]): Promise<string> {
+async function generateText(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    streamChatResponse(messages, {
-      onToken: () => {},
-      onComplete: (text) => {
-        resolve(text)
+    streamChatResponse(
+      messages,
+      {
+        onToken: () => {},
+        onComplete: (text) => {
+          resolve(text)
+        },
+        onError: (error) => {
+          reject(new Error(error))
+        }
       },
-      onError: (error) => {
-        reject(new Error(error))
-      }
-    })
+      undefined,
+      signal
+    )
   })
 }
 
@@ -49,7 +54,8 @@ async function generateText(messages: ChatMessage[]): Promise<string> {
  */
 export async function planSearchStrategy(
   preferences: AgentPreferences,
-  callbacks?: PlannerCallbacks
+  callbacks?: PlannerCallbacks,
+  signal?: AbortSignal
 ): Promise<SearchTask[]> {
   const { niche, locations } = preferences
 
@@ -59,7 +65,7 @@ export async function planSearchStrategy(
 
   // 1. Classify all locations as city or country
   console.log('[Planner] Classifying locations...')
-  const classifiedLocations = await classifyLocations(locations)
+  const classifiedLocations = await classifyLocations(locations, signal)
 
   // Report classifications
   for (const loc of classifiedLocations) {
@@ -78,7 +84,7 @@ export async function planSearchStrategy(
       callbacks?.onResearchingCountry?.(loc.original)
       console.log(`[Planner] Researching cities in ${loc.original}...`)
 
-      const discoveredCities = await researchBestCities(loc.original, preferences)
+      const discoveredCities = await researchBestCities(loc.original, preferences, signal)
       callbacks?.onCitiesDiscovered?.(loc.original, discoveredCities)
 
       for (const city of discoveredCities) {
@@ -104,7 +110,7 @@ export async function planSearchStrategy(
   ]
 
   try {
-    const responseText = await generateText(messages)
+    const responseText = await generateText(messages, signal)
 
     // Clean up potential markdown code blocks
     const cleanJson = responseText
@@ -163,11 +169,12 @@ export async function planSearchStrategy(
 export async function expandSearchForCountry(
   country: string,
   preferences: AgentPreferences,
-  alreadySearchedCities: string[]
+  alreadySearchedCities: string[],
+  signal?: AbortSignal
 ): Promise<SearchTask[]> {
   console.log(`[Planner] Expanding search for ${country}...`)
 
-  const allCities = await researchBestCities(country, preferences)
+  const allCities = await researchBestCities(country, preferences, signal)
   const newCities = allCities.filter(
     (city) =>
       !alreadySearchedCities.some((searched) => searched.toLowerCase() === city.toLowerCase())
