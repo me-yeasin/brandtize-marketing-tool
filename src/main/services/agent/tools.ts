@@ -1,6 +1,6 @@
 import { FacebookPageLead, searchFacebookPages } from '../facebook-scraper'
 import { MapsPlace, searchMapsWithSerper } from '../lead-generation'
-import { AgentLead, SearchTask } from './types'
+import { AgentLead, AgentLogFn, SearchTask } from './types'
 
 // Pagination configuration
 const MAPS_MAX_PAGES = 3 // Fetch up to 3 pages (60 results) per city
@@ -9,7 +9,8 @@ const FACEBOOK_MAX_RESULTS = 50
 
 export async function executeGoogleMapsSearch(
   task: SearchTask,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  log?: AgentLogFn
 ): Promise<AgentLead[]> {
   try {
     const fullLocation = task.discoveredFromCountry
@@ -38,13 +39,20 @@ export async function executeGoogleMapsSearch(
     return places.map(mapMapsPlaceToLead)
   } catch (error) {
     console.error(`Google Maps search failed for "${task.query}":`, error)
+    log?.(
+      `❌ Google Maps search failed: "${task.query}" in "${task.location}" - ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      'error'
+    )
     return []
   }
 }
 
 export async function executeFacebookSearch(
   task: SearchTask,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  log?: AgentLogFn
 ): Promise<AgentLead[]> {
   try {
     const fullLocation = task.discoveredFromCountry
@@ -60,13 +68,20 @@ export async function executeFacebookSearch(
     const leads = await searchFacebookPages({
       searchQuery: searchQuery,
       maxResults: effectiveLimit,
-      signal
+      signal,
+      onProgress: (message) => log?.(message, 'info')
     })
 
     console.log(`[Facebook] Retrieved ${leads.length} leads`)
     return leads.map(mapFacebookLeadToLead)
   } catch (error) {
     console.error(`Facebook search failed for "${task.query}":`, error)
+    log?.(
+      `❌ Facebook search failed: "${task.query}" in "${task.location}" - ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      'error'
+    )
     return []
   }
 }

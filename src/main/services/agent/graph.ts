@@ -49,6 +49,38 @@ function isGoalReached(state: AgentState): boolean {
   return state.currentLeadCount >= state.targetLeadCount
 }
 
+function startHeartbeat(
+  sender: WebContents,
+  message: (elapsedMs: number) => string,
+  signal: AbortSignal,
+  options?: { intervalMs?: number; maxBeats?: number }
+): () => void {
+  const intervalMs = options?.intervalMs ?? 20000
+  const maxBeats = options?.maxBeats ?? 3
+  const startedAt = Date.now()
+  let beats = 0
+
+  const interval = setInterval(() => {
+    if (signal.aborted) return
+    beats++
+    if (beats > maxBeats) {
+      clearInterval(interval)
+      return
+    }
+    emitLog(sender, message(Date.now() - startedAt), 'info')
+  }, intervalMs)
+
+  const onAbort = (): void => {
+    clearInterval(interval)
+  }
+  signal.addEventListener('abort', onAbort, { once: true })
+
+  return () => {
+    clearInterval(interval)
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
 export async function startAgent(
   preferences: AgentPreferences,
   sender: WebContents
@@ -78,8 +110,14 @@ export async function startAgent(
   )
 
   try {
-    // 1. Initial Planning
     emitLog(sender, `📋 Analyzing niche "${preferences.niche}" and locations...`, 'info')
+
+    const stopPlanningHeartbeat = startHeartbeat(
+      sender,
+      (elapsedMs) => `⏳ Still planning... (${Math.round(elapsedMs / 1000)}s)`,
+      globalAbortController.signal,
+      { intervalMs: 15000, maxBeats: 6 }
+    )
 
     const initialPlan = await planSearchStrategy(preferences, {
       onLocationClassified: (location, type) => {
@@ -93,13 +131,14 @@ export async function startAgent(
         emitLog(sender, `✅ Found ${cities.length} cities in ${country}`, 'success')
       }
     })
+    stopPlanningHeartbeat()
 
     if (stopRequested) return
 
     currentState.plan = initialPlan
     sender.send('agent-plan-updated', initialPlan)
+    emitLog(sender, `📋 Initial plan ready: ${initialPlan.length} tasks`, 'success')
 
-    // 2. MAIN NEVER-STOP LOOP
     await neverStopLoop(sender, initialPlan)
 
     // Final status
@@ -169,7 +208,14 @@ async function neverStopLoop(sender: WebContents, initialTasks: SearchTask[]): P
       'warning'
     )
 
+    const stopExpansionHeartbeat = startHeartbeat(
+      sender,
+      (elapsedMs) => `⏳ Still generating new tasks... (${Math.round(elapsedMs / 1000)}s)`,
+      globalAbortController!.signal,
+      { intervalMs: 15000, maxBeats: 6 }
+    )
     const newTasks = await generateMoreTasks(sender, usedQueries)
+    stopExpansionHeartbeat()
 
     if (newTasks.length > 0) {
       pendingTasks = newTasks
@@ -229,6 +275,11 @@ async function generateMoreTasks(
       lastCountry,
       currentState!.searchedCities
     )
+    if (nearbyCities.length === 0) {
+      emitLog(sender, `⚠️ No nearby cities discovered near ${lastCity}`, 'warning')
+    } else {
+      emitLog(sender, `✅ Discovered ${nearbyCities.length} nearby cities`, 'success')
+    }
 
     for (const city of nearbyCities) {
       newTasks.push({
@@ -256,6 +307,11 @@ async function generateMoreTasks(
   emitLog(sender, `💡 Strategy 3: Trying query variations for "${niche}"...`, 'info')
 
   const queryVariations = await generateQueryVariations(niche, usedQueries)
+  if (queryVariations.length === 0) {
+    emitLog(sender, `⚠️ No query variations generated for "${niche}"`, 'warning')
+  } else {
+    emitLog(sender, `✅ Generated ${queryVariations.length} query variations`, 'success')
+  }
 
   if (queryVariations.length > 0) {
     const cityToRetry = currentState!.searchedCities.slice(0, 3) // Retry first 3 cities with new query
@@ -380,26 +436,52 @@ async function executeSourceAndProcess(
     currentState!.searchedCities.push(task.location)
   }
 
+  const fullLocation = task.discoveredFromCountry
+    ? `${task.location}, ${task.discoveredFromCountry}`
+    : task.location
+  let stopSearchHeartbeat: () => void = () => {}
+
   try {
     let leads: AgentLead[] = []
 
-    // Execute specific tool
+    emitLog(sender, `🔎 ${task.source}: "${task.query}" in "${fullLocation}"`, 'info')
+    stopSearchHeartbeat = startHeartbeat(
+      sender,
+      (elapsedMs) =>
+        `⏳ Still searching ${task.source}: "${task.query}" in "${fullLocation}" (${Math.round(
+          elapsedMs / 1000
+        )}s)`,
+      signal,
+      { intervalMs: 20000, maxBeats: 3 }
+    )
+
     if (task.source === 'google_maps') {
-      leads = await executeGoogleMapsSearch(task, signal)
+      leads = await executeGoogleMapsSearch(task, signal, (message, type) =>
+        emitLog(sender, message, type)
+      )
     } else if (task.source === 'facebook') {
-      leads = await executeFacebookSearch(task, signal)
+      leads = await executeFacebookSearch(task, signal, (message, type) =>
+        emitLog(sender, message, type)
+      )
     }
 
-    // Post-process immediately
-    if (leads.length > 0) {
-      await processLeadsBatch(sender, leads, task.source, task.location)
+    if (leads.length === 0) {
+      emitLog(
+        sender,
+        `⚠️ ${task.source}: 0 leads for "${task.query}" in "${fullLocation}"`,
+        'warning'
+      )
+      return
     }
+    await processLeadsBatch(sender, leads, task.source, task.location)
   } catch (error) {
     console.error(`[${task.source}] Search failed:`, error)
     if (error instanceof Error && error.message === 'Aborted') {
       return // Ignore abort errors
     }
     emitLog(sender, `⚠️ Source failed: ${task.source} - ${error}`, 'warning')
+  } finally {
+    stopSearchHeartbeat()
   }
 }
 
@@ -436,6 +518,13 @@ async function processLeadsBatch(
   }
 
   // 4. Process & Add to State
+  let enrichmentModule: typeof import('./lead-enrichment') | null = null
+  const getEnrichment = async (): Promise<typeof import('./lead-enrichment')> => {
+    if (enrichmentModule) return enrichmentModule
+    enrichmentModule = await import('./lead-enrichment')
+    return enrichmentModule
+  }
+
   let addedCount = 0
   for (const lead of uniqueLeads) {
     if (isGoalReached(currentState!)) break
@@ -458,10 +547,18 @@ async function processLeadsBatch(
     // I will put it in a helper or inline it.
     // Since I am replacing the WHOLE executeTasks block, I must RE-INCLUDE logic.
 
-    /* [Re-pasting verification logic from original file to ensure no regression] */
     if (filters.autoVerifyWA && lead.phone) {
-      const { enrichLeadWithWhatsApp } = await import('./lead-enrichment')
-      const waResult = await enrichLeadWithWhatsApp(lead)
+      emitLog(sender, `🔍 Verifying WhatsApp: ${lead.phone} (${lead.name})`, 'info')
+      const waResult = await (await getEnrichment()).enrichLeadWithWhatsApp(lead)
+
+      if (waResult.enrichmentLog) {
+        let waLogType: LogEntry['type'] = 'warning'
+        if (waResult.hasWhatsApp === true) {
+          waLogType = 'success'
+        }
+        emitLog(sender, waResult.enrichmentLog, waLogType)
+      }
+
       if (waResult.hasWhatsApp !== undefined) {
         lead.hasWhatsApp = waResult.hasWhatsApp
         if (!waResult.hasWhatsApp) {
@@ -469,20 +566,63 @@ async function processLeadsBatch(
         }
       }
     } else if (filters.autoVerifyWA && !lead.phone) {
+      emitLog(sender, `⏭️ Skipped lead (missing phone for WhatsApp): ${lead.name}`, 'info')
       skipLead = true
     }
 
-    if (!skipLead && filters.autoVerifyEmail && lead.email) {
-      const { enrichLeadWithEmailVerification } = await import('./lead-enrichment')
-      const emailResult = await enrichLeadWithEmailVerification(lead)
+    if (!skipLead && filters.autoFindEmail && !lead.email) {
+      if (lead.website) {
+        emitLog(sender, `🔍 Finding email: ${lead.website} (${lead.name})`, 'info')
+        const emailFindResult = await (await getEnrichment()).enrichLeadWithEmailFinder(lead)
+
+        if (emailFindResult.enrichmentLog) {
+          let findLogType: LogEntry['type'] = 'info'
+          if (emailFindResult.emailVerified === true) {
+            findLogType = 'success'
+          } else if (emailFindResult.email && emailFindResult.emailVerified === false) {
+            findLogType = 'warning'
+          } else if (!emailFindResult.email) {
+            findLogType = 'warning'
+          }
+          emitLog(sender, emailFindResult.enrichmentLog, findLogType)
+        }
+
+        if (emailFindResult.email) {
+          lead.email = emailFindResult.email
+        }
+        if (emailFindResult.emailVerified !== undefined) {
+          lead.emailVerified = emailFindResult.emailVerified
+        }
+      } else {
+        emitLog(sender, `⏭️ Skipped email finding (missing website): ${lead.name}`, 'info')
+      }
+    }
+
+    if (!skipLead && filters.autoVerifyEmail && lead.email && lead.emailVerified === undefined) {
+      emitLog(sender, `🔍 Verifying email: ${lead.email} (${lead.name})`, 'info')
+      const emailResult = await (await getEnrichment()).enrichLeadWithEmailVerification(lead)
+
+      if (emailResult.enrichmentLog) {
+        let emailLogType: LogEntry['type'] = 'warning'
+        if (emailResult.emailVerified === true) {
+          emailLogType = 'success'
+        }
+        emitLog(sender, emailResult.enrichmentLog, emailLogType)
+      }
+
       if (emailResult.emailVerified !== undefined) {
         lead.emailVerified = emailResult.emailVerified
-        if (!emailResult.emailVerified) {
-          skipLead = true
-        }
       }
-    } else if (!skipLead && filters.autoVerifyEmail && !lead.email) {
-      skipLead = true
+    }
+
+    if (!skipLead && filters.autoVerifyEmail) {
+      if (!lead.email) {
+        emitLog(sender, `⏭️ Skipped lead (missing email for verification): ${lead.name}`, 'info')
+        skipLead = true
+      } else if (lead.emailVerified === false) {
+        emitLog(sender, `⏭️ Skipped lead (email unverified): ${lead.email} (${lead.name})`, 'info')
+        skipLead = true
+      }
     }
 
     // Note: Simplified logic for brevity in this replace block,

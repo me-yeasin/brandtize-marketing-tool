@@ -50,6 +50,7 @@ export interface FacebookSearchParams {
   pageUrls?: string[] // Direct page URLs to scrape
   maxResults?: number // Limit results (default 100)
   signal?: AbortSignal
+  onProgress?: (message: string) => void
 }
 
 // Calculate lead score based on engagement and contact info
@@ -319,11 +320,13 @@ export async function searchFacebookPages(
   params: FacebookSearchParams
 ): Promise<FacebookPageLead[]> {
   console.log('[FacebookScraper] Starting search with params:', params)
+  params.onProgress?.('🔍 Facebook: initializing scrape...')
 
   const maxResults = params.maxResults || 100
 
   // If we have direct URLs, use the Pages Scraper
   if (params.pageUrls && params.pageUrls.length > 0) {
+    params.onProgress?.(`🔍 Facebook: scraping ${params.pageUrls.length} page URLs...`)
     return scrapeFacebookPageUrls(params.pageUrls)
   }
 
@@ -351,6 +354,11 @@ export async function searchFacebookPages(
     }
 
     console.log('[FacebookScraper] Parsed - Categories:', categories, 'Locations:', locations)
+    params.onProgress?.(
+      `🔍 Facebook: search prepared (category: ${categories[0] || 'n/a'}${
+        locations.length > 0 ? `, location: ${locations[0]}` : ''
+      })`
+    )
 
     // Build input for the Facebook Search Scraper actor
     // Actor ID: apify/facebook-search-scraper
@@ -366,6 +374,7 @@ export async function searchFacebookPages(
     }
 
     console.log('[FacebookScraper] Running Facebook Search Scraper with input:', actorInput)
+    params.onProgress?.('🧩 Facebook: starting Apify actor...')
 
     const keyEntries = getApifyKeyEntries()
     if (keyEntries.length === 0) {
@@ -391,15 +400,18 @@ export async function searchFacebookPages(
         )
 
         console.log('[FacebookScraper] Run completed, fetching results...')
+        params.onProgress?.('📥 Facebook: fetching results from Apify dataset...')
 
         const items = await fetchDatasetItems(client, run.defaultDatasetId, maxResults)
         console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
+        params.onProgress?.(`📥 Facebook: downloaded ${items.length} results`)
 
         const leads = items.map((item) => parseApifyResponse(item as Record<string, unknown>))
         const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
         leads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
 
         console.log(`[FacebookScraper] Processed ${leads.length} leads`)
+        params.onProgress?.(`✅ Facebook: processed ${leads.length} leads`)
         return leads
       }
     })

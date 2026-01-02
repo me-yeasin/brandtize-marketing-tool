@@ -46,6 +46,8 @@ export interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error'
 }
 
+export type AgentLogFn = (message: string, type?: LogEntry['type']) => void
+
 export interface AgentState {
   preferences: AgentPreferences
   plan: SearchTask[]
