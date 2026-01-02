@@ -166,6 +166,56 @@
   margin-top: 0.5rem;
 }
 
+.contact-details {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+
+.contact-row svg {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.contact-label {
+  width: 68px;
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.contact-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e2e8f0;
+}
+
+.contact-value.muted {
+  color: #64748b;
+}
+
+.contact-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: #60a5fa;
+}
+
+.contact-link:hover {
+  text-decoration: underline;
+}
+
 .contact-badge {
   display: flex;
   align-items: center;

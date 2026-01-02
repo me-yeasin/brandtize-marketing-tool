@@ -54,7 +54,6 @@ export async function startAgent(
   sender: WebContents
 ): Promise<void> {
   stopRequested = false
-  stopRequested = false
   seenLeadKeys = new Set() // Reset deduplication tracking
   globalAbortController = new AbortController()
 
@@ -220,9 +219,9 @@ async function generateMoreTasks(
 
   // Strategy 2: Discover nearby cities using AI
   const lastCity = currentState!.searchedCities[currentState!.searchedCities.length - 1]
-  const lastCountry = currentState!.processedCountries[0] || ''
+  const lastCountry = currentState!.processedCountries[0]
 
-  if (lastCity && lastCountry) {
+  if (lastCity) {
     emitLog(sender, `🗺️ Strategy 2: Discovering cities near ${lastCity}...`, 'info')
 
     const nearbyCities = await discoverNearbyCities(
@@ -237,6 +236,14 @@ async function generateMoreTasks(
         query: niche,
         location: city,
         source: 'google_maps',
+        status: 'pending',
+        discoveredFromCountry: lastCountry
+      })
+      newTasks.push({
+        id: crypto.randomUUID(),
+        query: niche,
+        location: city,
+        source: 'facebook',
         status: 'pending',
         discoveredFromCountry: lastCountry
       })
@@ -365,6 +372,13 @@ async function executeSourceAndProcess(
 ): Promise<void> {
   // If goal already reached (by another fast task), skip execution if possible
   if (isGoalReached(currentState!)) return
+
+  if (
+    task.location &&
+    !currentState!.searchedCities.some((c) => c.toLowerCase() === task.location.toLowerCase())
+  ) {
+    currentState!.searchedCities.push(task.location)
+  }
 
   try {
     let leads: AgentLead[] = []

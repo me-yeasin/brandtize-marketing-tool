@@ -757,6 +757,41 @@ function AutomationPage(): JSX.Element {
                     <FaWhatsapp size={14} />
                   </div>
                 </div>
+
+                <div className="contact-details">
+                  <div className="contact-row">
+                    <FaPhoneAlt size={12} />
+                    <span className="contact-label">Phone</span>
+                    <span className={`contact-value ${lead.phone ? '' : 'muted'}`}>
+                      {lead.phone || '—'}
+                    </span>
+                  </div>
+                  <div className="contact-row">
+                    <FaEnvelope size={12} />
+                    <span className="contact-label">Email</span>
+                    <span className={`contact-value ${lead.email ? '' : 'muted'}`}>
+                      {lead.email || '—'}
+                    </span>
+                  </div>
+                  <div className="contact-row">
+                    <FaGlobe size={12} />
+                    <span className="contact-label">Website</span>
+                    {lead.website ? (
+                      <button
+                        type="button"
+                        className="contact-link contact-value"
+                        title={lead.website}
+                        onClick={() =>
+                          window.api.openExternalUrl && window.api.openExternalUrl(lead.website!)
+                        }
+                      >
+                        {lead.website}
+                      </button>
+                    ) : (
+                      <span className="contact-value muted">—</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Card Footer */}

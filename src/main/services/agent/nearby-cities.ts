@@ -6,14 +6,16 @@ import { ChatMessage, streamChatResponse } from '../ai-service'
  */
 export async function discoverNearbyCities(
   currentCity: string,
-  country: string,
+  country: string | undefined,
   excludeCities: string[]
 ): Promise<string[]> {
-  console.log(`[NearbyCities] Discovering cities near ${currentCity}, ${country}...`)
+  console.log(
+    `[NearbyCities] Discovering cities near ${currentCity}${country ? `, ${country}` : ''}...`
+  )
 
   const excludeList = excludeCities.join(', ')
 
-  const prompt = `I need to find businesses in cities near "${currentCity}" in ${country}.
+  const prompt = `I need to find businesses in cities near "${currentCity}"${country ? ` in ${country}` : ''}.
 
 Please list 5-7 nearby cities or towns that:
 1. Are within reasonable proximity to ${currentCity}
