@@ -224,6 +224,16 @@ interface StoreSchema {
   snovClientId: string
   snovClientSecret: string
   apifyApiKey: string // Apify API key for Facebook scraping
+  apiKeyCooldowns: Record<
+    string,
+    Record<
+      string,
+      {
+        rateLimitedAt: number
+        resetAt: number
+      }
+    >
+  >
   // Multi-key arrays for rotation
   serperApiKeys: ApiKeyEntry[]
   jinaApiKeys: ApiKeyEntry[]
@@ -270,6 +280,7 @@ const store = new Store<StoreSchema>({
     snovClientId: '',
     snovClientSecret: '',
     apifyApiKey: '',
+    apiKeyCooldowns: {},
     // Multi-key arrays (empty by default)
     serperApiKeys: [],
     jinaApiKeys: [],
@@ -356,6 +367,137 @@ export function setSnovClientSecret(clientSecret: string): void {
 
 export function setJinaApiKey(key: string): void {
   store.set('jinaApiKey', key)
+}
+
+export function getApiKeyCooldowns(
+  serviceName: string
+): Record<string, { rateLimitedAt: number; resetAt: number }> {
+  const all = store.get('apiKeyCooldowns', {})
+  const service = all[serviceName] || {}
+  const now = Date.now()
+  const next: Record<string, { rateLimitedAt: number; resetAt: number }> = {}
+
+  let changed = false
+  for (const [key, info] of Object.entries(service)) {
+    if (!info || typeof info.resetAt !== 'number' || info.resetAt <= now) {
+      changed = true
+      continue
+    }
+    next[key] = info
+  }
+
+  if (changed) {
+    store.set('apiKeyCooldowns', { ...all, [serviceName]: next })
+  }
+
+  return next
+}
+
+export function getApiKeyCooldown(
+  serviceName: string,
+  apiKey: string
+): { rateLimitedAt: number; resetAt: number } | null {
+  if (!apiKey) return null
+  const map = getApiKeyCooldowns(serviceName)
+  return map[apiKey] || null
+}
+
+export function setApiKeyCooldown(
+  serviceName: string,
+  apiKey: string,
+  info: { rateLimitedAt: number; resetAt: number }
+): void {
+  if (!apiKey) return
+  const all = store.get('apiKeyCooldowns', {})
+  const current = all[serviceName] || {}
+  store.set('apiKeyCooldowns', {
+    ...all,
+    [serviceName]: {
+      ...current,
+      [apiKey]: info
+    }
+  })
+}
+
+export function clearApiKeyCooldown(serviceName: string, apiKey: string): void {
+  if (!apiKey) return
+  const all = store.get('apiKeyCooldowns', {})
+  const current = all[serviceName] || {}
+  if (!current[apiKey]) return
+  const next: Record<string, { rateLimitedAt: number; resetAt: number }> = { ...current }
+  delete next[apiKey]
+  store.set('apiKeyCooldowns', { ...all, [serviceName]: next })
+}
+
+function pruneApiKeyCooldowns(serviceName: string, activeKeys: string[]): void {
+  const all = store.get('apiKeyCooldowns', {})
+  const current = all[serviceName]
+  if (!current) return
+  const active = new Set(activeKeys.filter(Boolean))
+  let changed = false
+  const next: Record<string, { rateLimitedAt: number; resetAt: number }> = {}
+  for (const [k, info] of Object.entries(current)) {
+    if (!active.has(k)) {
+      changed = true
+      continue
+    }
+    next[k] = info
+  }
+  if (changed) {
+    store.set('apiKeyCooldowns', { ...all, [serviceName]: next })
+  }
+}
+
+export function getApiKeyExpiredMap(serviceName: string): Record<string, true> {
+  const all = store.get('apiKeyExpired', {})
+  return all[serviceName] || {}
+}
+
+export function isApiKeyExpired(serviceName: string, apiKey: string): boolean {
+  if (!apiKey) return false
+  const map = getApiKeyExpiredMap(serviceName)
+  return map[apiKey] === true
+}
+
+export function setApiKeyExpired(serviceName: string, apiKey: string, expired: boolean): void {
+  if (!apiKey) return
+  const all = store.get('apiKeyExpired', {})
+  const current = all[serviceName] || {}
+
+  if (expired) {
+    store.set('apiKeyExpired', {
+      ...all,
+      [serviceName]: {
+        ...current,
+        [apiKey]: true
+      }
+    })
+    return
+  }
+
+  if (!current[apiKey]) return
+  const next: Record<string, true> = { ...current }
+  delete next[apiKey]
+  store.set('apiKeyExpired', { ...all, [serviceName]: next })
+}
+
+function pruneApiKeyExpired(serviceName: string, activeKeys: string[]): void {
+  const all = store.get('apiKeyExpired', {})
+  const current = all[serviceName]
+  if (!current) return
+  const active = new Set(activeKeys.filter(Boolean))
+  let changed = false
+  const next: Record<string, true> = {}
+  for (const k of Object.keys(current)) {
+    if (!active.has(k)) {
+      changed = true
+      continue
+    }
+    next[k] = true
+  }
+  if (changed) {
+    store.set('apiKeyExpired', { ...all, [serviceName]: next })
+  }
 }
 
 export function setMistralApiKey(key: string): void {
@@ -469,6 +611,10 @@ export function getSerperApiKeys(): ApiKeyEntry[] {
 
 export function setSerperApiKeys(keys: ApiKeyEntry[]): void {
   store.set('serperApiKeys', keys)
+  pruneApiKeyExpired(
+    'serper',
+    keys.map((k) => k.key)
+  )
 }
 
 export function getJinaApiKeys(): ApiKeyEntry[] {
@@ -477,6 +623,10 @@ export function getJinaApiKeys(): ApiKeyEntry[] {
 
 export function setJinaApiKeys(keys: ApiKeyEntry[]): void {
   store.set('jinaApiKeys', keys)
+  pruneApiKeyExpired(
+    'jina',
+    keys.map((k) => k.key)
+  )
 }
 
 export function getHunterApiKeys(): ApiKeyEntry[] {
@@ -485,6 +635,10 @@ export function getHunterApiKeys(): ApiKeyEntry[] {
 
 export function setHunterApiKeys(keys: ApiKeyEntry[]): void {
   store.set('hunterApiKeys', keys)
+  pruneApiKeyCooldowns(
+    'hunter',
+    keys.map((k) => k.key)
+  )
 }
 
 export function getReoonApiKeys(): ApiKeyEntry[] {
@@ -493,6 +647,10 @@ export function getReoonApiKeys(): ApiKeyEntry[] {
 
 export function setReoonApiKeys(keys: ApiKeyEntry[]): void {
   store.set('reoonApiKeys', keys)
+  pruneApiKeyCooldowns(
+    'reoon',
+    keys.map((k) => k.key)
+  )
 }
 
 export function getSnovApiKeys(): ApiKeyEntry[] {
@@ -501,6 +659,10 @@ export function getSnovApiKeys(): ApiKeyEntry[] {
 
 export function setSnovApiKeys(keys: ApiKeyEntry[]): void {
   store.set('snovApiKeys', keys)
+  pruneApiKeyCooldowns(
+    'snov',
+    keys.map((k) => k.key)
+  )
 }
 
 // Apify API key getters and setters
@@ -518,6 +680,10 @@ export function getApifyApiKeys(): ApiKeyEntry[] {
 
 export function setApifyApiKeys(keys: ApiKeyEntry[]): void {
   store.set('apifyApiKeys', keys)
+  pruneApiKeyCooldowns(
+    'apify',
+    keys.map((k) => k.key)
+  )
 }
 
 // AI Provider multi-key getters and setters

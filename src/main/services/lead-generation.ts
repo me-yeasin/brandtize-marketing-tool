@@ -2,6 +2,7 @@ import {
   addFoundLead,
   addProcessedDomain,
   getAgencyProfile,
+  getApiKeyCooldown,
   getApiKeys,
   getHunterApiKeys,
   getJinaApiKeys,
@@ -19,10 +20,12 @@ import {
   clearExhaustedState,
   getExhaustedKeyCount,
   getNextKey,
-  markKeyExhausted,
+  markKeyExpired,
+  markKeyRateLimited,
   registerService,
   resetAllKeyRotation,
   SERVICE_NAMES,
+  updateServiceKeys,
   type KeyEntry
 } from './key-rotation-manager'
 
@@ -195,36 +198,15 @@ export async function searchWithSerper(query: string, page: number = 1): Promise
       }))
     }
 
-    // Rate limit (429) or unauthorized - mark exhausted and try next
-    if (response.status === 429 || response.status === 401) {
+    // Rate limit / quota / unauthorized - mark expired and try next
+    if (response.status === 429 || response.status === 401 || response.status === 402) {
       console.log(
         `Serper[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
       )
-      markKeyExhausted('serper', index, `HTTP ${response.status}`)
+      markKeyExpired('serper', index, `HTTP ${response.status}`)
 
-      // If all keys exhausted, try first key again to check if reset
       if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
-        console.log('[Serper] All keys exhausted, checking if first key has reset...')
-        const firstKeyResponse = await makeSerperRequest(allKeys[0].key)
-
-        if (firstKeyResponse.ok) {
-          // First key reset! Clear exhausted state and use it
-          console.log('[Serper] First key has reset! Continuing...')
-          clearExhaustedState('serper')
-          const data = await firstKeyResponse.json()
-          return (data.organic || []).map(
-            (item: { title: string; link: string; snippet: string }) => ({
-              title: item.title,
-              link: item.link,
-              snippet: item.snippet || ''
-            })
-          )
-        }
-
-        // First key still rate limited - STOP
-        throw new Error(
-          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
-        )
+        throw new Error('All Serper API keys are expired. Please add new API keys in Settings.')
       }
       continue
     }
@@ -377,28 +359,15 @@ export async function searchMapsWithSerper(params: MapsSearchParams): Promise<Ma
         return places
       }
 
-      // Rate limit (429) or unauthorized - mark exhausted and try next
-      if (response.status === 429 || response.status === 401) {
+      // Rate limit / quota / unauthorized - mark expired and try next
+      if (response.status === 429 || response.status === 401 || response.status === 402) {
         console.log(
           `SerperMaps[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
         )
-        markKeyExhausted('serper', index, `HTTP ${response.status}`)
+        markKeyExpired('serper', index, `HTTP ${response.status}`)
 
-        // If all keys exhausted, try first key again to check if reset
         if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
-          console.log('[SerperMaps] All keys exhausted, checking if first key has reset...')
-          const firstKeyResponse = await makeSerperMapsRequest(allKeys[0].key, start)
-
-          if (firstKeyResponse.ok) {
-            console.log('[SerperMaps] First key has reset! Continuing...')
-            clearExhaustedState('serper')
-            const data = await firstKeyResponse.json()
-            return parseMapsResponse(data)
-          }
-
-          throw new Error(
-            'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
-          )
+          throw new Error('All Serper API keys are expired. Please add new API keys in Settings.')
         }
         continue
       }
@@ -602,28 +571,15 @@ export async function fetchReviewsWithSerper(
       return result
     }
 
-    // Rate limit (429) or unauthorized - mark exhausted and try next
-    if (response.status === 429 || response.status === 401) {
+    // Rate limit / quota / unauthorized - mark expired and try next
+    if (response.status === 429 || response.status === 401 || response.status === 402) {
       console.log(
         `SerperReviews[${index + 1}/${allKeys.length}] rate limited/unauthorized, trying next...`
       )
-      markKeyExhausted('serper', index, `HTTP ${response.status}`)
+      markKeyExpired('serper', index, `HTTP ${response.status}`)
 
-      // If all keys exhausted, try first key again to check if reset
       if (allExhausted || getExhaustedKeyCount('serper') >= allKeys.length) {
-        console.log('[SerperReviews] All keys exhausted, checking if first key has reset...')
-        const firstKeyResponse = await makeSerperReviewsRequest(allKeys[0].key)
-
-        if (firstKeyResponse.ok) {
-          console.log('[SerperReviews] First key has reset! Continuing...')
-          clearExhaustedState('serper')
-          const data = await firstKeyResponse.json()
-          return parseReviewsResponse(data)
-        }
-
-        throw new Error(
-          'All Serper API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
-        )
+        throw new Error('All Serper API keys are expired. Please add new API keys in Settings.')
       }
       continue
     }
@@ -687,27 +643,13 @@ export async function scrapeWithJina(url: string, signal?: AbortSignal): Promise
       return parseResponse(response)
     }
 
-    // Rate limit (429) - mark exhausted and try next
-    if (response.status === 429) {
+    // Rate limit / quota / unauthorized - mark expired and try next
+    if (response.status === 429 || response.status === 401 || response.status === 402) {
       console.log(`Jina[${index + 1}/${allKeys.length}] rate limited, trying next key...`)
-      markKeyExhausted('jina', index, 'rate_limit')
+      markKeyExpired('jina', index, `HTTP ${response.status}`)
 
-      // If all keys exhausted, try first key again to check if reset
       if (allExhausted || getExhaustedKeyCount('jina') >= allKeys.length) {
-        console.log('[Jina] All keys exhausted, checking if first key has reset...')
-        const firstKeyResponse = await makeJinaRequest(allKeys[0].key)
-
-        if (firstKeyResponse.ok) {
-          // First key reset! Clear exhausted state and use it
-          console.log('[Jina] First key has reset! Continuing...')
-          clearExhaustedState('jina')
-          return parseResponse(firstKeyResponse)
-        }
-
-        // First key still rate limited - STOP
-        throw new Error(
-          'All Jina API keys have hit rate limits. Please wait until they reset or add new API keys in Settings.'
-        )
+        throw new Error('All Jina API keys are expired. Please add new API keys in Settings.')
       }
       continue
     }
@@ -775,7 +717,7 @@ export async function findEmailByDomainWithRotation(
 
     if (isRateLimitError(response, data)) {
       console.log(`[Hunter.io] Key #${index + 1} rate limited, marking exhausted`)
-      markKeyExhausted('hunter', index, 'rate_limit')
+      markKeyRateLimited('hunter', index, 'rate_limit')
       return { email: null, rateLimited: true, keyIndex: index }
     }
 
@@ -824,7 +766,7 @@ export async function findEmailByNameWithRotation(
 
     if (isRateLimitError(response, data)) {
       console.log(`[Hunter.io] Key #${index + 1} rate limited, marking exhausted`)
-      markKeyExhausted('hunter', index, 'rate_limit')
+      markKeyRateLimited('hunter', index, 'rate_limit')
       return { email: null, rateLimited: true, keyIndex: index }
     }
 
@@ -904,7 +846,7 @@ export async function findEmailByDomainSnovWithRotation(
 
   if (tokenRateLimited) {
     console.log(`[Snov.io] Key #${index + 1} rate limited during auth`)
-    markKeyExhausted('snov', index, 'rate_limit')
+    markKeyRateLimited('snov', index, 'rate_limit')
     return { email: null, rateLimited: true, keyIndex: index }
   }
 
@@ -923,7 +865,7 @@ export async function findEmailByDomainSnovWithRotation(
     })
 
     if (isRateLimitError(startResponse)) {
-      markKeyExhausted('snov', index, 'rate_limit')
+      markKeyRateLimited('snov', index, 'rate_limit')
       return { email: null, rateLimited: true, keyIndex: index }
     }
 
@@ -940,7 +882,7 @@ export async function findEmailByDomainSnovWithRotation(
       )
 
       if (isRateLimitError(resultResponse)) {
-        markKeyExhausted('snov', index, 'rate_limit')
+        markKeyRateLimited('snov', index, 'rate_limit')
         return { email: null, rateLimited: true, keyIndex: index }
       }
 
@@ -999,7 +941,7 @@ export async function findEmailByNameSnovWithRotation(
 
   if (tokenRateLimited) {
     console.log(`[Snov.io] Key #${index + 1} rate limited during auth`)
-    markKeyExhausted('snov', index, 'rate_limit')
+    markKeyRateLimited('snov', index, 'rate_limit')
     return { email: null, rateLimited: true, keyIndex: index }
   }
 
@@ -1021,7 +963,7 @@ export async function findEmailByNameSnovWithRotation(
     })
 
     if (isRateLimitError(startResponse)) {
-      markKeyExhausted('snov', index, 'rate_limit')
+      markKeyRateLimited('snov', index, 'rate_limit')
       return { email: null, rateLimited: true, keyIndex: index }
     }
 
@@ -1042,7 +984,7 @@ export async function findEmailByNameSnovWithRotation(
       )
 
       if (isRateLimitError(resultResponse)) {
-        markKeyExhausted('snov', index, 'rate_limit')
+        markKeyRateLimited('snov', index, 'rate_limit')
         return { email: null, rateLimited: true, keyIndex: index }
       }
 
@@ -1151,6 +1093,12 @@ export async function findEmailWithFallback(
     source: string
     isReset: boolean
   }> => {
+    const firstKeyValue = hunterKeys.length > 0 ? hunterKeys[0].key : hunterApiKey
+    const firstKeyCooldown = firstKeyValue ? getApiKeyCooldown('hunter', firstKeyValue) : null
+    if (firstKeyCooldown && firstKeyCooldown.resetAt > Date.now()) {
+      return { email: null, source: 'none', isReset: false }
+    }
+
     // Clear Hunter exhausted state to test first key
     clearExhaustedState('hunter')
 
@@ -1224,6 +1172,7 @@ export async function findEmailWithFallback(
 export async function verifyEmailWithReoon(
   email: string
 ): Promise<{ verified: boolean; rateLimited: boolean; allKeysExhausted: boolean }> {
+  const REOON_COOLDOWN_MS = 24 * 60 * 60 * 1000
   const reoonKeys = getReoonApiKeys()
   const singleKey = getApiKeys().reoonApiKey
 
@@ -1236,6 +1185,16 @@ export async function verifyEmailWithReoon(
 
   if (allKeys.length === 0) {
     return { verified: false, rateLimited: false, allKeysExhausted: false }
+  }
+
+  updateServiceKeys(
+    SERVICE_NAMES.REOON,
+    allKeys.map((k) => ({ key: k.key }))
+  )
+
+  const isKeyOnCooldown = (apiKey: string): boolean => {
+    const cooldown = getApiKeyCooldown('reoon', apiKey)
+    return !!cooldown && cooldown.resetAt > Date.now()
   }
 
   // Helper to make Reoon verification request
@@ -1284,21 +1243,26 @@ export async function verifyEmailWithReoon(
 
   // ALWAYS try first key first (to check if it has reset from previous calls)
   console.log(`[Reoon] Trying first key first (checking if reset)...`)
-  const firstKeyResult = await makeReoonRequest(allKeys[0].key)
+  if (!isKeyOnCooldown(allKeys[0].key)) {
+    const firstKeyResult = await makeReoonRequest(allKeys[0].key)
 
-  if (!firstKeyResult.rateLimited && !firstKeyResult.error) {
-    // First key works! Clear exhausted state and return result
-    clearExhaustedState('reoon')
-    return { verified: firstKeyResult.verified, rateLimited: false, allKeysExhausted: false }
-  }
+    if (!firstKeyResult.rateLimited && !firstKeyResult.error) {
+      clearExhaustedState('reoon')
+      return { verified: firstKeyResult.verified, rateLimited: false, allKeysExhausted: false }
+    }
 
-  if (firstKeyResult.rateLimited) {
-    console.log(`[Reoon] First key still rate limited, trying other keys...`)
-    markKeyExhausted('reoon', 0, 'rate_limit')
+    if (firstKeyResult.rateLimited) {
+      console.log(`[Reoon] First key rate limited, trying other keys...`)
+      markKeyRateLimited('reoon', 0, 'rate_limit', REOON_COOLDOWN_MS)
+    }
   }
 
   // Try remaining keys
   for (let i = 1; i < allKeys.length; i++) {
+    if (isKeyOnCooldown(allKeys[i].key)) {
+      continue
+    }
+
     const keyResult = await makeReoonRequest(allKeys[i].key)
 
     if (!keyResult.rateLimited && !keyResult.error) {
@@ -1307,7 +1271,7 @@ export async function verifyEmailWithReoon(
 
     if (keyResult.rateLimited) {
       console.log(`[Reoon] Key #${i + 1} rate limited, trying next...`)
-      markKeyExhausted('reoon', i, 'rate_limit')
+      markKeyRateLimited('reoon', i, 'rate_limit', REOON_COOLDOWN_MS)
     }
   }
 

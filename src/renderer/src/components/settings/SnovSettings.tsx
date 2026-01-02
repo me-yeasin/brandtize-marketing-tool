@@ -12,6 +12,9 @@ function SnovSettings(): JSX.Element {
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [multiKeys, setMultiKeys] = useState<ApiKeyEntry[]>([])
+  const [keyCooldowns, setKeyCooldowns] = useState<
+    Record<string, { rateLimitedAt: number; resetAt: number }>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -19,9 +22,11 @@ function SnovSettings(): JSX.Element {
       try {
         const credentials = await window.api.getSnovCredentials()
         const keys = await window.api.getSnovApiKeys()
+        const cooldowns = await window.api.getApiKeyCooldowns('snov')
         setClientId(credentials.clientId || '')
         setClientSecret(credentials.clientSecret || '')
         setMultiKeys(keys || [])
+        setKeyCooldowns(cooldowns || {})
       } catch (error) {
         console.error('Failed to load Snov keys:', error)
       }
@@ -77,6 +82,7 @@ function SnovSettings(): JSX.Element {
         onSaveSecondField={handleSaveSecondField}
         multiKeys={multiKeys}
         onSaveMultiKeys={handleSaveMultiKeys}
+        keyCooldowns={keyCooldowns}
       />
 
       <div className="settings-info-box">

@@ -29,6 +29,8 @@
  * ```
  */
 
+import { getApiKeyCooldown, isApiKeyExpired, setApiKeyCooldown, setApiKeyExpired } from '../store'
+
 // Key entry interface
 export interface KeyEntry {
   key: string
@@ -46,6 +48,18 @@ interface KeyRotationState {
 
 // Global rotation state for all services
 const keyRotationState: Map<string, KeyRotationState> = new Map()
+
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000
+
+function isKeyAvailable(serviceName: string, state: KeyRotationState, index: number): boolean {
+  if (state.exhaustedKeys.has(index)) return false
+  const entry = state.keys[index]
+  if (!entry?.key) return false
+  if (isApiKeyExpired(serviceName, entry.key)) return false
+  const cooldown = getApiKeyCooldown(serviceName, entry.key)
+  if (!cooldown) return true
+  return cooldown.resetAt <= Date.now()
+}
 
 /**
  * Register a service with its API keys.
@@ -132,14 +146,31 @@ export function getNextKey(serviceName: string): {
   // Find next available key
   for (let i = 0; i < state.keys.length; i++) {
     const index = (state.currentIndex + i) % state.keys.length
-    if (!state.exhaustedKeys.has(index)) {
+    if (isKeyAvailable(serviceName, state, index)) {
       return { key: state.keys[index], index, allExhausted: false }
     }
   }
 
-  // All keys exhausted - reset and try first key (maybe it's reset)
+  const anyNotInCooldown = state.keys.some((k) => {
+    if (!k.key) return false
+    if (isApiKeyExpired(serviceName, k.key)) return false
+    const cooldown = getApiKeyCooldown(serviceName, k.key)
+    return !cooldown || cooldown.resetAt <= Date.now()
+  })
+
+  if (!anyNotInCooldown) {
+    return { key: null, index: -1, allExhausted: true }
+  }
+
+  // All keys exhausted - reset and try again
   state.exhaustedKeys.clear()
-  return { key: state.keys[0], index: 0, allExhausted: true }
+  for (let i = 0; i < state.keys.length; i++) {
+    if (isKeyAvailable(serviceName, state, i)) {
+      return { key: state.keys[i], index: i, allExhausted: true }
+    }
+  }
+
+  return { key: null, index: -1, allExhausted: true }
 }
 
 /**
@@ -152,6 +183,30 @@ export function markKeyExhausted(serviceName: string, index: number, error: stri
     state.lastError = error
     state.currentIndex = (index + 1) % Math.max(state.keys.length, 1) // Move to next
   }
+}
+
+export function markKeyRateLimited(
+  serviceName: string,
+  index: number,
+  error: string,
+  cooldownMs: number = DEFAULT_RATE_LIMIT_COOLDOWN_MS
+): void {
+  const state = keyRotationState.get(serviceName)
+  const apiKey = state?.keys[index]?.key
+  if (apiKey) {
+    const now = Date.now()
+    setApiKeyCooldown(serviceName, apiKey, { rateLimitedAt: now, resetAt: now + cooldownMs })
+  }
+  markKeyExhausted(serviceName, index, error)
+}
+
+export function markKeyExpired(serviceName: string, index: number, error: string): void {
+  const state = keyRotationState.get(serviceName)
+  const apiKey = state?.keys[index]?.key
+  if (apiKey) {
+    setApiKeyExpired(serviceName, apiKey, true)
+  }
+  markKeyExhausted(serviceName, index, error)
 }
 
 /**
@@ -168,7 +223,10 @@ export function getLastError(serviceName: string): string {
 export function areAllKeysExhausted(serviceName: string): boolean {
   const state = keyRotationState.get(serviceName)
   if (!state) return true
-  return state.exhaustedKeys.size >= state.keys.length
+  for (let i = 0; i < state.keys.length; i++) {
+    if (isKeyAvailable(serviceName, state, i)) return false
+  }
+  return true
 }
 
 /**
@@ -283,7 +341,7 @@ export async function executeWithKeyRotation<T>(
 
         if (isRateLimit) {
           console.log(`[${serviceName}] Key ${index + 1}/${totalKeys} rate limited`)
-          markKeyExhausted(
+          markKeyRateLimited(
             serviceName,
             index,
             error instanceof Error ? error.message : 'Rate limited'
@@ -326,24 +384,30 @@ export async function executeWithKeyRotation<T>(
 
       // Check if first key has reset
       if (checkFirstKeyReset && state.keys.length > 0) {
+        const firstKeyValue = state.keys[0]?.key || ''
+        const cooldown = firstKeyValue ? getApiKeyCooldown(serviceName, firstKeyValue) : null
+        if (cooldown && cooldown.resetAt > Date.now()) {
+          console.log(`[${serviceName}] All keys on cooldown - ALL KEYS EXHAUSTED`)
+          throw new Error(
+            `All ${serviceName} API keys have hit rate limits. Please wait until they reset or add new API keys.`
+          )
+        }
+
         console.log(`[${serviceName}] All keys exhausted, checking if first key has reset...`)
 
         try {
           const result = await operation(state.keys[0], 0)
-          // First key works again!
           console.log(`[${serviceName}] First key has reset! Continuing...`)
           resetServiceRotation(serviceName)
           callbacks?.onKeyReset?.(serviceName)
           return result
         } catch (firstKeyError) {
           if (isRateLimitError(firstKeyError)) {
-            // First key still rate limited - all truly exhausted
             console.log(`[${serviceName}] First key still rate limited - ALL KEYS EXHAUSTED`)
             throw new Error(
               `All ${serviceName} API keys have hit rate limits. Please wait until they reset or add new API keys.`
             )
           }
-          // Non-rate-limit error
           throw firstKeyError
         }
       }
@@ -398,7 +462,8 @@ export const SERVICE_NAMES = {
   JINA: 'jina',
   HUNTER: 'hunter',
   SNOV: 'snov',
-  REOON: 'reoon'
+  REOON: 'reoon',
+  APIFY: 'apify'
 } as const
 
 export type ServiceName = (typeof SERVICE_NAMES)[keyof typeof SERVICE_NAMES]

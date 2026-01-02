@@ -1,19 +1,12 @@
 import { JSX, useState } from 'react'
 import {
-  FaAddressBook,
-  FaBug,
   FaChevronDown,
   FaEnvelope,
-  FaLinkedin,
   FaPaperPlane,
-  FaReddit,
   FaRobot,
   FaSave,
   FaSearchLocation,
   FaShareAlt,
-  FaSignal,
-  FaTelegramPlane,
-  FaTwitter,
   FaWhatsapp
 } from 'react-icons/fa'
 import { TfiWrite } from 'react-icons/tfi'
@@ -46,17 +39,6 @@ const navigationGroups: NavGroup[] = [
       },
 
       {
-        id: 'bug-hunter',
-        label: 'Bug Hunter',
-        icon: <FaBug />
-      },
-      {
-        id: 'direct-contact',
-        label: 'Direct Contact',
-        icon: <FaAddressBook />
-      },
-
-      {
         id: 'social-leads',
         label: 'Social',
         icon: <FaShareAlt />
@@ -74,28 +56,6 @@ const navigationGroups: NavGroup[] = [
     ]
   },
   {
-    id: 'social-signal',
-    label: 'Social Signal',
-    icon: <FaSignal />,
-    children: [
-      {
-        id: 'x-monitor',
-        label: 'X Monitor',
-        icon: <FaTwitter />
-      },
-      {
-        id: 'linkedin-pulse',
-        label: 'LinkedIn Pulse',
-        icon: <FaLinkedin />
-      },
-      {
-        id: 'reddit-community',
-        label: 'Reddit / Community',
-        icon: <FaReddit />
-      }
-    ]
-  },
-  {
     id: 'ai-copywriter-group',
     label: 'AI Copywriter',
     icon: <TfiWrite />,
@@ -109,11 +69,6 @@ const navigationGroups: NavGroup[] = [
         id: 'ai-copywriter-whatsapp',
         label: 'WhatsApp',
         icon: <FaWhatsapp className="text-xs" />
-      },
-      {
-        id: 'ai-copywriter-telegram',
-        label: 'Telegram',
-        icon: <FaTelegramPlane className="text-xs" />
       }
     ]
   }
@@ -138,7 +93,6 @@ function Sidebar({
 }: SidebarProps): JSX.Element {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'direct-reach': true, // Default expanded
-    'social-signal': false,
     'ai-copywriter-group': true
   })
 

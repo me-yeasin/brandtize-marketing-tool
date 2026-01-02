@@ -7,6 +7,8 @@ export interface ApiKeyEntry {
   label?: string
 }
 
+export type ApiKeyCooldownInfo = { rateLimitedAt: number; resetAt: number }
+
 // Saved Maps Lead type
 export interface SavedMapsLead {
   id: string
@@ -141,6 +143,9 @@ contextBridge.exposeInMainWorld('api', {
     snovClientId: string
     snovClientSecret: string
   }> => ipcRenderer.invoke('get-api-keys'),
+
+  getApiKeyCooldowns: (serviceName: string): Promise<Record<string, ApiKeyCooldownInfo>> =>
+    ipcRenderer.invoke('get-api-key-cooldowns', serviceName),
 
   // ========================================
   // GROQ

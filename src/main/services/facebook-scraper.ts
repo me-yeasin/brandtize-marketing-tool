@@ -5,8 +5,12 @@
 
 import { ApifyClient } from 'apify-client'
 import { getApifyApiKey, getApifyApiKeys } from '../store'
-
-let apifyMultiKeyIndex = 0
+import {
+  executeWithKeyRotation,
+  SERVICE_NAMES,
+  updateServiceKeys,
+  type KeyEntry
+} from './key-rotation-manager'
 
 // Facebook Page Lead interface
 export interface FacebookPageLead {
@@ -155,28 +159,50 @@ function parseApifyResponse(item: Record<string, unknown>): FacebookPageLead {
 }
 
 /**
- * Get the Apify client with the configured API key
+ * Get the Apify keys in rotation-manager format
  */
-function getApifyClient(): ApifyClient {
-  // Try multi-key first, fall back to single key
+function getApifyKeyEntries(): KeyEntry[] {
   const multiKeys = getApifyApiKeys()
-  let apiKey = ''
+  const singleKey = getApifyApiKey()
 
   if (multiKeys.length > 0) {
-    const index = apifyMultiKeyIndex % multiKeys.length
-    apiKey = multiKeys[index]?.key || ''
-    apifyMultiKeyIndex = (apifyMultiKeyIndex + 1) % multiKeys.length
-  } else {
-    apiKey = getApifyApiKey()
+    return multiKeys.map((k) => ({ key: k.key }))
   }
 
-  if (!apiKey) {
-    throw new Error(
-      'Apify API key not configured. Please add your API key in Settings > API Keys > Apify.'
+  return singleKey ? [{ key: singleKey }] : []
+}
+
+function isApifyRateLimitError(error: unknown): boolean {
+  if (error && typeof error === 'object') {
+    const e = error as Record<string, unknown>
+    const asStatus = (value: unknown): number | undefined =>
+      typeof value === 'number' ? value : undefined
+
+    const clientResponse = e.clientResponse as Record<string, unknown> | undefined
+    const response = e.response as Record<string, unknown> | undefined
+
+    const status =
+      asStatus(e.statusCode) ??
+      asStatus(e.status) ??
+      asStatus(e.httpStatusCode) ??
+      asStatus(clientResponse?.statusCode) ??
+      asStatus(response?.status) ??
+      asStatus(response?.statusCode)
+    if (status === 429 || status === 402 || status === 401) return true
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase()
+    return (
+      msg.includes('429') ||
+      msg.includes('too many requests') ||
+      msg.includes('rate limit') ||
+      msg.includes('quota') ||
+      msg.includes('payment required') ||
+      msg.includes('insufficient') ||
+      msg.includes('credit')
     )
   }
-
-  return new ApifyClient({ token: apiKey })
+  return false
 }
 
 async function fetchDatasetItems(
@@ -294,7 +320,6 @@ export async function searchFacebookPages(
 ): Promise<FacebookPageLead[]> {
   console.log('[FacebookScraper] Starting search with params:', params)
 
-  const client = getApifyClient()
   const maxResults = params.maxResults || 100
 
   // If we have direct URLs, use the Pages Scraper
@@ -342,32 +367,42 @@ export async function searchFacebookPages(
 
     console.log('[FacebookScraper] Running Facebook Search Scraper with input:', actorInput)
 
-    const timeoutSeconds = Math.max(300, Math.min(900, 300 + Math.ceil(maxResults / 100) * 120))
-    const run = await runActorWithProxyFallback(
-      client,
-      'apify/facebook-search-scraper',
-      actorInput,
-      timeoutSeconds,
-      params.signal
-    )
+    const keyEntries = getApifyKeyEntries()
+    if (keyEntries.length === 0) {
+      throw new Error(
+        'Apify API key not configured. Please add your API key in Settings > API Keys > Apify.'
+      )
+    }
 
-    console.log('[FacebookScraper] Run completed, fetching results...')
+    updateServiceKeys(SERVICE_NAMES.APIFY, keyEntries)
 
-    // Get results from the dataset
-    const items = await fetchDatasetItems(client, run.defaultDatasetId, maxResults)
+    return await executeWithKeyRotation({
+      serviceName: SERVICE_NAMES.APIFY,
+      isRateLimitError: isApifyRateLimitError,
+      operation: async (keyEntry) => {
+        const client = new ApifyClient({ token: keyEntry.key })
+        const timeoutSeconds = Math.max(300, Math.min(900, 300 + Math.ceil(maxResults / 100) * 120))
+        const run = await runActorWithProxyFallback(
+          client,
+          'apify/facebook-search-scraper',
+          actorInput,
+          timeoutSeconds,
+          params.signal
+        )
 
-    console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
+        console.log('[FacebookScraper] Run completed, fetching results...')
 
-    // Parse results
-    const leads = items.map((item) => parseApifyResponse(item as Record<string, unknown>))
+        const items = await fetchDatasetItems(client, run.defaultDatasetId, maxResults)
+        console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
 
-    // Sort by score (gold first)
-    const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
-    leads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
+        const leads = items.map((item) => parseApifyResponse(item as Record<string, unknown>))
+        const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
+        leads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
 
-    console.log(`[FacebookScraper] Processed ${leads.length} leads`)
-
-    return leads
+        console.log(`[FacebookScraper] Processed ${leads.length} leads`)
+        return leads
+      }
+    })
   } catch (error) {
     console.error('[FacebookScraper] Search error:', error)
     throw error
@@ -387,39 +422,49 @@ export async function scrapeFacebookPageUrls(
     throw new Error('Please provide at least one Facebook page URL')
   }
 
-  const client = getApifyClient()
-
   try {
     // Run the Facebook Pages Scraper actor
     // Actor ID: apify/facebook-pages-scraper
     console.log('[FacebookScraper] Running Facebook Pages Scraper...')
+    const keyEntries = getApifyKeyEntries()
+    if (keyEntries.length === 0) {
+      throw new Error(
+        'Apify API key not configured. Please add your API key in Settings > API Keys > Apify.'
+      )
+    }
 
-    const timeoutSeconds = Math.max(300, Math.min(900, 300 + Math.ceil(urls.length / 100) * 120))
-    const run = await runActorWithProxyFallback(
-      client,
-      'apify/facebook-pages-scraper',
-      { startUrls: urls.map((url) => ({ url })) },
-      timeoutSeconds,
-      signal
-    )
+    updateServiceKeys(SERVICE_NAMES.APIFY, keyEntries)
 
-    console.log('[FacebookScraper] Run completed, fetching results...')
+    return await executeWithKeyRotation({
+      serviceName: SERVICE_NAMES.APIFY,
+      isRateLimitError: isApifyRateLimitError,
+      operation: async (keyEntry) => {
+        const client = new ApifyClient({ token: keyEntry.key })
+        const timeoutSeconds = Math.max(
+          300,
+          Math.min(900, 300 + Math.ceil(urls.length / 100) * 120)
+        )
+        const run = await runActorWithProxyFallback(
+          client,
+          'apify/facebook-pages-scraper',
+          { startUrls: urls.map((url) => ({ url })) },
+          timeoutSeconds,
+          signal
+        )
 
-    // Get results from the dataset
-    const items = await fetchDatasetItems(client, run.defaultDatasetId, urls.length)
+        console.log('[FacebookScraper] Run completed, fetching results...')
 
-    console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
+        const items = await fetchDatasetItems(client, run.defaultDatasetId, urls.length)
+        console.log(`[FacebookScraper] Retrieved ${items.length} raw results`)
 
-    // Parse results
-    const leads = items.map((item) => parseApifyResponse(item as Record<string, unknown>))
+        const leads = items.map((item) => parseApifyResponse(item as Record<string, unknown>))
+        const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
+        leads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
 
-    // Sort by score (gold first)
-    const scoreOrder = { gold: 0, silver: 1, bronze: 2 }
-    leads.sort((a, b) => scoreOrder[a.score] - scoreOrder[b.score])
-
-    console.log(`[FacebookScraper] Processed ${leads.length} leads`)
-
-    return leads
+        console.log(`[FacebookScraper] Processed ${leads.length} leads`)
+        return leads
+      }
+    })
   } catch (error) {
     console.error('[FacebookScraper] Scrape error:', error)
     throw error

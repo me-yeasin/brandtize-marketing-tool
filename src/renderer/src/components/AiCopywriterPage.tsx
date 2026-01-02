@@ -10,7 +10,7 @@ import {
   FaWhatsapp
 } from 'react-icons/fa'
 // Campaign is defined locally to avoid import issues
-type TabType = 'mail' | 'whatsapp' | 'telegram'
+type TabType = 'mail' | 'whatsapp'
 
 interface CampaignGroup {
   id: string
@@ -2902,13 +2902,6 @@ function AiCopywriterPage({ initialTab = 'mail' }: AiCopywriterPageProps): JSX.E
     <>
       {activeTab === 'mail' && <MailCampaigns />}
       {activeTab === 'whatsapp' && <WhatsAppCampaigns />}
-      {activeTab === 'telegram' && (
-        <div className="wrapper-container p-6 relative">
-          <div className="campaign-header">
-            <h1 className="text-2xl font-bold text-slate-500">Telegram Copywriter - Coming Soon</h1>
-          </div>
-        </div>
-      )}
     </>
   )
 }

@@ -73,8 +73,6 @@ function App(): JSX.Element {
         return <AiCopywriterPage initialTab="mail" />
       case 'ai-copywriter-whatsapp':
         return <AiCopywriterPage initialTab="whatsapp" />
-      case 'ai-copywriter-telegram':
-        return <AiCopywriterPage initialTab="telegram" />
       case 'saved-leads':
         return <SavedLeadsPage />
       case 'automation':

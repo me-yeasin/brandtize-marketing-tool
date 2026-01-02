@@ -11,6 +11,9 @@ interface ApiKeyEntry {
 function ReoonSettings(): JSX.Element {
   const [apiKey, setApiKey] = useState('')
   const [multiKeys, setMultiKeys] = useState<ApiKeyEntry[]>([])
+  const [keyCooldowns, setKeyCooldowns] = useState<
+    Record<string, { rateLimitedAt: number; resetAt: number }>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -18,8 +21,10 @@ function ReoonSettings(): JSX.Element {
       try {
         const key = await window.api.getReoonApiKey()
         const keys = await window.api.getReoonApiKeys()
+        const cooldowns = await window.api.getApiKeyCooldowns('reoon')
         setApiKey(key || '')
         setMultiKeys(keys || [])
+        setKeyCooldowns(cooldowns || {})
       } catch (error) {
         console.error('Failed to load Reoon keys:', error)
       }
@@ -64,6 +69,7 @@ function ReoonSettings(): JSX.Element {
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}
         onSaveMultiKeys={handleSaveMultiKeys}
+        keyCooldowns={keyCooldowns}
       />
 
       <div className="settings-info-box">

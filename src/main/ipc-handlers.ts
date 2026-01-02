@@ -15,6 +15,7 @@ import {
   deleteWhatsappCampaign,
   deleteWhatsappCampaignGroup,
   getApiKeys,
+  getApiKeyCooldowns,
   getApifyApiKey,
   getApifyApiKeys,
   getEmailPitches,
@@ -79,6 +80,10 @@ export function registerIpcHandlers(): void {
   // ========================================
   ipcMain.handle('get-api-keys', () => {
     return getApiKeys()
+  })
+
+  ipcMain.handle('get-api-key-cooldowns', (_event, serviceName: string) => {
+    return getApiKeyCooldowns(serviceName)
   })
 
   // ========================================

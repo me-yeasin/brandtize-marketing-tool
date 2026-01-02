@@ -11,6 +11,9 @@ interface ApiKeyEntry {
 function HunterSettings(): JSX.Element {
   const [apiKey, setApiKey] = useState('')
   const [multiKeys, setMultiKeys] = useState<ApiKeyEntry[]>([])
+  const [keyCooldowns, setKeyCooldowns] = useState<
+    Record<string, { rateLimitedAt: number; resetAt: number }>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -18,8 +21,10 @@ function HunterSettings(): JSX.Element {
       try {
         const key = await window.api.getHunterApiKey()
         const keys = await window.api.getHunterApiKeys()
+        const cooldowns = await window.api.getApiKeyCooldowns('hunter')
         setApiKey(key || '')
         setMultiKeys(keys || [])
+        setKeyCooldowns(cooldowns || {})
       } catch (error) {
         console.error('Failed to load Hunter keys:', error)
       }
@@ -64,6 +69,7 @@ function HunterSettings(): JSX.Element {
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}
         onSaveMultiKeys={handleSaveMultiKeys}
+        keyCooldowns={keyCooldowns}
       />
 
       <div className="settings-info-box">

@@ -17,6 +17,7 @@ interface ApiKeyCardProps {
   // Multi-key props (optional)
   multiKeys?: ApiKeyEntry[]
   onSaveMultiKeys?: (keys: ApiKeyEntry[]) => Promise<boolean>
+  keyCooldowns?: Record<string, { rateLimitedAt: number; resetAt: number }>
   // For Snov-style credentials
   hasSecondField?: boolean
   secondFieldLabel?: string
@@ -32,6 +33,7 @@ function ApiKeyCard({
   onSaveKey,
   multiKeys = [],
   onSaveMultiKeys,
+  keyCooldowns = {},
   hasSecondField = false,
   secondFieldLabel = '',
   secondFieldValue = '',
@@ -45,6 +47,7 @@ function ApiKeyCard({
   const [showSuccess, setShowSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showKeys, setShowKeys] = useState(false)
+  const [now, setNow] = useState(0)
 
   // Sync state with props when they change
   useEffect(() => {
@@ -59,11 +62,28 @@ function ApiKeyCard({
     setLocalMultiKeys(multiKeys)
   }, [multiKeys])
 
+  useEffect(() => {
+    const updateNow = (): void => setNow(Date.now())
+    updateNow()
+    const intervalId = window.setInterval(updateNow, 60 * 1000)
+    return () => window.clearInterval(intervalId)
+  }, [])
+
   // Mask API key for display
   const maskKey = (key: string): string => {
     if (!key || key.length < 8) return '••••••••'
     return '••••••••' + key.slice(-4)
   }
+
+  const formatDateTime = (ts: number): string => {
+    if (!Number.isFinite(ts)) return ''
+    return new Date(ts).toLocaleString()
+  }
+
+  const primaryCooldown =
+    inputValue && keyCooldowns[inputValue] && keyCooldowns[inputValue].resetAt > now
+      ? keyCooldowns[inputValue]
+      : null
 
   // Save primary key
   const handleSaveKey = async (): Promise<void> => {
@@ -159,6 +179,13 @@ function ApiKeyCard({
             {showKeys ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
           </button>
         </div>
+        {primaryCooldown && (
+          <div style={{ fontSize: '0.85rem', marginTop: '6px', opacity: 0.8 }}>
+            {`Rate limited at ${formatDateTime(primaryCooldown.rateLimitedAt)}. Resets at ${formatDateTime(
+              primaryCooldown.resetAt
+            )}.`}
+          </div>
+        )}
       </div>
 
       {/* Second Field (for Snov.io) */}
@@ -211,6 +238,18 @@ function ApiKeyCard({
                         {maskKey(keyEntry.userId)}
                       </span>
                     )}
+                    {keyEntry.key &&
+                      keyCooldowns[keyEntry.key] &&
+                      keyCooldowns[keyEntry.key].resetAt > now && (
+                        <span
+                          className="multi-key-value-secondary"
+                          style={{ fontSize: '0.85em', opacity: 0.8 }}
+                        >
+                          {`Rate limited at ${formatDateTime(keyCooldowns[keyEntry.key].rateLimitedAt)}. Resets at ${formatDateTime(
+                            keyCooldowns[keyEntry.key].resetAt
+                          )}.`}
+                        </span>
+                      )}
                   </div>
                   <button
                     className="multi-key-remove-btn"

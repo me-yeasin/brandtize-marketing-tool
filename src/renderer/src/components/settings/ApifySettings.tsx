@@ -11,6 +11,9 @@ interface ApiKeyEntry {
 function ApifySettings(): JSX.Element {
   const [apiKey, setApiKey] = useState('')
   const [multiKeys, setMultiKeys] = useState<ApiKeyEntry[]>([])
+  const [keyCooldowns, setKeyCooldowns] = useState<
+    Record<string, { rateLimitedAt: number; resetAt: number }>
+  >({})
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -18,8 +21,10 @@ function ApifySettings(): JSX.Element {
       try {
         const key = await window.api.getApifyApiKey()
         const keys = await window.api.getApifyApiKeys()
+        const cooldowns = await window.api.getApiKeyCooldowns('apify')
         setApiKey(key || '')
         setMultiKeys(keys || [])
+        setKeyCooldowns(cooldowns || {})
       } catch (error) {
         console.error('Failed to load Apify keys:', error)
       }
@@ -64,6 +69,7 @@ function ApifySettings(): JSX.Element {
         onSaveKey={handleSaveKey}
         multiKeys={multiKeys}
         onSaveMultiKeys={handleSaveMultiKeys}
+        keyCooldowns={keyCooldowns}
       />
 
       <div className="settings-info-box">

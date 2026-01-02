@@ -7,6 +7,8 @@ export interface ApiKeyEntry {
   label?: string
 }
 
+export type ApiKeyCooldownInfo = { rateLimitedAt: number; resetAt: number }
+
 export interface UpdateDownloadProgress {
   percent: number
   transferred: number
@@ -131,6 +133,8 @@ export interface BrandtizeAPI {
     snovClientId: string
     snovClientSecret: string
   }>
+
+  getApiKeyCooldowns: (serviceName: string) => Promise<Record<string, ApiKeyCooldownInfo>>
 
   // Groq
   getGroqApiKey: () => Promise<string>
