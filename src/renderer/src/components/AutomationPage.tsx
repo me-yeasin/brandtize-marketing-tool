@@ -414,21 +414,33 @@ function AutomationPage(): JSX.Element {
     <div className="automation-container">
       <div className="automation-content">
         <div className="automation-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="automation-header-top">
             <h1>AI Lead Generation Agent</h1>
-            {foundLeads.length > 0 && !isPanelOpen && (
-              <button
-                className="btn btn-primary"
-                style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }}
-                onClick={() => setIsPanelOpen(true)}
-              >
-                <FaList /> View Found Leads ({foundLeads.length})
-              </button>
-            )}
-          </div>
-          <div className={`automation-status`}>
-            <span className={`status-dot ${isRunning ? 'active' : ''}`}></span>
-            {isRunning ? 'Agent is Running' : 'Agent is Idle'}
+            <div className="automation-header-actions">
+              <div className={`automation-status`}>
+                <span className={`status-dot ${isRunning ? 'active' : ''}`}></span>
+                {isRunning ? 'Agent is Running' : 'Agent is Idle'}
+              </div>
+
+              {foundLeads.length > 0 && !isPanelOpen && (
+                <button
+                  className="btn btn-primary btn-compact"
+                  onClick={() => setIsPanelOpen(true)}
+                >
+                  <FaList /> View Found Leads ({foundLeads.length})
+                </button>
+              )}
+
+              {isRunning ? (
+                <button className="btn btn-danger btn-compact" onClick={handleStop}>
+                  <FaStop /> Stop Agent
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-compact" onClick={handleStart}>
+                  <FaPlay /> Start Agent Process
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -654,19 +666,6 @@ function AutomationPage(): JSX.Element {
                 ))}
                 <div ref={logsEndRef} />
               </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="action-bar">
-              {isRunning ? (
-                <button className="btn btn-danger" onClick={handleStop}>
-                  <FaStop /> Stop Agent
-                </button>
-              ) : (
-                <button className="btn btn-primary" onClick={handleStart}>
-                  <FaPlay /> Start Agent Process
-                </button>
-              )}
             </div>
           </div>
           {/* End Right Column */}
